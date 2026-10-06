@@ -1,0 +1,1114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>샘플 · 내 자산 · Asset Kit</title>
+  <style>
+/* ===== 디자인 토큰: 아래 CSS는 이 변수만 사용합니다 ===== */
+:root {
+  --brand: #F37321;          /* 빗썸 BI 오렌지 (강조에만 사용) */
+  --brand-strong: #DC5F12;
+  --brand-soft: #FFF2E9;
+
+  --bg: #F4F5F7;
+  --surface: #FFFFFF;
+  --surface-muted: #F8F9FA;
+  --border: #E8EBEE;
+  --border-strong: #D5DAE0;
+
+  --text: #191F28;
+  --text-2: #4E5968;
+  --text-3: #8B95A1;
+
+  /* 국내 관례: 상승 빨강, 하락 파랑 */
+  --up: #E42939;
+  --up-soft: #FFF1F2;
+  --down: #2C6BED;
+  --down-soft: #EFF4FF;
+  --warning: #A86A12;
+  --warning-soft: #FFF7E6;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 2px rgba(25, 31, 40, .04);
+  --focus: 0 0 0 3px rgba(243, 115, 33, .28);
+
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* ===== 기본 ===== */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body { margin: 0; background: var(--bg); line-height: 1.5; font-variant-numeric: tabular-nums; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 26px; letter-spacing: -.6px; }
+h2 { font-size: 16px; letter-spacing: -.3px; }
+h3 { font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--radius-sm); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+pre { background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; overflow-x: auto; }
+[hidden] { display: none !important; }
+.muted { color: var(--text-3); }
+.small { font-size: 12px; }
+.positive { color: var(--up); }
+.negative { color: var(--down); }
+.skip:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.skip:focus { position: fixed; z-index: 10; padding: 12px; background: var(--surface); }
+
+/* ===== 공통 컴포넌트 ===== */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+.card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 20px 24px 16px; }
+.card__head > h2 { margin-right: auto; }
+.card__foot { display: flex; justify-content: space-between; gap: 12px; padding: 12px 24px 20px; font-size: 12px; color: var(--text-3); }
+
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 36px; padding: 0 14px; white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600;
+}
+.button:hover:not(:disabled) { background: var(--surface-muted); }
+.button--primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.button--primary:hover:not(:disabled) { background: var(--brand-strong); }
+.button--ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+
+.input { height: 36px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.checkbox { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.checkbox input { accent-color: var(--brand); }
+
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--surface-muted); color: var(--text-2); font-size: 11px; font-weight: 700; }
+.badge.is-demo { background: var(--warning-soft); color: var(--warning); }
+.count { margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--surface-muted); color: var(--text-3); font-size: 12px; }
+
+.segmented { display: inline-flex; padding: 3px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.segmented button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 600; }
+.segmented button.selected { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+.notice, .alert { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 16px; border-radius: var(--radius-md); font-size: 13px; }
+.notice { background: var(--brand-soft); color: var(--brand-strong); }
+.notice strong { flex-shrink: 0; white-space: nowrap; }
+.notice .button { margin-left: auto; height: 28px; color: var(--brand-strong); }
+.alert { background: var(--up-soft); color: var(--up); }
+.alert--info { background: var(--down-soft); color: var(--down); }
+.empty, td.empty { padding: 48px 16px; text-align: center; color: var(--text-3); }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 12px 18px; border-radius: var(--radius-md); background: var(--text); color: #fff; font-size: 13px; }
+
+/* ===== 레이아웃 ===== */
+.header {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 40px;
+  height: 64px; padding: 0 max(24px, calc((100vw - 1200px) / 2));
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.logo:hover { text-decoration: none; }
+.logo img { display: block; height: 20px; width: auto; }
+.logo span { padding-left: 10px; border-left: 1px solid var(--border-strong); color: var(--text-2); font-size: 13px; font-weight: 700; }
+.header nav { display: flex; align-self: stretch; gap: 24px; }
+.nav-link { position: relative; display: flex; align-items: center; color: var(--text-3); font-weight: 600; }
+.nav-link:hover { color: var(--text); text-decoration: none; }
+.nav-link.active { color: var(--text); }
+.nav-link.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--brand); }
+.header .badge { margin-left: auto; }
+
+.shell { display: flex; flex-direction: column; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 24px; }
+#dashboard { display: flex; flex-direction: column; gap: 16px; }
+.page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.actions { display: flex; gap: 8px; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); gap: 16px; }
+.setup { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 32px; }
+.footer { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0 24px; font-size: 12px; color: var(--text-3); }
+
+/* ===== 요약 ===== */
+.summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr); gap: 16px; }
+.summary__total { display: flex; flex-direction: column; gap: 6px; padding: 24px; border-radius: var(--radius-lg); background: var(--text); color: #fff; }
+.summary__total .label { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.total { font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+.total span { margin-left: 4px; font-size: 18px; font-weight: 600; }
+.summary__updated { margin-top: auto; color: rgba(255, 255, 255, .55); font-size: 12px; }
+.summary__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.summary__metrics .card { display: flex; flex-direction: column; gap: 6px; padding: 20px; }
+.summary__metrics dt { color: var(--text-3); font-size: 13px; }
+.summary__metrics dd { margin: 0; font-size: 20px; font-weight: 700; }
+.sub { color: var(--text-3); font-size: 12px; }
+
+/* ===== 추이 차트 ===== */
+.chart { min-height: 220px; padding: 0 16px; }
+.chart svg { display: block; width: 100%; height: 220px; }
+.chart text { fill: var(--text-3); font-size: 11px; }
+.chart .grid-line { stroke: var(--border); }
+.chart .line { fill: none; stroke: var(--brand); stroke-width: 2; }
+.chart .area { fill: var(--brand-soft); }
+.chart circle { fill: var(--brand); }
+
+/* ===== 일별 손익 달력 ===== */
+.calendar { padding: 0 24px 4px; }
+.calendar__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.calendar__head > strong { min-width: 96px; text-align: center; font-size: 16px; }
+.calendar__head .button { width: 32px; height: 32px; padding: 0; }
+.calendar__total { margin-left: auto; color: var(--text-3); font-size: 12px; }
+.calendar__total strong { margin-left: 4px; font-size: 16px; color: var(--text); }
+.calendar__total strong.positive { color: var(--up); }
+.calendar__total strong.negative { color: var(--down); }
+.calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calendar__weekday { padding: 4px 0; text-align: center; color: var(--text-3); font-size: 11px; }
+.calendar__day {
+  display: flex; flex-direction: column; gap: 2px; min-height: 64px; padding: 8px; overflow: hidden;
+  background: var(--surface-muted); border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 12px;
+}
+.calendar__day strong { white-space: nowrap; }
+.calendar__day small { font-size: 10px; opacity: .8; }
+.calendar__day.is-blank { background: transparent; }
+.calendar__day.is-positive { background: var(--up-soft); color: var(--up); }
+.calendar__day.is-negative { background: var(--down-soft); color: var(--down); }
+.calendar__day.is-today { border-color: var(--brand); }
+.calendar__date { color: var(--text-3); font-size: 11px; }
+.calendar__note { margin-top: 12px; color: var(--text-3); font-size: 11px; }
+
+/* ===== 자산 비중 ===== */
+.allocation { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 8px 24px 24px; }
+.donut { position: relative; width: 168px; height: 168px; }
+.donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.donut__label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut__label strong { font-size: 24px; }
+.donut__label span { color: var(--text-3); font-size: 12px; }
+.legend { width: 100%; margin: 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.legend li:last-child { border-bottom: 0; }
+.legend span { flex: 1; }
+.swatch { width: 8px; height: 8px; }
+
+/* ===== 표 ===== */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 24px 12px; }
+.toolbar #search { flex: 1; min-width: 200px; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; }
+th { padding: 10px 24px; background: var(--surface-muted); border-block: 1px solid var(--border); color: var(--text-3); font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }
+td { padding: 14px 24px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td small { display: block; margin-top: 2px; color: var(--text-3); font-size: 11px; }
+td small.positive { color: var(--up); }
+td small.negative { color: var(--down); }
+tbody tr:hover { background: var(--surface-muted); }
+.asset-button { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; text-align: left; }
+.asset-symbol { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-strong); font-size: 10px; font-weight: 800; overflow: hidden; }
+.asset-name { font-weight: 600; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 16px; }
+
+/* ===== 툴킷 ===== */
+.toolkit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0 24px 24px; }
+.command { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 6px 12px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags span { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); color: var(--text-2); font-size: 12px; }
+
+/* ===== 대화상자 ===== */
+dialog { width: min(520px, calc(100vw - 32px)); padding: 24px; border: 0; border-radius: var(--radius-lg); box-shadow: 0 24px 64px rgba(25, 31, 40, .18); }
+dialog::backdrop { background: rgba(25, 31, 40, .4); }
+dialog > .button { width: 100%; margin-top: 20px; }
+.dialog__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.close { width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-3); font-size: 20px; }
+.steps { display: flex; flex-direction: column; gap: 16px; margin: 0; padding-left: 20px; }
+.steps p { margin-top: 4px; color: var(--text-2); }
+.steps a { color: var(--brand-strong); }
+.note { margin-top: 16px; padding: 12px; background: var(--surface-muted); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; }
+.detail-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 16px 0 0; }
+.detail-metrics div { padding: 12px; background: var(--surface-muted); border-radius: var(--radius-sm); }
+.detail-metrics dt { color: var(--text-3); font-size: 12px; }
+.detail-metrics dd { margin: 2px 0 0; font-weight: 700; }
+
+/* ===== 대시보드 탭 ===== */
+.boards { display: flex; align-self: stretch; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.boards::-webkit-scrollbar { display: none; }
+.tab { position: relative; flex-shrink: 0; padding: 0 12px; border: 0; background: none; color: var(--text-3); font-weight: 600; white-space: nowrap; }
+.tab:hover, .tab.is-active { color: var(--text); }
+.tab.is-active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; background: var(--brand); }
+.icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-2); font-size: 15px; line-height: 1; }
+.icon-button:hover:not(:disabled) { background: var(--surface-muted); }
+.header .icon-button { margin-left: -28px; }
+
+/* ===== 위젯 배치 ===== */
+.widgets { display: flex; flex-direction: column; gap: 16px; }
+.grid-2.is-reversed { grid-template-columns: minmax(300px, 1fr) minmax(0, 1.7fr); }
+.page-head p { margin-top: 2px; }
+.page-head .actions { flex-wrap: wrap; justify-content: flex-end; }
+.chart svg { height: auto; }
+.chart--small { min-height: 180px; padding: 0; }
+.legend li { padding: 0; }
+.legend button, .legend__row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 0; border: 0; background: none; text-align: left; }
+.legend button:hover span { text-decoration: underline; }
+.coverage { padding: 0 24px 12px; }
+.toolbar input[type="date"] { width: 150px; }
+.section-title { margin: 20px 0 8px; }
+.detail-hero { display: flex; flex-direction: column; gap: 2px; padding: 16px; border-radius: var(--radius-md); background: var(--surface-muted); }
+.detail-hero > span:first-child { color: var(--text-3); font-size: 12px; }
+.detail-hero strong { font-size: 24px; letter-spacing: -.5px; }
+.explain { line-height: 1.7; }
+.kv-list { margin: 16px 0 0; padding: 0; list-style: none; }
+.kv-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.kv-list small { color: var(--text-3); }
+
+/* ===== 화면 편집 ===== */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.form .dialog__head { margin-bottom: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; color: var(--text-2); font-size: 13px; font-weight: 600; }
+.field small { color: var(--text-3); font-weight: 400; }
+.field legend { margin-bottom: 6px; padding: 0; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 28px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 600; }
+.chip[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-strong); }
+.order-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.order-list li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.order-list label { display: flex; flex: 1; align-items: center; gap: 8px; color: var(--text); font-weight: 600; }
+.order-list li.is-off label { color: var(--text-3); font-weight: 400; }
+.order-list input { accent-color: var(--brand); }
+.order-list .icon-button { width: 28px; height: 28px; font-size: 13px; }
+.form-error { color: var(--up); font-size: 12px; }
+.dialog__secondary { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.dialog__secondary .button { height: 30px; font-size: 12px; }
+.button.danger { color: var(--up); }
+
+/* ===== 좁은 화면 ===== */
+@media (max-width: 960px) {
+  .grid-2, .grid-2.is-reversed, .summary { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .header { flex-wrap: wrap; gap: 0; height: auto; padding: 12px 16px 0; }
+  .header .badge { margin-left: auto; }
+  .header .boards { order: 3; width: calc(100% - 40px); height: 44px; }
+  .header .icon-button { order: 4; margin: 6px 0 0 8px; }
+  .notice { flex-wrap: wrap; }
+  .notice .button { margin-left: 0; padding: 0; }
+  .shell { padding: 16px; }
+  .page-head { flex-direction: column; align-items: flex-start; }
+  .page-head .actions { justify-content: flex-start; }
+  .page-head .button { height: 32px; padding: 0 10px; font-size: 12px; }
+  .field-row { grid-template-columns: 1fr; }
+  .toolbar input[type="date"] { width: calc(50% - 15px); }
+  .coverage { padding-inline: 16px; }
+  .summary__metrics, .toolkit { grid-template-columns: 1fr; }
+  .card__head, .card__foot, .toolbar, .toolkit { padding-inline: 16px; }
+  .calendar { padding-inline: 16px; }
+  .calendar__head { flex-wrap: wrap; }
+  .calendar__day { min-height: 52px; padding: 4px; }
+  .calendar__day strong { font-size: 10px; }
+  .calendar__day small { display: none; }
+}
+</style>
+  <script>
+// 샘플 HTML 전용: 로컬 서버 대신 미리 계산한 데모 응답을 돌려줍니다. examples/build.js가 DATA를 채웁니다.
+window.AssetKitFixture = (() => {
+  const DATA = {"status":{"mode":"demo","provider":"bithumb","configured":true,"credentialSource":null,"readOnly":true,"cacheSeconds":30,"historyIntervalSeconds":300,"lastSuccessfulFetch":"2026-10-06T06:21:16.020Z","historyError":null,"sample":true},"boards":[{"id":"41dbc638-5bc7-463f-b622-5d9a03be5221","revision":1,"name":"내 자산","symbols":[],"widgets":["summary","trend","allocation","holdings","activity"],"days":30,"refreshSeconds":0},{"id":"57989281-a527-4a8c-98ae-221eb8aa7bbd","revision":1,"name":"BTC·ETH 장기 보유","symbols":["BTC","ETH"],"widgets":["summary","trend","allocation","holdings"],"days":90,"refreshSeconds":0}],"portfolio":{"schemaVersion":"1.1","mode":"demo","provider":"bithumb","currency":"KRW","asOf":"2026-10-06T06:21:16.020Z","scope":[],"summary":{"totalValueKrw":"28074000","cashKrw":"2800000","cryptoValueKrw":"25274000","profitKrw":"2594000","profitRatePct":"11.4374","comparableCostKrw":"22680000","assetCount":4,"unpricedCount":0,"unknownCostCount":0,"valuationComplete":true,"profitComplete":true},"holdings":[{"symbol":"BTC","name":"비트코인","quantity":"0.125","available":"0.12","locked":"0.005","currentPriceKrw":"108400000","valueKrw":"13550000","averagePriceKrw":"92000000","costKrw":"11500000","profitKrw":"2050000","profitRatePct":"17.8261","priceChangePct":"2.3800","priceSource":"KRW-BTC","averagePriceModified":false,"quoteAt":"2026-10-06T06:21:16.020Z","staleQuote":false,"valuationStatus":"priced","allocationPct":"48.2653"},{"symbol":"ETH","name":"이더리움","quantity":"1.6","available":"1.5","locked":"0.1","currentPriceKrw":"4180000","valueKrw":"6688000","averagePriceKrw":"3800000","costKrw":"6080000","profitKrw":"608000","profitRatePct":"10.0000","priceChangePct":"1.6400","priceSource":"KRW-ETH","averagePriceModified":false,"quoteAt":"2026-10-06T06:21:16.020Z","staleQuote":false,"valuationStatus":"priced","allocationPct":"23.8228"},{"symbol":"XRP","name":"리플","quantity":"1200","available":"1200","locked":"0","currentPriceKrw":"2610","valueKrw":"3132000","averagePriceKrw":"2750","costKrw":"3300000","profitKrw":"-168000","profitRatePct":"-5.0909","priceChangePct":"-1.8100","priceSource":"KRW-XRP","averagePriceModified":false,"quoteAt":"2026-10-06T06:21:16.020Z","staleQuote":false,"valuationStatus":"priced","allocationPct":"11.1562"},{"symbol":"KRW","name":"원화","quantity":"2800000","available":"2450000","locked":"350000","currentPriceKrw":"1","valueKrw":"2800000","averagePriceKrw":null,"costKrw":null,"profitKrw":null,"profitRatePct":null,"priceChangePct":null,"priceSource":null,"averagePriceModified":false,"quoteAt":null,"staleQuote":false,"valuationStatus":"priced","allocationPct":"9.9736"},{"symbol":"SOL","name":"솔라나","quantity":"8","available":"8","locked":"0","currentPriceKrw":"238000","valueKrw":"1904000","averagePriceKrw":"225000","costKrw":"1800000","profitKrw":"104000","profitRatePct":"5.7778","priceChangePct":"0.8200","priceSource":"KRW-SOL","averagePriceModified":false,"quoteAt":"2026-10-06T06:21:16.020Z","staleQuote":false,"valuationStatus":"priced","allocationPct":"6.7821"}],"warnings":[],"calculation":{"quantity":"balance + locked","value":"보유 수량 × 원화 현재가 (원화 마켓이 없으면 BTC 마켓 가격 × KRW-BTC)","profit":"현재 보유분 평가금액 − API 평균 매수가 × 보유 수량. 수수료·실현손익 제외.","allocation":"가격이 확인된 자산 평가금액 합계(원화 포함)를 기준으로 계산.","history":"기록 시점의 평가금액입니다. 입출금 영향을 포함하므로 투자 수익률이 아닙니다."}},"histories":{"7":{"mode":"demo","days":7,"scope":[],"points":[{"asOf":"2026-09-30T06:21:16.021Z","totalValueKrw":"27151111","valuationComplete":true},{"asOf":"2026-10-01T06:21:16.021Z","totalValueKrw":"27909107","valuationComplete":true},{"asOf":"2026-10-02T06:21:16.021Z","totalValueKrw":"27877963","valuationComplete":true},{"asOf":"2026-10-03T06:21:16.021Z","totalValueKrw":"27358637","valuationComplete":true},{"asOf":"2026-10-04T06:21:16.021Z","totalValueKrw":"27792409","valuationComplete":true},{"asOf":"2026-10-05T06:21:16.021Z","totalValueKrw":"28115086","valuationComplete":true},{"asOf":"2026-10-06T06:21:16.021Z","totalValueKrw":"28074000","valuationComplete":true}],"sampled":false,"note":"평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다."},"30":{"mode":"demo","days":30,"scope":[],"points":[{"asOf":"2026-09-07T06:21:16.021Z","totalValueKrw":"24857503","valuationComplete":true},{"asOf":"2026-09-08T06:21:16.021Z","totalValueKrw":"25110396","valuationComplete":true},{"asOf":"2026-09-09T06:21:16.021Z","totalValueKrw":"25816811","valuationComplete":true},{"asOf":"2026-09-10T06:21:16.021Z","totalValueKrw":"25593711","valuationComplete":true},{"asOf":"2026-09-11T06:21:16.021Z","totalValueKrw":"25157399","valuationComplete":true},{"asOf":"2026-09-12T06:21:16.021Z","totalValueKrw":"25706334","valuationComplete":true},{"asOf":"2026-09-13T06:21:16.021Z","totalValueKrw":"26215383","valuationComplete":true},{"asOf":"2026-09-14T06:21:16.021Z","totalValueKrw":"25750259","valuationComplete":true},{"asOf":"2026-09-15T06:21:16.021Z","totalValueKrw":"25576850","valuationComplete":true},{"asOf":"2026-09-16T06:21:16.021Z","totalValueKrw":"26303243","valuationComplete":true},{"asOf":"2026-09-17T06:21:16.021Z","totalValueKrw":"26506855","valuationComplete":true},{"asOf":"2026-09-18T06:21:16.021Z","totalValueKrw":"25946185","valuationComplete":true},{"asOf":"2026-09-19T06:21:16.021Z","totalValueKrw":"26106053","valuationComplete":true},{"asOf":"2026-09-20T06:21:16.021Z","totalValueKrw":"26845339","valuationComplete":true},{"asOf":"2026-09-21T06:21:16.021Z","totalValueKrw":"26715593","valuationComplete":true},{"asOf":"2026-09-22T06:21:16.021Z","totalValueKrw":"26231186","valuationComplete":true},{"asOf":"2026-09-23T06:21:16.021Z","totalValueKrw":"26708024","valuationComplete":true},{"asOf":"2026-09-24T06:21:16.021Z","totalValueKrw":"27292645","valuationComplete":true},{"asOf":"2026-09-25T06:21:16.021Z","totalValueKrw":"26889073","valuationComplete":true},{"asOf":"2026-09-26T06:21:16.021Z","totalValueKrw":"26633196","valuationComplete":true},{"asOf":"2026-09-27T06:21:16.021Z","totalValueKrw":"27328284","valuationComplete":true},{"asOf":"2026-09-28T06:21:16.021Z","totalValueKrw":"27631462","valuationComplete":true},{"asOf":"2026-09-29T06:21:16.021Z","totalValueKrw":"27085503","valuationComplete":true},{"asOf":"2026-09-30T06:21:16.021Z","totalValueKrw":"27151111","valuationComplete":true},{"asOf":"2026-10-01T06:21:16.021Z","totalValueKrw":"27909107","valuationComplete":true},{"asOf":"2026-10-02T06:21:16.021Z","totalValueKrw":"27877963","valuationComplete":true},{"asOf":"2026-10-03T06:21:16.021Z","totalValueKrw":"27358637","valuationComplete":true},{"asOf":"2026-10-04T06:21:16.021Z","totalValueKrw":"27792409","valuationComplete":true},{"asOf":"2026-10-05T06:21:16.021Z","totalValueKrw":"28115086","valuationComplete":true},{"asOf":"2026-10-06T06:21:16.021Z","totalValueKrw":"28074000","valuationComplete":true}],"sampled":false,"note":"평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다."},"90":{"mode":"demo","days":90,"scope":[],"points":[{"asOf":"2026-07-09T06:21:16.021Z","totalValueKrw":"20408529","valuationComplete":true},{"asOf":"2026-07-10T06:21:16.021Z","totalValueKrw":"19864442","valuationComplete":true},{"asOf":"2026-07-11T06:21:16.021Z","totalValueKrw":"20240921","valuationComplete":true},{"asOf":"2026-07-12T06:21:16.021Z","totalValueKrw":"20857650","valuationComplete":true},{"asOf":"2026-07-13T06:21:16.021Z","totalValueKrw":"20492531","valuationComplete":true},{"asOf":"2026-07-14T06:21:16.021Z","totalValueKrw":"20140806","valuationComplete":true},{"asOf":"2026-07-15T06:21:16.021Z","totalValueKrw":"20768110","valuationComplete":true},{"asOf":"2026-07-16T06:21:16.021Z","totalValueKrw":"21130372","valuationComplete":true},{"asOf":"2026-07-17T06:21:16.021Z","totalValueKrw":"20582541","valuationComplete":true},{"asOf":"2026-07-18T06:21:16.021Z","totalValueKrw":"20534915","valuationComplete":true},{"asOf":"2026-07-19T06:21:16.021Z","totalValueKrw":"21269126","valuationComplete":true},{"asOf":"2026-07-20T06:21:16.021Z","totalValueKrw":"21302308","valuationComplete":true},{"asOf":"2026-07-21T06:21:16.021Z","totalValueKrw":"20734947","valuationComplete":true},{"asOf":"2026-07-22T06:21:16.021Z","totalValueKrw":"21024019","valuationComplete":true},{"asOf":"2026-07-23T06:21:16.021Z","totalValueKrw":"21693593","valuationComplete":true},{"asOf":"2026-07-24T06:21:16.021Z","totalValueKrw":"21409338","valuationComplete":true},{"asOf":"2026-07-25T06:21:16.021Z","totalValueKrw":"20991030","valuationComplete":true},{"asOf":"2026-07-26T06:21:16.021Z","totalValueKrw":"21561754","valuationComplete":true},{"asOf":"2026-07-27T06:21:16.021Z","totalValueKrw":"22012332","valuationComplete":true},{"asOf":"2026-07-28T06:21:16.021Z","totalValueKrw":"21505501","valuationComplete":true},{"asOf":"2026-07-29T06:21:16.021Z","totalValueKrw":"21366199","valuationComplete":true},{"asOf":"2026-07-30T06:21:16.021Z","totalValueKrw":"22090266","valuationComplete":true},{"asOf":"2026-07-31T06:21:16.021Z","totalValueKrw":"22224997","valuationComplete":true},{"asOf":"2026-08-01T06:21:16.021Z","totalValueKrw":"21648898","valuationComplete":true},{"asOf":"2026-08-02T06:21:16.021Z","totalValueKrw":"21845986","valuationComplete":true},{"asOf":"2026-08-03T06:21:16.021Z","totalValueKrw":"22555342","valuationComplete":true},{"asOf":"2026-08-04T06:21:16.021Z","totalValueKrw":"22360187","valuationComplete":true},{"asOf":"2026-08-05T06:21:16.021Z","totalValueKrw":"21886532","valuationComplete":true},{"asOf":"2026-08-06T06:21:16.021Z","totalValueKrw":"22389841","valuationComplete":true},{"asOf":"2026-08-07T06:21:16.021Z","totalValueKrw":"22920587","valuationComplete":true},{"asOf":"2026-08-08T06:21:16.021Z","totalValueKrw":"22467991","valuationComplete":true},{"asOf":"2026-08-09T06:21:16.021Z","totalValueKrw":"22242049","valuationComplete":true},{"asOf":"2026-08-10T06:21:16.021Z","totalValueKrw":"22941741","valuationComplete":true},{"asOf":"2026-08-11T06:21:16.021Z","totalValueKrw":"23176953","valuationComplete":true},{"asOf":"2026-08-12T06:21:16.021Z","totalValueKrw":"22606926","valuationComplete":true},{"asOf":"2026-08-13T06:21:16.021Z","totalValueKrw":"22709584","valuationComplete":true},{"asOf":"2026-08-14T06:21:16.021Z","totalValueKrw":"23444847","valuationComplete":true},{"asOf":"2026-08-15T06:21:16.021Z","totalValueKrw":"23345119","valuationComplete":true},{"asOf":"2026-08-16T06:21:16.021Z","totalValueKrw":"22828668","valuationComplete":true},{"asOf":"2026-08-17T06:21:16.021Z","totalValueKrw":"23255309","valuationComplete":true},{"asOf":"2026-08-18T06:21:16.021Z","totalValueKrw":"23856366","valuationComplete":true},{"asOf":"2026-08-19T06:21:16.021Z","totalValueKrw":"23470108","valuationComplete":true},{"asOf":"2026-08-20T06:21:16.021Z","totalValueKrw":"23164577","valuationComplete":true},{"asOf":"2026-08-21T06:21:16.021Z","totalValueKrw":"23826286","valuationComplete":true},{"asOf":"2026-08-22T06:21:16.021Z","totalValueKrw":"24158749","valuationComplete":true},{"asOf":"2026-08-23T06:21:16.021Z","totalValueKrw":"23609549","valuationComplete":true},{"asOf":"2026-08-24T06:21:16.021Z","totalValueKrw":"23617523","valuationComplete":true},{"asOf":"2026-08-25T06:21:16.021Z","totalValueKrw":"24364320","valuationComplete":true},{"asOf":"2026-08-26T06:21:16.021Z","totalValueKrw":"24364297","valuationComplete":true},{"asOf":"2026-08-27T06:21:16.021Z","totalValueKrw":"23818640","valuationComplete":true},{"asOf":"2026-08-28T06:21:16.021Z","totalValueKrw":"24161153","valuationComplete":true},{"asOf":"2026-08-29T06:21:16.021Z","totalValueKrw":"24821177","valuationComplete":true},{"asOf":"2026-08-30T06:21:16.021Z","totalValueKrw":"24511962","valuationComplete":true},{"asOf":"2026-08-31T06:21:16.021Z","totalValueKrw":"24135754","valuationComplete":true},{"asOf":"2026-09-01T06:21:16.021Z","totalValueKrw":"24746804","valuationComplete":true},{"asOf":"2026-09-02T06:21:16.021Z","totalValueKrw":"25171201","valuationComplete":true},{"asOf":"2026-09-03T06:21:16.021Z","totalValueKrw":"24657201","valuationComplete":true},{"asOf":"2026-09-04T06:21:16.021Z","totalValueKrw":"24572433","valuationComplete":true},{"asOf":"2026-09-05T06:21:16.021Z","totalValueKrw":"25316222","valuationComplete":true},{"asOf":"2026-09-06T06:21:16.021Z","totalValueKrw":"25418040","valuationComplete":true},{"asOf":"2026-09-07T06:21:16.021Z","totalValueKrw":"24857503","valuationComplete":true},{"asOf":"2026-09-08T06:21:16.021Z","totalValueKrw":"25110396","valuationComplete":true},{"asOf":"2026-09-09T06:21:16.021Z","totalValueKrw":"25816811","valuationComplete":true},{"asOf":"2026-09-10T06:21:16.021Z","totalValueKrw":"25593711","valuationComplete":true},{"asOf":"2026-09-11T06:21:16.021Z","totalValueKrw":"25157399","valuationComplete":true},{"asOf":"2026-09-12T06:21:16.021Z","totalValueKrw":"25706334","valuationComplete":true},{"asOf":"2026-09-13T06:21:16.021Z","totalValueKrw":"26215383","valuationComplete":true},{"asOf":"2026-09-14T06:21:16.021Z","totalValueKrw":"25750259","valuationComplete":true},{"asOf":"2026-09-15T06:21:16.021Z","totalValueKrw":"25576850","valuationComplete":true},{"asOf":"2026-09-16T06:21:16.021Z","totalValueKrw":"26303243","valuationComplete":true},{"asOf":"2026-09-17T06:21:16.021Z","totalValueKrw":"26506855","valuationComplete":true},{"asOf":"2026-09-18T06:21:16.021Z","totalValueKrw":"25946185","valuationComplete":true},{"asOf":"2026-09-19T06:21:16.021Z","totalValueKrw":"26106053","valuationComplete":true},{"asOf":"2026-09-20T06:21:16.021Z","totalValueKrw":"26845339","valuationComplete":true},{"asOf":"2026-09-21T06:21:16.021Z","totalValueKrw":"26715593","valuationComplete":true},{"asOf":"2026-09-22T06:21:16.021Z","totalValueKrw":"26231186","valuationComplete":true},{"asOf":"2026-09-23T06:21:16.021Z","totalValueKrw":"26708024","valuationComplete":true},{"asOf":"2026-09-24T06:21:16.021Z","totalValueKrw":"27292645","valuationComplete":true},{"asOf":"2026-09-25T06:21:16.021Z","totalValueKrw":"26889073","valuationComplete":true},{"asOf":"2026-09-26T06:21:16.021Z","totalValueKrw":"26633196","valuationComplete":true},{"asOf":"2026-09-27T06:21:16.021Z","totalValueKrw":"27328284","valuationComplete":true},{"asOf":"2026-09-28T06:21:16.021Z","totalValueKrw":"27631462","valuationComplete":true},{"asOf":"2026-09-29T06:21:16.021Z","totalValueKrw":"27085503","valuationComplete":true},{"asOf":"2026-09-30T06:21:16.021Z","totalValueKrw":"27151111","valuationComplete":true},{"asOf":"2026-10-01T06:21:16.021Z","totalValueKrw":"27909107","valuationComplete":true},{"asOf":"2026-10-02T06:21:16.021Z","totalValueKrw":"27877963","valuationComplete":true},{"asOf":"2026-10-03T06:21:16.021Z","totalValueKrw":"27358637","valuationComplete":true},{"asOf":"2026-10-04T06:21:16.021Z","totalValueKrw":"27792409","valuationComplete":true},{"asOf":"2026-10-05T06:21:16.021Z","totalValueKrw":"28115086","valuationComplete":true},{"asOf":"2026-10-06T06:21:16.021Z","totalValueKrw":"28074000","valuationComplete":true}],"sampled":false,"note":"평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다."},"365":{"mode":"demo","days":365,"scope":[],"points":[{"asOf":"2025-10-07T06:21:16.021Z","totalValueKrw":"7342237","valuationComplete":true},{"asOf":"2025-10-08T06:21:16.021Z","totalValueKrw":"7755416","valuationComplete":true},{"asOf":"2025-10-09T06:21:16.021Z","totalValueKrw":"7204405","valuationComplete":true},{"asOf":"2025-10-10T06:21:16.021Z","totalValueKrw":"6994546","valuationComplete":true},{"asOf":"2025-10-11T06:21:16.021Z","totalValueKrw":"7661193","valuationComplete":true},{"asOf":"2025-10-12T06:21:16.021Z","totalValueKrw":"7761051","valuationComplete":true},{"asOf":"2025-10-13T06:21:16.021Z","totalValueKrw":"7130686","valuationComplete":true},{"asOf":"2025-10-14T06:21:16.021Z","totalValueKrw":"7255511","valuationComplete":true},{"asOf":"2025-10-15T06:21:16.021Z","totalValueKrw":"7916185","valuationComplete":true},{"asOf":"2025-10-16T06:21:16.021Z","totalValueKrw":"7683819","valuationComplete":true},{"asOf":"2025-10-17T06:21:16.021Z","totalValueKrw":"7145963","valuationComplete":true},{"asOf":"2025-10-18T06:21:16.021Z","totalValueKrw":"7580102","valuationComplete":true},{"asOf":"2025-10-19T06:21:16.021Z","totalValueKrw":"8069492","valuationComplete":true},{"asOf":"2025-10-20T06:21:16.021Z","totalValueKrw":"7572885","valuationComplete":true},{"asOf":"2025-10-21T06:21:16.021Z","totalValueKrw":"7275342","valuationComplete":true},{"asOf":"2025-10-22T06:21:16.021Z","totalValueKrw":"7912738","valuationComplete":true},{"asOf":"2025-10-23T06:21:16.021Z","totalValueKrw":"8110383","valuationComplete":true},{"asOf":"2025-10-24T06:21:16.021Z","totalValueKrw":"7486648","valuationComplete":true},{"asOf":"2025-10-25T06:21:16.021Z","totalValueKrw":"7514563","valuationComplete":true},{"asOf":"2025-10-26T06:21:16.021Z","totalValueKrw":"8196176","valuationComplete":true},{"asOf":"2025-10-27T06:21:16.021Z","totalValueKrw":"8057928","valuationComplete":true},{"asOf":"2025-10-28T06:21:16.021Z","totalValueKrw":"7477494","valuationComplete":true},{"asOf":"2025-10-29T06:21:16.021Z","totalValueKrw":"7831110","valuationComplete":true},{"asOf":"2025-10-30T06:21:16.021Z","totalValueKrw":"8386462","valuationComplete":true},{"asOf":"2025-10-31T06:21:16.021Z","totalValueKrw":"7956024","valuationComplete":true},{"asOf":"2025-11-01T06:21:16.021Z","totalValueKrw":"7578123","valuationComplete":true},{"asOf":"2025-11-02T06:21:16.021Z","totalValueKrw":"8172720","valuationComplete":true},{"asOf":"2025-11-03T06:21:16.021Z","totalValueKrw":"8464426","valuationComplete":true},{"asOf":"2025-11-04T06:21:16.021Z","totalValueKrw":"7861933","valuationComplete":true},{"asOf":"2025-11-05T06:21:16.021Z","totalValueKrw":"7793006","valuationComplete":true},{"asOf":"2025-11-06T06:21:16.021Z","totalValueKrw":"8481034","valuationComplete":true},{"asOf":"2025-11-07T06:21:16.021Z","totalValueKrw":"8440689","valuationComplete":true},{"asOf":"2025-11-08T06:21:16.021Z","totalValueKrw":"7831335","valuationComplete":true},{"asOf":"2025-11-09T06:21:16.021Z","totalValueKrw":"8097234","valuationComplete":true},{"asOf":"2025-11-10T06:21:16.021Z","totalValueKrw":"8706853","valuationComplete":true},{"asOf":"2025-11-11T06:21:16.021Z","totalValueKrw":"8352901","valuationComplete":true},{"asOf":"2025-11-12T06:21:16.021Z","totalValueKrw":"7903787","valuationComplete":true},{"asOf":"2025-11-13T06:21:16.021Z","totalValueKrw":"8443023","valuationComplete":true},{"asOf":"2025-11-14T06:21:16.021Z","totalValueKrw":"8822992","valuationComplete":true},{"asOf":"2025-11-15T06:21:16.021Z","totalValueKrw":"8255910","valuationComplete":true},{"asOf":"2025-11-16T06:21:16.021Z","totalValueKrw":"8092400","valuationComplete":true},{"asOf":"2025-11-17T06:21:16.021Z","totalValueKrw":"8772206","valuationComplete":true},{"asOf":"2025-11-18T06:21:16.021Z","totalValueKrw":"8831388","valuationComplete":true},{"asOf":"2025-11-19T06:21:16.021Z","totalValueKrw":"8207445","valuationComplete":true},{"asOf":"2025-11-20T06:21:16.021Z","totalValueKrw":"8380423","valuationComplete":true},{"asOf":"2025-11-21T06:21:16.021Z","totalValueKrw":"9031433","valuationComplete":true},{"asOf":"2025-11-22T06:21:16.021Z","totalValueKrw":"8762604","valuationComplete":true},{"asOf":"2025-11-23T06:21:16.021Z","totalValueKrw":"8253042","valuationComplete":true},{"asOf":"2025-11-24T06:21:16.021Z","totalValueKrw":"8725621","valuationComplete":true},{"asOf":"2025-11-25T06:21:16.021Z","totalValueKrw":"9186114","valuationComplete":true},{"asOf":"2025-11-26T06:21:16.021Z","totalValueKrw":"8667851","valuationComplete":true},{"asOf":"2025-11-27T06:21:16.021Z","totalValueKrw":"8414158","valuationComplete":true},{"asOf":"2025-11-28T06:21:16.021Z","totalValueKrw":"9071316","valuationComplete":true},{"asOf":"2025-11-29T06:21:16.021Z","totalValueKrw":"9229460","valuationComplete":true},{"asOf":"2025-11-30T06:21:16.021Z","totalValueKrw":"8605617","valuationComplete":true},{"asOf":"2025-12-01T06:21:16.021Z","totalValueKrw":"8682573","valuationComplete":true},{"asOf":"2025-12-02T06:21:16.021Z","totalValueKrw":"9361203","valuationComplete":true},{"asOf":"2025-12-03T06:21:16.021Z","totalValueKrw":"9184266","valuationComplete":true},{"asOf":"2025-12-04T06:21:16.021Z","totalValueKrw":"8626402","valuationComplete":true},{"asOf":"2025-12-05T06:21:16.021Z","totalValueKrw":"9022545","valuationComplete":true},{"asOf":"2025-12-06T06:21:16.021Z","totalValueKrw":"9554057","valuationComplete":true},{"asOf":"2025-12-07T06:21:16.021Z","totalValueKrw":"9096960","valuationComplete":true},{"asOf":"2025-12-08T06:21:16.021Z","totalValueKrw":"8759530","valuationComplete":true},{"asOf":"2025-12-09T06:21:16.021Z","totalValueKrw":"9380154","valuationComplete":true},{"asOf":"2025-12-10T06:21:16.021Z","totalValueKrw":"9634516","valuationComplete":true},{"asOf":"2025-12-11T06:21:16.021Z","totalValueKrw":"9025489","valuationComplete":true},{"asOf":"2025-12-12T06:21:16.021Z","totalValueKrw":"9005497","valuationComplete":true},{"asOf":"2025-12-13T06:21:16.021Z","totalValueKrw":"9697392","valuationComplete":true},{"asOf":"2025-12-14T06:21:16.021Z","totalValueKrw":"9617096","valuationComplete":true},{"asOf":"2025-12-15T06:21:16.021Z","totalValueKrw":"9024187","valuationComplete":true},{"asOf":"2025-12-16T06:21:16.021Z","totalValueKrw":"9335853","valuationComplete":true},{"asOf":"2025-12-17T06:21:16.021Z","totalValueKrw":"9927325","valuationComplete":true},{"asOf":"2025-12-18T06:21:16.021Z","totalValueKrw":"9542411","valuationComplete":true},{"asOf":"2025-12-19T06:21:16.021Z","totalValueKrw":"9129589","valuationComplete":true},{"asOf":"2025-12-20T06:21:16.021Z","totalValueKrw":"9700639","valuationComplete":true},{"asOf":"2025-12-21T06:21:16.021Z","totalValueKrw":"10046360","valuationComplete":true},{"asOf":"2025-12-22T06:21:16.021Z","totalValueKrw":"9466570","valuationComplete":true},{"asOf":"2025-12-23T06:21:16.021Z","totalValueKrw":"9350901","valuationComplete":true},{"asOf":"2025-12-24T06:21:16.021Z","totalValueKrw":"10041443","valuationComplete":true},{"asOf":"2025-12-25T06:21:16.021Z","totalValueKrw":"10060412","valuationComplete":true},{"asOf":"2025-12-26T06:21:16.021Z","totalValueKrw":"9446529","valuationComplete":true},{"asOf":"2025-12-27T06:21:16.021Z","totalValueKrw":"9667600","valuationComplete":true},{"asOf":"2025-12-28T06:21:16.021Z","totalValueKrw":"10306668","valuationComplete":true},{"asOf":"2025-12-29T06:21:16.021Z","totalValueKrw":"10003373","valuationComplete":true},{"asOf":"2025-12-30T06:21:16.021Z","totalValueKrw":"9525223","valuationComplete":true},{"asOf":"2025-12-31T06:21:16.021Z","totalValueKrw":"10034801","valuationComplete":true},{"asOf":"2026-01-01T06:21:16.021Z","totalValueKrw":"10465016","valuationComplete":true},{"asOf":"2026-01-02T06:21:16.021Z","totalValueKrw":"9928262","valuationComplete":true},{"asOf":"2026-01-03T06:21:16.021Z","totalValueKrw":"9720360","valuationComplete":true},{"asOf":"2026-01-04T06:21:16.021Z","totalValueKrw":"10394995","valuationComplete":true},{"asOf":"2026-01-05T06:21:16.021Z","totalValueKrw":"10513672","valuationComplete":true},{"asOf":"2026-01-06T06:21:16.021Z","totalValueKrw":"9893389","valuationComplete":true},{"asOf":"2026-01-07T06:21:16.021Z","totalValueKrw":"10019801","valuationComplete":true},{"asOf":"2026-01-08T06:21:16.021Z","totalValueKrw":"10693074","valuationComplete":true},{"asOf":"2026-01-09T06:21:16.021Z","totalValueKrw":"10479049","valuationComplete":true},{"asOf":"2026-01-10T06:21:16.021Z","totalValueKrw":"9947128","valuationComplete":true},{"asOf":"2026-01-11T06:21:16.021Z","totalValueKrw":"10384743","valuationComplete":true},{"asOf":"2026-01-12T06:21:16.021Z","totalValueKrw":"10890736","valuationComplete":true},{"asOf":"2026-01-13T06:21:16.021Z","totalValueKrw":"10409895","valuationComplete":true},{"asOf":"2026-01-14T06:21:16.021Z","totalValueKrw":"10115295","valuationComplete":true},{"asOf":"2026-01-15T06:21:16.021Z","totalValueKrw":"10759862","valuationComplete":true},{"asOf":"2026-01-16T06:21:16.021Z","totalValueKrw":"10976499","valuationComplete":true},{"asOf":"2026-01-17T06:21:16.021Z","totalValueKrw":"10364570","valuationComplete":true},{"asOf":"2026-01-18T06:21:16.021Z","totalValueKrw":"10394410","valuationComplete":true},{"asOf":"2026-01-19T06:21:16.021Z","totalValueKrw":"11087769","valuationComplete":true},{"asOf":"2026-01-20T06:21:16.021Z","totalValueKrw":"10968707","valuationComplete":true},{"asOf":"2026-01-21T06:21:16.021Z","totalValueKrw":"10395810","valuationComplete":true},{"asOf":"2026-01-22T06:21:16.021Z","totalValueKrw":"10752615","valuationComplete":true},{"asOf":"2026-01-23T06:21:16.021Z","totalValueKrw":"11324015","valuationComplete":true},{"asOf":"2026-01-24T06:21:16.021Z","totalValueKrw":"10910750","valuationComplete":true},{"asOf":"2026-01-25T06:21:16.021Z","totalValueKrw":"10536964","valuationComplete":true},{"asOf":"2026-01-26T06:21:16.021Z","totalValueKrw":"11138007","valuationComplete":true},{"asOf":"2026-01-27T06:21:16.021Z","totalValueKrw":"11448708","valuationComplete":true},{"asOf":"2026-01-28T06:21:16.021Z","totalValueKrw":"10859737","valuationComplete":true},{"asOf":"2026-01-29T06:21:16.021Z","totalValueKrw":"10793286","valuationComplete":true},{"asOf":"2026-01-30T06:21:16.021Z","totalValueKrw":"11492202","valuationComplete":true},{"asOf":"2026-01-31T06:21:16.021Z","totalValueKrw":"11471715","valuationComplete":true},{"asOf":"2026-02-01T06:21:16.021Z","totalValueKrw":"10871589","valuationComplete":true},{"asOf":"2026-02-02T06:21:16.021Z","totalValueKrw":"11140579","valuationComplete":true},{"asOf":"2026-02-03T06:21:16.021Z","totalValueKrw":"11765594","valuationComplete":true},{"asOf":"2026-02-04T06:21:16.021Z","totalValueKrw":"11430100","valuationComplete":true},{"asOf":"2026-02-05T06:21:16.021Z","totalValueKrw":"10986442","valuationComplete":true},{"asOf":"2026-02-06T06:21:16.021Z","totalValueKrw":"11531519","valuationComplete":true},{"asOf":"2026-02-07T06:21:16.021Z","totalValueKrw":"11930326","valuationComplete":true},{"asOf":"2026-02-08T06:21:16.021Z","totalValueKrw":"11378445","valuationComplete":true},{"asOf":"2026-02-09T06:21:16.021Z","totalValueKrw":"11218172","valuationComplete":true},{"asOf":"2026-02-10T06:21:16.021Z","totalValueKrw":"11908030","valuationComplete":true},{"asOf":"2026-02-11T06:21:16.021Z","totalValueKrw":"11987570","valuationComplete":true},{"asOf":"2026-02-12T06:21:16.021Z","totalValueKrw":"11374610","valuationComplete":true},{"asOf":"2026-02-13T06:21:16.021Z","totalValueKrw":"11550779","valuationComplete":true},{"asOf":"2026-02-14T06:21:16.021Z","totalValueKrw":"12216461","valuationComplete":true},{"asOf":"2026-02-15T06:21:16.021Z","totalValueKrw":"11967235","valuationComplete":true},{"asOf":"2026-02-16T06:21:16.021Z","totalValueKrw":"11464623","valuationComplete":true},{"asOf":"2026-02-17T06:21:16.021Z","totalValueKrw":"11942580","valuationComplete":true},{"asOf":"2026-02-18T06:21:16.021Z","totalValueKrw":"12421609","valuationComplete":true},{"asOf":"2026-02-19T06:21:16.021Z","totalValueKrw":"11920162","valuationComplete":true},{"asOf":"2026-02-20T06:21:16.021Z","totalValueKrw":"11670672","valuationComplete":true},{"asOf":"2026-02-21T06:21:16.021Z","totalValueKrw":"12337103","valuationComplete":true},{"asOf":"2026-02-22T06:21:16.021Z","totalValueKrw":"12515927","valuationComplete":true},{"asOf":"2026-02-23T06:21:16.021Z","totalValueKrw":"11904856","valuationComplete":true},{"asOf":"2026-02-24T06:21:16.021Z","totalValueKrw":"11985315","valuationComplete":true},{"asOf":"2026-02-25T06:21:16.021Z","totalValueKrw":"12677847","valuationComplete":true},{"asOf":"2026-02-26T06:21:16.021Z","totalValueKrw":"12521503","valuationComplete":true},{"asOf":"2026-02-27T06:21:16.021Z","totalValueKrw":"11972212","valuationComplete":true},{"asOf":"2026-02-28T06:21:16.021Z","totalValueKrw":"12373437","valuationComplete":true},{"asOf":"2026-03-01T06:21:16.021Z","totalValueKrw":"12923055","valuationComplete":true},{"asOf":"2026-03-02T06:21:16.021Z","totalValueKrw":"12484302","valuationComplete":true},{"asOf":"2026-03-03T06:21:16.021Z","totalValueKrw":"12152234","valuationComplete":true},{"asOf":"2026-03-04T06:21:16.021Z","totalValueKrw":"12781433","valuationComplete":true},{"asOf":"2026-03-05T06:21:16.021Z","totalValueKrw":"13056627","valuationComplete":true},{"asOf":"2026-03-06T06:21:16.021Z","totalValueKrw":"12462169","valuationComplete":true},{"asOf":"2026-03-07T06:21:16.021Z","totalValueKrw":"12446206","valuationComplete":true},{"asOf":"2026-03-08T06:21:16.021Z","totalValueKrw":"13151217","valuationComplete":true},{"asOf":"2026-03-09T06:21:16.021Z","totalValueKrw":"13092340","valuationComplete":true},{"asOf":"2026-03-10T06:21:16.021Z","totalValueKrw":"12509731","valuationComplete":true},{"asOf":"2026-03-11T06:21:16.021Z","totalValueKrw":"12826367","valuationComplete":true},{"asOf":"2026-03-12T06:21:16.021Z","totalValueKrw":"13435409","valuationComplete":true},{"asOf":"2026-03-13T06:21:16.021Z","totalValueKrw":"13070256","valuationComplete":true},{"asOf":"2026-03-14T06:21:16.021Z","totalValueKrw":"12664139","valuationComplete":true},{"asOf":"2026-03-15T06:21:16.021Z","totalValueKrw":"13243176","valuationComplete":true},{"asOf":"2026-03-16T06:21:16.021Z","totalValueKrw":"13609719","valuationComplete":true},{"asOf":"2026-03-17T06:21:16.021Z","totalValueKrw":"13046271","valuationComplete":true},{"asOf":"2026-03-18T06:21:16.021Z","totalValueKrw":"12935374","valuationComplete":true},{"asOf":"2026-03-19T06:21:16.021Z","totalValueKrw":"13638259","valuationComplete":true},{"asOf":"2026-03-20T06:21:16.021Z","totalValueKrw":"13679303","valuationComplete":true},{"asOf":"2026-03-21T06:21:16.021Z","totalValueKrw":"13077525","valuationComplete":true},{"asOf":"2026-03-22T06:21:16.021Z","totalValueKrw":"13303651","valuationComplete":true},{"asOf":"2026-03-23T06:21:16.021Z","totalValueKrw":"13959672","valuationComplete":true},{"asOf":"2026-03-24T06:21:16.021Z","totalValueKrw":"13677427","valuationComplete":true},{"asOf":"2026-03-25T06:21:16.021Z","totalValueKrw":"13207487","valuationComplete":true},{"asOf":"2026-03-26T06:21:16.021Z","totalValueKrw":"13724600","valuationComplete":true},{"asOf":"2026-03-27T06:21:16.021Z","totalValueKrw":"14175477","valuationComplete":true},{"asOf":"2026-03-28T06:21:16.021Z","totalValueKrw":"13656793","valuationComplete":true},{"asOf":"2026-03-29T06:21:16.021Z","totalValueKrw":"13454614","valuationComplete":true},{"asOf":"2026-03-30T06:21:16.021Z","totalValueKrw":"14140864","valuationComplete":true},{"asOf":"2026-03-31T06:21:16.021Z","totalValueKrw":"14282097","valuationComplete":true},{"asOf":"2026-04-01T06:21:16.021Z","totalValueKrw":"13675777","valuationComplete":true},{"asOf":"2026-04-02T06:21:16.021Z","totalValueKrw":"13807540","valuationComplete":true},{"asOf":"2026-04-03T06:21:16.021Z","totalValueKrw":"14497094","valuationComplete":true},{"asOf":"2026-04-04T06:21:16.021Z","totalValueKrw":"14305262","valuationComplete":true},{"asOf":"2026-04-05T06:21:16.021Z","totalValueKrw":"13783199","valuationComplete":true},{"asOf":"2026-04-06T06:21:16.021Z","totalValueKrw":"14228056","valuationComplete":true},{"asOf":"2026-04-07T06:21:16.021Z","totalValueKrw":"14754419","valuationComplete":true},{"asOf":"2026-04-08T06:21:16.021Z","totalValueKrw":"14293300","valuationComplete":true},{"asOf":"2026-04-09T06:21:16.021Z","totalValueKrw":"14005580","valuationComplete":true},{"asOf":"2026-04-10T06:21:16.021Z","totalValueKrw":"14661104","valuationComplete":true},{"asOf":"2026-04-11T06:21:16.021Z","totalValueKrw":"14900611","valuationComplete":true},{"asOf":"2026-04-12T06:21:16.021Z","totalValueKrw":"14304524","valuationComplete":true},{"asOf":"2026-04-13T06:21:16.021Z","totalValueKrw":"14340227","valuationComplete":true},{"asOf":"2026-04-14T06:21:16.021Z","totalValueKrw":"15049169","valuationComplete":true},{"asOf":"2026-04-15T06:21:16.021Z","totalValueKrw":"14953287","valuationComplete":true},{"asOf":"2026-04-16T06:21:16.021Z","totalValueKrw":"14392015","valuationComplete":true},{"asOf":"2026-04-17T06:21:16.021Z","totalValueKrw":"14755948","valuationComplete":true},{"asOf":"2026-04-18T06:21:16.021Z","totalValueKrw":"15347314","valuationComplete":true},{"asOf":"2026-04-19T06:21:16.021Z","totalValueKrw":"14955327","valuationComplete":true},{"asOf":"2026-04-20T06:21:16.021Z","totalValueKrw":"14589767","valuationComplete":true},{"asOf":"2026-04-21T06:21:16.021Z","totalValueKrw":"15201213","valuationComplete":true},{"asOf":"2026-04-22T06:21:16.021Z","totalValueKrw":"15534932","valuationComplete":true},{"asOf":"2026-04-23T06:21:16.021Z","totalValueKrw":"14963679","valuationComplete":true},{"asOf":"2026-04-24T06:21:16.021Z","totalValueKrw":"14903822","valuationComplete":true},{"asOf":"2026-04-25T06:21:16.021Z","totalValueKrw":"15617625","valuationComplete":true},{"asOf":"2026-04-26T06:21:16.021Z","totalValueKrw":"15621140","valuationComplete":true},{"asOf":"2026-04-27T06:21:16.021Z","totalValueKrw":"15034500","valuationComplete":true},{"asOf":"2026-04-28T06:21:16.021Z","totalValueKrw":"15310701","valuationComplete":true},{"asOf":"2026-04-29T06:21:16.021Z","totalValueKrw":"15955187","valuationComplete":true},{"asOf":"2026-04-30T06:21:16.021Z","totalValueKrw":"15642409","valuationComplete":true},{"asOf":"2026-05-01T06:21:16.021Z","totalValueKrw":"15208501","valuationComplete":true},{"asOf":"2026-05-02T06:21:16.021Z","totalValueKrw":"15763554","valuationComplete":true},{"asOf":"2026-05-03T06:21:16.021Z","totalValueKrw":"16185375","valuationComplete":true},{"asOf":"2026-05-04T06:21:16.021Z","totalValueKrw":"15653054","valuationComplete":true},{"asOf":"2026-05-05T06:21:16.021Z","totalValueKrw":"15500323","valuationComplete":true},{"asOf":"2026-05-06T06:21:16.021Z","totalValueKrw":"16204408","valuationComplete":true},{"asOf":"2026-05-07T06:21:16.021Z","totalValueKrw":"16308601","valuationComplete":true},{"asOf":"2026-05-08T06:21:16.021Z","totalValueKrw":"15711057","valuationComplete":true},{"asOf":"2026-05-09T06:21:16.021Z","totalValueKrw":"15894728","valuationComplete":true},{"asOf":"2026-05-10T06:21:16.021Z","totalValueKrw":"16579323","valuationComplete":true},{"asOf":"2026-05-11T06:21:16.021Z","totalValueKrw":"16354117","valuationComplete":true},{"asOf":"2026-05-12T06:21:16.021Z","totalValueKrw":"15862934","valuationComplete":true},{"asOf":"2026-05-13T06:21:16.021Z","totalValueKrw":"16350593","valuationComplete":true},{"asOf":"2026-05-14T06:21:16.021Z","totalValueKrw":"16852495","valuationComplete":true},{"asOf":"2026-05-15T06:21:16.021Z","totalValueKrw":"16372392","valuationComplete":true},{"asOf":"2026-05-16T06:21:16.021Z","totalValueKrw":"16131604","valuationComplete":true},{"asOf":"2026-05-17T06:21:16.021Z","totalValueKrw":"16811662","valuationComplete":true},{"asOf":"2026-05-18T06:21:16.021Z","totalValueKrw":"17015624","valuationComplete":true},{"asOf":"2026-05-19T06:21:16.021Z","totalValueKrw":"16421938","valuationComplete":true},{"asOf":"2026-05-20T06:21:16.021Z","totalValueKrw":"16510408","valuationComplete":true},{"asOf":"2026-05-21T06:21:16.021Z","totalValueKrw":"17221259","valuationComplete":true},{"asOf":"2026-05-22T06:21:16.021Z","totalValueKrw":"17090092","valuationComplete":true},{"asOf":"2026-05-23T06:21:16.021Z","totalValueKrw":"16554043","valuationComplete":true},{"asOf":"2026-05-24T06:21:16.021Z","totalValueKrw":"16964869","valuationComplete":true},{"asOf":"2026-05-25T06:21:16.021Z","totalValueKrw":"17537102","valuationComplete":true},{"asOf":"2026-05-26T06:21:16.021Z","totalValueKrw":"17121394","valuationComplete":true},{"asOf":"2026-05-27T06:21:16.021Z","totalValueKrw":"16799389","valuationComplete":true},{"asOf":"2026-05-28T06:21:16.021Z","totalValueKrw":"17441709","valuationComplete":true},{"asOf":"2026-05-29T06:21:16.021Z","totalValueKrw":"17742363","valuationComplete":true},{"asOf":"2026-05-30T06:21:16.021Z","totalValueKrw":"17167269","valuationComplete":true},{"asOf":"2026-05-31T06:21:16.021Z","totalValueKrw":"17160049","valuationComplete":true},{"asOf":"2026-06-01T06:21:16.021Z","totalValueKrw":"17882779","valuationComplete":true},{"asOf":"2026-06-02T06:21:16.021Z","totalValueKrw":"17850077","valuationComplete":true},{"asOf":"2026-06-03T06:21:16.021Z","totalValueKrw":"17282633","valuationComplete":true},{"asOf":"2026-06-04T06:21:16.021Z","totalValueKrw":"17608963","valuationComplete":true},{"asOf":"2026-06-05T06:21:16.021Z","totalValueKrw":"18240266","valuationComplete":true},{"asOf":"2026-06-06T06:21:16.021Z","totalValueKrw":"17899754","valuationComplete":true},{"asOf":"2026-06-07T06:21:16.021Z","totalValueKrw":"17505246","valuationComplete":true},{"asOf":"2026-06-08T06:21:16.021Z","totalValueKrw":"18097020","valuationComplete":true},{"asOf":"2026-06-09T06:21:16.021Z","totalValueKrw":"18489190","valuationComplete":true},{"asOf":"2026-06-10T06:21:16.021Z","totalValueKrw":"17947071","valuationComplete":true},{"asOf":"2026-06-11T06:21:16.021Z","totalValueKrw":"17845870","valuationComplete":true},{"asOf":"2026-06-12T06:21:16.021Z","totalValueKrw":"18565900","valuationComplete":true},{"asOf":"2026-06-13T06:21:16.021Z","totalValueKrw":"18633952","valuationComplete":true},{"asOf":"2026-06-14T06:21:16.021Z","totalValueKrw":"18049346","valuationComplete":true},{"asOf":"2026-06-15T06:21:16.021Z","totalValueKrw":"18285467","valuationComplete":true},{"asOf":"2026-06-16T06:21:16.021Z","totalValueKrw":"18963323","valuationComplete":true},{"asOf":"2026-06-17T06:21:16.021Z","totalValueKrw":"18707193","valuationComplete":true},{"asOf":"2026-06-18T06:21:16.021Z","totalValueKrw":"18250580","valuationComplete":true},{"asOf":"2026-06-19T06:21:16.021Z","totalValueKrw":"18780189","valuationComplete":true},{"asOf":"2026-06-20T06:21:16.021Z","totalValueKrw":"19256722","valuationComplete":true},{"asOf":"2026-06-21T06:21:16.021Z","totalValueKrw":"18761288","valuationComplete":true},{"asOf":"2026-06-22T06:21:16.021Z","totalValueKrw":"18569979","valuationComplete":true},{"asOf":"2026-06-23T06:21:16.021Z","totalValueKrw":"19272850","valuationComplete":true},{"asOf":"2026-06-24T06:21:16.021Z","totalValueKrw":"19441762","valuationComplete":true},{"asOf":"2026-06-25T06:21:16.021Z","totalValueKrw":"18854678","valuationComplete":true},{"asOf":"2026-06-26T06:21:16.021Z","totalValueKrw":"18996955","valuationComplete":true},{"asOf":"2026-06-27T06:21:16.021Z","totalValueKrw":"19707873","valuationComplete":true},{"asOf":"2026-06-28T06:21:16.021Z","totalValueKrw":"19543492","valuationComplete":true},{"asOf":"2026-06-29T06:21:16.021Z","totalValueKrw":"19036622","valuationComplete":true},{"asOf":"2026-06-30T06:21:16.021Z","totalValueKrw":"19493906","valuationComplete":true},{"asOf":"2026-07-01T06:21:16.021Z","totalValueKrw":"20045829","valuationComplete":true},{"asOf":"2026-07-02T06:21:16.021Z","totalValueKrw":"19609814","valuationComplete":true},{"asOf":"2026-07-03T06:21:16.021Z","totalValueKrw":"19334347","valuationComplete":true},{"asOf":"2026-07-04T06:21:16.021Z","totalValueKrw":"20006055","valuationComplete":true},{"asOf":"2026-07-05T06:21:16.021Z","totalValueKrw":"20273749","valuationComplete":true},{"asOf":"2026-07-06T06:21:16.021Z","totalValueKrw":"19698991","valuationComplete":true},{"asOf":"2026-07-07T06:21:16.021Z","totalValueKrw":"19745953","valuationComplete":true},{"asOf":"2026-07-08T06:21:16.021Z","totalValueKrw":"20475773","valuationComplete":true},{"asOf":"2026-07-09T06:21:16.021Z","totalValueKrw":"20408529","valuationComplete":true},{"asOf":"2026-07-10T06:21:16.021Z","totalValueKrw":"19864442","valuationComplete":true},{"asOf":"2026-07-11T06:21:16.021Z","totalValueKrw":"20240921","valuationComplete":true},{"asOf":"2026-07-12T06:21:16.021Z","totalValueKrw":"20857650","valuationComplete":true},{"asOf":"2026-07-13T06:21:16.021Z","totalValueKrw":"20492531","valuationComplete":true},{"asOf":"2026-07-14T06:21:16.021Z","totalValueKrw":"20140806","valuationComplete":true},{"asOf":"2026-07-15T06:21:16.021Z","totalValueKrw":"20768110","valuationComplete":true},{"asOf":"2026-07-16T06:21:16.021Z","totalValueKrw":"21130372","valuationComplete":true},{"asOf":"2026-07-17T06:21:16.021Z","totalValueKrw":"20582541","valuationComplete":true},{"asOf":"2026-07-18T06:21:16.021Z","totalValueKrw":"20534915","valuationComplete":true},{"asOf":"2026-07-19T06:21:16.021Z","totalValueKrw":"21269126","valuationComplete":true},{"asOf":"2026-07-20T06:21:16.021Z","totalValueKrw":"21302308","valuationComplete":true},{"asOf":"2026-07-21T06:21:16.021Z","totalValueKrw":"20734947","valuationComplete":true},{"asOf":"2026-07-22T06:21:16.021Z","totalValueKrw":"21024019","valuationComplete":true},{"asOf":"2026-07-23T06:21:16.021Z","totalValueKrw":"21693593","valuationComplete":true},{"asOf":"2026-07-24T06:21:16.021Z","totalValueKrw":"21409338","valuationComplete":true},{"asOf":"2026-07-25T06:21:16.021Z","totalValueKrw":"20991030","valuationComplete":true},{"asOf":"2026-07-26T06:21:16.021Z","totalValueKrw":"21561754","valuationComplete":true},{"asOf":"2026-07-27T06:21:16.021Z","totalValueKrw":"22012332","valuationComplete":true},{"asOf":"2026-07-28T06:21:16.021Z","totalValueKrw":"21505501","valuationComplete":true},{"asOf":"2026-07-29T06:21:16.021Z","totalValueKrw":"21366199","valuationComplete":true},{"asOf":"2026-07-30T06:21:16.021Z","totalValueKrw":"22090266","valuationComplete":true},{"asOf":"2026-07-31T06:21:16.021Z","totalValueKrw":"22224997","valuationComplete":true},{"asOf":"2026-08-01T06:21:16.021Z","totalValueKrw":"21648898","valuationComplete":true},{"asOf":"2026-08-02T06:21:16.021Z","totalValueKrw":"21845986","valuationComplete":true},{"asOf":"2026-08-03T06:21:16.021Z","totalValueKrw":"22555342","valuationComplete":true},{"asOf":"2026-08-04T06:21:16.021Z","totalValueKrw":"22360187","valuationComplete":true},{"asOf":"2026-08-05T06:21:16.021Z","totalValueKrw":"21886532","valuationComplete":true},{"asOf":"2026-08-06T06:21:16.021Z","totalValueKrw":"22389841","valuationComplete":true},{"asOf":"2026-08-07T06:21:16.021Z","totalValueKrw":"22920587","valuationComplete":true},{"asOf":"2026-08-08T06:21:16.021Z","totalValueKrw":"22467991","valuationComplete":true},{"asOf":"2026-08-09T06:21:16.021Z","totalValueKrw":"22242049","valuationComplete":true},{"asOf":"2026-08-10T06:21:16.021Z","totalValueKrw":"22941741","valuationComplete":true},{"asOf":"2026-08-11T06:21:16.021Z","totalValueKrw":"23176953","valuationComplete":true},{"asOf":"2026-08-12T06:21:16.021Z","totalValueKrw":"22606926","valuationComplete":true},{"asOf":"2026-08-13T06:21:16.021Z","totalValueKrw":"22709584","valuationComplete":true},{"asOf":"2026-08-14T06:21:16.021Z","totalValueKrw":"23444847","valuationComplete":true},{"asOf":"2026-08-15T06:21:16.021Z","totalValueKrw":"23345119","valuationComplete":true},{"asOf":"2026-08-16T06:21:16.021Z","totalValueKrw":"22828668","valuationComplete":true},{"asOf":"2026-08-17T06:21:16.021Z","totalValueKrw":"23255309","valuationComplete":true},{"asOf":"2026-08-18T06:21:16.021Z","totalValueKrw":"23856366","valuationComplete":true},{"asOf":"2026-08-19T06:21:16.021Z","totalValueKrw":"23470108","valuationComplete":true},{"asOf":"2026-08-20T06:21:16.021Z","totalValueKrw":"23164577","valuationComplete":true},{"asOf":"2026-08-21T06:21:16.021Z","totalValueKrw":"23826286","valuationComplete":true},{"asOf":"2026-08-22T06:21:16.021Z","totalValueKrw":"24158749","valuationComplete":true},{"asOf":"2026-08-23T06:21:16.021Z","totalValueKrw":"23609549","valuationComplete":true},{"asOf":"2026-08-24T06:21:16.021Z","totalValueKrw":"23617523","valuationComplete":true},{"asOf":"2026-08-25T06:21:16.021Z","totalValueKrw":"24364320","valuationComplete":true},{"asOf":"2026-08-26T06:21:16.021Z","totalValueKrw":"24364297","valuationComplete":true},{"asOf":"2026-08-27T06:21:16.021Z","totalValueKrw":"23818640","valuationComplete":true},{"asOf":"2026-08-28T06:21:16.021Z","totalValueKrw":"24161153","valuationComplete":true},{"asOf":"2026-08-29T06:21:16.021Z","totalValueKrw":"24821177","valuationComplete":true},{"asOf":"2026-08-30T06:21:16.021Z","totalValueKrw":"24511962","valuationComplete":true},{"asOf":"2026-08-31T06:21:16.021Z","totalValueKrw":"24135754","valuationComplete":true},{"asOf":"2026-09-01T06:21:16.021Z","totalValueKrw":"24746804","valuationComplete":true},{"asOf":"2026-09-02T06:21:16.021Z","totalValueKrw":"25171201","valuationComplete":true},{"asOf":"2026-09-03T06:21:16.021Z","totalValueKrw":"24657201","valuationComplete":true},{"asOf":"2026-09-04T06:21:16.021Z","totalValueKrw":"24572433","valuationComplete":true},{"asOf":"2026-09-05T06:21:16.021Z","totalValueKrw":"25316222","valuationComplete":true},{"asOf":"2026-09-06T06:21:16.021Z","totalValueKrw":"25418040","valuationComplete":true},{"asOf":"2026-09-07T06:21:16.021Z","totalValueKrw":"24857503","valuationComplete":true},{"asOf":"2026-09-08T06:21:16.021Z","totalValueKrw":"25110396","valuationComplete":true},{"asOf":"2026-09-09T06:21:16.021Z","totalValueKrw":"25816811","valuationComplete":true},{"asOf":"2026-09-10T06:21:16.021Z","totalValueKrw":"25593711","valuationComplete":true},{"asOf":"2026-09-11T06:21:16.021Z","totalValueKrw":"25157399","valuationComplete":true},{"asOf":"2026-09-12T06:21:16.021Z","totalValueKrw":"25706334","valuationComplete":true},{"asOf":"2026-09-13T06:21:16.021Z","totalValueKrw":"26215383","valuationComplete":true},{"asOf":"2026-09-14T06:21:16.021Z","totalValueKrw":"25750259","valuationComplete":true},{"asOf":"2026-09-15T06:21:16.021Z","totalValueKrw":"25576850","valuationComplete":true},{"asOf":"2026-09-16T06:21:16.021Z","totalValueKrw":"26303243","valuationComplete":true},{"asOf":"2026-09-17T06:21:16.021Z","totalValueKrw":"26506855","valuationComplete":true},{"asOf":"2026-09-18T06:21:16.021Z","totalValueKrw":"25946185","valuationComplete":true},{"asOf":"2026-09-19T06:21:16.021Z","totalValueKrw":"26106053","valuationComplete":true},{"asOf":"2026-09-20T06:21:16.021Z","totalValueKrw":"26845339","valuationComplete":true},{"asOf":"2026-09-21T06:21:16.021Z","totalValueKrw":"26715593","valuationComplete":true},{"asOf":"2026-09-22T06:21:16.021Z","totalValueKrw":"26231186","valuationComplete":true},{"asOf":"2026-09-23T06:21:16.021Z","totalValueKrw":"26708024","valuationComplete":true},{"asOf":"2026-09-24T06:21:16.021Z","totalValueKrw":"27292645","valuationComplete":true},{"asOf":"2026-09-25T06:21:16.021Z","totalValueKrw":"26889073","valuationComplete":true},{"asOf":"2026-09-26T06:21:16.021Z","totalValueKrw":"26633196","valuationComplete":true},{"asOf":"2026-09-27T06:21:16.021Z","totalValueKrw":"27328284","valuationComplete":true},{"asOf":"2026-09-28T06:21:16.021Z","totalValueKrw":"27631462","valuationComplete":true},{"asOf":"2026-09-29T06:21:16.021Z","totalValueKrw":"27085503","valuationComplete":true},{"asOf":"2026-09-30T06:21:16.021Z","totalValueKrw":"27151111","valuationComplete":true},{"asOf":"2026-10-01T06:21:16.021Z","totalValueKrw":"27909107","valuationComplete":true},{"asOf":"2026-10-02T06:21:16.021Z","totalValueKrw":"27877963","valuationComplete":true},{"asOf":"2026-10-03T06:21:16.021Z","totalValueKrw":"27358637","valuationComplete":true},{"asOf":"2026-10-04T06:21:16.021Z","totalValueKrw":"27792409","valuationComplete":true},{"asOf":"2026-10-05T06:21:16.021Z","totalValueKrw":"28115086","valuationComplete":true},{"asOf":"2026-10-06T06:21:16.021Z","totalValueKrw":"28074000","valuationComplete":true}],"sampled":false,"note":"평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다."}},"daily":{"mode":"demo","days":365,"scope":[],"daily":[{"day":"2025-10-07","asOf":"2025-10-07T06:21:16.022Z","closeKrw":"7342237","changeKrw":"505643","changePct":"7.3961"},{"day":"2025-10-08","asOf":"2025-10-08T06:21:16.022Z","closeKrw":"7755416","changeKrw":"413179","changePct":"5.6274"},{"day":"2025-10-09","asOf":"2025-10-09T06:21:16.022Z","closeKrw":"7204405","changeKrw":"-551011","changePct":"-7.1049"},{"day":"2025-10-10","asOf":"2025-10-10T06:21:16.022Z","closeKrw":"6994546","changeKrw":"-209859","changePct":"-2.9129"},{"day":"2025-10-11","asOf":"2025-10-11T06:21:16.022Z","closeKrw":"7661193","changeKrw":"666647","changePct":"9.5310"},{"day":"2025-10-12","asOf":"2025-10-12T06:21:16.022Z","closeKrw":"7761051","changeKrw":"99858","changePct":"1.3034"},{"day":"2025-10-13","asOf":"2025-10-13T06:21:16.022Z","closeKrw":"7130686","changeKrw":"-630365","changePct":"-8.1222"},{"day":"2025-10-14","asOf":"2025-10-14T06:21:16.022Z","closeKrw":"7255511","changeKrw":"124825","changePct":"1.7505"},{"day":"2025-10-15","asOf":"2025-10-15T06:21:16.022Z","closeKrw":"7916185","changeKrw":"660674","changePct":"9.1058"},{"day":"2025-10-16","asOf":"2025-10-16T06:21:16.022Z","closeKrw":"7683819","changeKrw":"-232366","changePct":"-2.9353"},{"day":"2025-10-17","asOf":"2025-10-17T06:21:16.022Z","closeKrw":"7145963","changeKrw":"-537856","changePct":"-6.9999"},{"day":"2025-10-18","asOf":"2025-10-18T06:21:16.022Z","closeKrw":"7580102","changeKrw":"434139","changePct":"6.0753"},{"day":"2025-10-19","asOf":"2025-10-19T06:21:16.022Z","closeKrw":"8069492","changeKrw":"489390","changePct":"6.4562"},{"day":"2025-10-20","asOf":"2025-10-20T06:21:16.022Z","closeKrw":"7572885","changeKrw":"-496607","changePct":"-6.1541"},{"day":"2025-10-21","asOf":"2025-10-21T06:21:16.022Z","closeKrw":"7275342","changeKrw":"-297543","changePct":"-3.9291"},{"day":"2025-10-22","asOf":"2025-10-22T06:21:16.022Z","closeKrw":"7912738","changeKrw":"637396","changePct":"8.7610"},{"day":"2025-10-23","asOf":"2025-10-23T06:21:16.022Z","closeKrw":"8110383","changeKrw":"197645","changePct":"2.4978"},{"day":"2025-10-24","asOf":"2025-10-24T06:21:16.022Z","closeKrw":"7486648","changeKrw":"-623735","changePct":"-7.6906"},{"day":"2025-10-25","asOf":"2025-10-25T06:21:16.022Z","closeKrw":"7514563","changeKrw":"27915","changePct":"0.3729"},{"day":"2025-10-26","asOf":"2025-10-26T06:21:16.022Z","closeKrw":"8196176","changeKrw":"681613","changePct":"9.0706"},{"day":"2025-10-27","asOf":"2025-10-27T06:21:16.022Z","closeKrw":"8057928","changeKrw":"-138248","changePct":"-1.6867"},{"day":"2025-10-28","asOf":"2025-10-28T06:21:16.022Z","closeKrw":"7477494","changeKrw":"-580434","changePct":"-7.2033"},{"day":"2025-10-29","asOf":"2025-10-29T06:21:16.022Z","closeKrw":"7831110","changeKrw":"353616","changePct":"4.7291"},{"day":"2025-10-30","asOf":"2025-10-30T06:21:16.022Z","closeKrw":"8386462","changeKrw":"555352","changePct":"7.0916"},{"day":"2025-10-31","asOf":"2025-10-31T06:21:16.022Z","closeKrw":"7956024","changeKrw":"-430438","changePct":"-5.1325"},{"day":"2025-11-01","asOf":"2025-11-01T06:21:16.022Z","closeKrw":"7578123","changeKrw":"-377901","changePct":"-4.7499"},{"day":"2025-11-02","asOf":"2025-11-02T06:21:16.022Z","closeKrw":"8172720","changeKrw":"594597","changePct":"7.8462"},{"day":"2025-11-03","asOf":"2025-11-03T06:21:16.022Z","closeKrw":"8464426","changeKrw":"291706","changePct":"3.5693"},{"day":"2025-11-04","asOf":"2025-11-04T06:21:16.022Z","closeKrw":"7861933","changeKrw":"-602493","changePct":"-7.1179"},{"day":"2025-11-05","asOf":"2025-11-05T06:21:16.022Z","closeKrw":"7793006","changeKrw":"-68927","changePct":"-0.8767"},{"day":"2025-11-06","asOf":"2025-11-06T06:21:16.022Z","closeKrw":"8481034","changeKrw":"688028","changePct":"8.8288"},{"day":"2025-11-07","asOf":"2025-11-07T06:21:16.022Z","closeKrw":"8440689","changeKrw":"-40345","changePct":"-0.4757"},{"day":"2025-11-08","asOf":"2025-11-08T06:21:16.022Z","closeKrw":"7831335","changeKrw":"-609354","changePct":"-7.2192"},{"day":"2025-11-09","asOf":"2025-11-09T06:21:16.022Z","closeKrw":"8097234","changeKrw":"265899","changePct":"3.3953"},{"day":"2025-11-10","asOf":"2025-11-10T06:21:16.022Z","closeKrw":"8706853","changeKrw":"609619","changePct":"7.5287"},{"day":"2025-11-11","asOf":"2025-11-11T06:21:16.022Z","closeKrw":"8352901","changeKrw":"-353952","changePct":"-4.0652"},{"day":"2025-11-12","asOf":"2025-11-12T06:21:16.022Z","closeKrw":"7903787","changeKrw":"-449114","changePct":"-5.3767"},{"day":"2025-11-13","asOf":"2025-11-13T06:21:16.022Z","closeKrw":"8443023","changeKrw":"539236","changePct":"6.8225"},{"day":"2025-11-14","asOf":"2025-11-14T06:21:16.022Z","closeKrw":"8822992","changeKrw":"379969","changePct":"4.5004"},{"day":"2025-11-15","asOf":"2025-11-15T06:21:16.022Z","closeKrw":"8255910","changeKrw":"-567082","changePct":"-6.4273"},{"day":"2025-11-16","asOf":"2025-11-16T06:21:16.022Z","closeKrw":"8092400","changeKrw":"-163510","changePct":"-1.9805"},{"day":"2025-11-17","asOf":"2025-11-17T06:21:16.022Z","closeKrw":"8772206","changeKrw":"679806","changePct":"8.4005"},{"day":"2025-11-18","asOf":"2025-11-18T06:21:16.022Z","closeKrw":"8831388","changeKrw":"59182","changePct":"0.6747"},{"day":"2025-11-19","asOf":"2025-11-19T06:21:16.022Z","closeKrw":"8207445","changeKrw":"-623943","changePct":"-7.0651"},{"day":"2025-11-20","asOf":"2025-11-20T06:21:16.022Z","closeKrw":"8380423","changeKrw":"172978","changePct":"2.1076"},{"day":"2025-11-21","asOf":"2025-11-21T06:21:16.022Z","closeKrw":"9031433","changeKrw":"651010","changePct":"7.7682"},{"day":"2025-11-22","asOf":"2025-11-22T06:21:16.022Z","closeKrw":"8762604","changeKrw":"-268829","changePct":"-2.9766"},{"day":"2025-11-23","asOf":"2025-11-23T06:21:16.022Z","closeKrw":"8253042","changeKrw":"-509562","changePct":"-5.8152"},{"day":"2025-11-24","asOf":"2025-11-24T06:21:16.022Z","closeKrw":"8725621","changeKrw":"472579","changePct":"5.7261"},{"day":"2025-11-25","asOf":"2025-11-25T06:21:16.022Z","closeKrw":"9186114","changeKrw":"460493","changePct":"5.2775"},{"day":"2025-11-26","asOf":"2025-11-26T06:21:16.022Z","closeKrw":"8667851","changeKrw":"-518263","changePct":"-5.6418"},{"day":"2025-11-27","asOf":"2025-11-27T06:21:16.022Z","closeKrw":"8414158","changeKrw":"-253693","changePct":"-2.9268"},{"day":"2025-11-28","asOf":"2025-11-28T06:21:16.022Z","closeKrw":"9071316","changeKrw":"657158","changePct":"7.8101"},{"day":"2025-11-29","asOf":"2025-11-29T06:21:16.022Z","closeKrw":"9229460","changeKrw":"158144","changePct":"1.7433"},{"day":"2025-11-30","asOf":"2025-11-30T06:21:16.022Z","closeKrw":"8605617","changeKrw":"-623843","changePct":"-6.7593"},{"day":"2025-12-01","asOf":"2025-12-01T06:21:16.022Z","closeKrw":"8682573","changeKrw":"76956","changePct":"0.8943"},{"day":"2025-12-02","asOf":"2025-12-02T06:21:16.022Z","closeKrw":"9361203","changeKrw":"678630","changePct":"7.8160"},{"day":"2025-12-03","asOf":"2025-12-03T06:21:16.022Z","closeKrw":"9184266","changeKrw":"-176937","changePct":"-1.8901"},{"day":"2025-12-04","asOf":"2025-12-04T06:21:16.022Z","closeKrw":"8626402","changeKrw":"-557864","changePct":"-6.0741"},{"day":"2025-12-05","asOf":"2025-12-05T06:21:16.022Z","closeKrw":"9022545","changeKrw":"396143","changePct":"4.5922"},{"day":"2025-12-06","asOf":"2025-12-06T06:21:16.022Z","closeKrw":"9554057","changeKrw":"531512","changePct":"5.8909"},{"day":"2025-12-07","asOf":"2025-12-07T06:21:16.022Z","closeKrw":"9096960","changeKrw":"-457097","changePct":"-4.7843"},{"day":"2025-12-08","asOf":"2025-12-08T06:21:16.022Z","closeKrw":"8759530","changeKrw":"-337430","changePct":"-3.7093"},{"day":"2025-12-09","asOf":"2025-12-09T06:21:16.022Z","closeKrw":"9380154","changeKrw":"620624","changePct":"7.0851"},{"day":"2025-12-10","asOf":"2025-12-10T06:21:16.022Z","closeKrw":"9634516","changeKrw":"254362","changePct":"2.7117"},{"day":"2025-12-11","asOf":"2025-12-11T06:21:16.022Z","closeKrw":"9025489","changeKrw":"-609027","changePct":"-6.3213"},{"day":"2025-12-12","asOf":"2025-12-12T06:21:16.022Z","closeKrw":"9005497","changeKrw":"-19992","changePct":"-0.2215"},{"day":"2025-12-13","asOf":"2025-12-13T06:21:16.022Z","closeKrw":"9697392","changeKrw":"691895","changePct":"7.6830"},{"day":"2025-12-14","asOf":"2025-12-14T06:21:16.022Z","closeKrw":"9617096","changeKrw":"-80296","changePct":"-0.8280"},{"day":"2025-12-15","asOf":"2025-12-15T06:21:16.022Z","closeKrw":"9024187","changeKrw":"-592909","changePct":"-6.1652"},{"day":"2025-12-16","asOf":"2025-12-16T06:21:16.022Z","closeKrw":"9335853","changeKrw":"311666","changePct":"3.4537"},{"day":"2025-12-17","asOf":"2025-12-17T06:21:16.022Z","closeKrw":"9927325","changeKrw":"591472","changePct":"6.3355"},{"day":"2025-12-18","asOf":"2025-12-18T06:21:16.022Z","closeKrw":"9542411","changeKrw":"-384914","changePct":"-3.8773"},{"day":"2025-12-19","asOf":"2025-12-19T06:21:16.022Z","closeKrw":"9129589","changeKrw":"-412822","changePct":"-4.3262"},{"day":"2025-12-20","asOf":"2025-12-20T06:21:16.022Z","closeKrw":"9700639","changeKrw":"571050","changePct":"6.2549"},{"day":"2025-12-21","asOf":"2025-12-21T06:21:16.022Z","closeKrw":"10046360","changeKrw":"345721","changePct":"3.5639"},{"day":"2025-12-22","asOf":"2025-12-22T06:21:16.022Z","closeKrw":"9466570","changeKrw":"-579790","changePct":"-5.7711"},{"day":"2025-12-23","asOf":"2025-12-23T06:21:16.022Z","closeKrw":"9350901","changeKrw":"-115669","changePct":"-1.2219"},{"day":"2025-12-24","asOf":"2025-12-24T06:21:16.022Z","closeKrw":"10041443","changeKrw":"690542","changePct":"7.3848"},{"day":"2025-12-25","asOf":"2025-12-25T06:21:16.022Z","closeKrw":"10060412","changeKrw":"18969","changePct":"0.1889"},{"day":"2025-12-26","asOf":"2025-12-26T06:21:16.022Z","closeKrw":"9446529","changeKrw":"-613883","changePct":"-6.1020"},{"day":"2025-12-27","asOf":"2025-12-27T06:21:16.022Z","closeKrw":"9667600","changeKrw":"221071","changePct":"2.3402"},{"day":"2025-12-28","asOf":"2025-12-28T06:21:16.022Z","closeKrw":"10306668","changeKrw":"639068","changePct":"6.6104"},{"day":"2025-12-29","asOf":"2025-12-29T06:21:16.022Z","closeKrw":"10003373","changeKrw":"-303295","changePct":"-2.9427"},{"day":"2025-12-30","asOf":"2025-12-30T06:21:16.022Z","closeKrw":"9525223","changeKrw":"-478150","changePct":"-4.7799"},{"day":"2025-12-31","asOf":"2025-12-31T06:21:16.022Z","closeKrw":"10034801","changeKrw":"509578","changePct":"5.3498"},{"day":"2026-01-01","asOf":"2026-01-01T06:21:16.022Z","closeKrw":"10465016","changeKrw":"430215","changePct":"4.2872"},{"day":"2026-01-02","asOf":"2026-01-02T06:21:16.022Z","closeKrw":"9928262","changeKrw":"-536754","changePct":"-5.1290"},{"day":"2026-01-03","asOf":"2026-01-03T06:21:16.022Z","closeKrw":"9720360","changeKrw":"-207902","changePct":"-2.0940"},{"day":"2026-01-04","asOf":"2026-01-04T06:21:16.022Z","closeKrw":"10394995","changeKrw":"674635","changePct":"6.9404"},{"day":"2026-01-05","asOf":"2026-01-05T06:21:16.022Z","closeKrw":"10513672","changeKrw":"118677","changePct":"1.1417"},{"day":"2026-01-06","asOf":"2026-01-06T06:21:16.022Z","closeKrw":"9893389","changeKrw":"-620283","changePct":"-5.8998"},{"day":"2026-01-07","asOf":"2026-01-07T06:21:16.022Z","closeKrw":"10019801","changeKrw":"126412","changePct":"1.2777"},{"day":"2026-01-08","asOf":"2026-01-08T06:21:16.022Z","closeKrw":"10693074","changeKrw":"673273","changePct":"6.7194"},{"day":"2026-01-09","asOf":"2026-01-09T06:21:16.022Z","closeKrw":"10479049","changeKrw":"-214025","changePct":"-2.0015"},{"day":"2026-01-10","asOf":"2026-01-10T06:21:16.022Z","closeKrw":"9947128","changeKrw":"-531921","changePct":"-5.0760"},{"day":"2026-01-11","asOf":"2026-01-11T06:21:16.022Z","closeKrw":"10384743","changeKrw":"437615","changePct":"4.3994"},{"day":"2026-01-12","asOf":"2026-01-12T06:21:16.022Z","closeKrw":"10890736","changeKrw":"505993","changePct":"4.8725"},{"day":"2026-01-13","asOf":"2026-01-13T06:21:16.022Z","closeKrw":"10409895","changeKrw":"-480841","changePct":"-4.4151"},{"day":"2026-01-14","asOf":"2026-01-14T06:21:16.022Z","closeKrw":"10115295","changeKrw":"-294600","changePct":"-2.8300"},{"day":"2026-01-15","asOf":"2026-01-15T06:21:16.022Z","closeKrw":"10759862","changeKrw":"644567","changePct":"6.3722"},{"day":"2026-01-16","asOf":"2026-01-16T06:21:16.022Z","closeKrw":"10976499","changeKrw":"216637","changePct":"2.0134"},{"day":"2026-01-17","asOf":"2026-01-17T06:21:16.022Z","closeKrw":"10364570","changeKrw":"-611929","changePct":"-5.5749"},{"day":"2026-01-18","asOf":"2026-01-18T06:21:16.022Z","closeKrw":"10394410","changeKrw":"29840","changePct":"0.2879"},{"day":"2026-01-19","asOf":"2026-01-19T06:21:16.022Z","closeKrw":"11087769","changeKrw":"693359","changePct":"6.6705"},{"day":"2026-01-20","asOf":"2026-01-20T06:21:16.022Z","closeKrw":"10968707","changeKrw":"-119062","changePct":"-1.0738"},{"day":"2026-01-21","asOf":"2026-01-21T06:21:16.022Z","closeKrw":"10395810","changeKrw":"-572897","changePct":"-5.2230"},{"day":"2026-01-22","asOf":"2026-01-22T06:21:16.022Z","closeKrw":"10752615","changeKrw":"356805","changePct":"3.4322"},{"day":"2026-01-23","asOf":"2026-01-23T06:21:16.022Z","closeKrw":"11324015","changeKrw":"571400","changePct":"5.3141"},{"day":"2026-01-24","asOf":"2026-01-24T06:21:16.022Z","closeKrw":"10910750","changeKrw":"-413265","changePct":"-3.6495"},{"day":"2026-01-25","asOf":"2026-01-25T06:21:16.022Z","closeKrw":"10536964","changeKrw":"-373786","changePct":"-3.4259"},{"day":"2026-01-26","asOf":"2026-01-26T06:21:16.022Z","closeKrw":"11138007","changeKrw":"601043","changePct":"5.7041"},{"day":"2026-01-27","asOf":"2026-01-27T06:21:16.022Z","closeKrw":"11448708","changeKrw":"310701","changePct":"2.7896"},{"day":"2026-01-28","asOf":"2026-01-28T06:21:16.022Z","closeKrw":"10859737","changeKrw":"-588971","changePct":"-5.1444"},{"day":"2026-01-29","asOf":"2026-01-29T06:21:16.022Z","closeKrw":"10793286","changeKrw":"-66451","changePct":"-0.6119"},{"day":"2026-01-30","asOf":"2026-01-30T06:21:16.022Z","closeKrw":"11492202","changeKrw":"698916","changePct":"6.4755"},{"day":"2026-01-31","asOf":"2026-01-31T06:21:16.022Z","closeKrw":"11471715","changeKrw":"-20487","changePct":"-0.1783"},{"day":"2026-02-01","asOf":"2026-02-01T06:21:16.022Z","closeKrw":"10871589","changeKrw":"-600126","changePct":"-5.2314"},{"day":"2026-02-02","asOf":"2026-02-02T06:21:16.022Z","closeKrw":"11140579","changeKrw":"268990","changePct":"2.4742"},{"day":"2026-02-03","asOf":"2026-02-03T06:21:16.022Z","closeKrw":"11765594","changeKrw":"625015","changePct":"5.6103"},{"day":"2026-02-04","asOf":"2026-02-04T06:21:16.022Z","closeKrw":"11430100","changeKrw":"-335494","changePct":"-2.8515"},{"day":"2026-02-05","asOf":"2026-02-05T06:21:16.022Z","closeKrw":"10986442","changeKrw":"-443658","changePct":"-3.8815"},{"day":"2026-02-06","asOf":"2026-02-06T06:21:16.022Z","closeKrw":"11531519","changeKrw":"545077","changePct":"4.9614"},{"day":"2026-02-07","asOf":"2026-02-07T06:21:16.022Z","closeKrw":"11930326","changeKrw":"398807","changePct":"3.4584"},{"day":"2026-02-08","asOf":"2026-02-08T06:21:16.022Z","closeKrw":"11378445","changeKrw":"-551881","changePct":"-4.6259"},{"day":"2026-02-09","asOf":"2026-02-09T06:21:16.022Z","closeKrw":"11218172","changeKrw":"-160273","changePct":"-1.4086"},{"day":"2026-02-10","asOf":"2026-02-10T06:21:16.022Z","closeKrw":"11908030","changeKrw":"689858","changePct":"6.1495"},{"day":"2026-02-11","asOf":"2026-02-11T06:21:16.022Z","closeKrw":"11987570","changeKrw":"79540","changePct":"0.6680"},{"day":"2026-02-12","asOf":"2026-02-12T06:21:16.022Z","closeKrw":"11374610","changeKrw":"-612960","changePct":"-5.1133"},{"day":"2026-02-13","asOf":"2026-02-13T06:21:16.022Z","closeKrw":"11550779","changeKrw":"176169","changePct":"1.5488"},{"day":"2026-02-14","asOf":"2026-02-14T06:21:16.022Z","closeKrw":"12216461","changeKrw":"665682","changePct":"5.7631"},{"day":"2026-02-15","asOf":"2026-02-15T06:21:16.022Z","closeKrw":"11967235","changeKrw":"-249226","changePct":"-2.0401"},{"day":"2026-02-16","asOf":"2026-02-16T06:21:16.022Z","closeKrw":"11464623","changeKrw":"-502612","changePct":"-4.1999"},{"day":"2026-02-17","asOf":"2026-02-17T06:21:16.022Z","closeKrw":"11942580","changeKrw":"477957","changePct":"4.1690"},{"day":"2026-02-18","asOf":"2026-02-18T06:21:16.022Z","closeKrw":"12421609","changeKrw":"479029","changePct":"4.0111"},{"day":"2026-02-19","asOf":"2026-02-19T06:21:16.022Z","closeKrw":"11920162","changeKrw":"-501447","changePct":"-4.0369"},{"day":"2026-02-20","asOf":"2026-02-20T06:21:16.022Z","closeKrw":"11670672","changeKrw":"-249490","changePct":"-2.0930"},{"day":"2026-02-21","asOf":"2026-02-21T06:21:16.022Z","closeKrw":"12337103","changeKrw":"666431","changePct":"5.7103"},{"day":"2026-02-22","asOf":"2026-02-22T06:21:16.022Z","closeKrw":"12515927","changeKrw":"178824","changePct":"1.4495"},{"day":"2026-02-23","asOf":"2026-02-23T06:21:16.022Z","closeKrw":"11904856","changeKrw":"-611071","changePct":"-4.8823"},{"day":"2026-02-24","asOf":"2026-02-24T06:21:16.022Z","closeKrw":"11985315","changeKrw":"80459","changePct":"0.6759"},{"day":"2026-02-25","asOf":"2026-02-25T06:21:16.022Z","closeKrw":"12677847","changeKrw":"692532","changePct":"5.7782"},{"day":"2026-02-26","asOf":"2026-02-26T06:21:16.022Z","closeKrw":"12521503","changeKrw":"-156344","changePct":"-1.2332"},{"day":"2026-02-27","asOf":"2026-02-27T06:21:16.022Z","closeKrw":"11972212","changeKrw":"-549291","changePct":"-4.3868"},{"day":"2026-02-28","asOf":"2026-02-28T06:21:16.022Z","closeKrw":"12373437","changeKrw":"401225","changePct":"3.3513"},{"day":"2026-03-01","asOf":"2026-03-01T06:21:16.022Z","closeKrw":"12923055","changeKrw":"549618","changePct":"4.4419"},{"day":"2026-03-02","asOf":"2026-03-02T06:21:16.022Z","closeKrw":"12484302","changeKrw":"-438753","changePct":"-3.3951"},{"day":"2026-03-03","asOf":"2026-03-03T06:21:16.022Z","closeKrw":"12152234","changeKrw":"-332068","changePct":"-2.6599"},{"day":"2026-03-04","asOf":"2026-03-04T06:21:16.022Z","closeKrw":"12781433","changeKrw":"629199","changePct":"5.1776"},{"day":"2026-03-05","asOf":"2026-03-05T06:21:16.022Z","closeKrw":"13056627","changeKrw":"275194","changePct":"2.1531"},{"day":"2026-03-06","asOf":"2026-03-06T06:21:16.022Z","closeKrw":"12462169","changeKrw":"-594458","changePct":"-4.5529"},{"day":"2026-03-07","asOf":"2026-03-07T06:21:16.022Z","closeKrw":"12446206","changeKrw":"-15963","changePct":"-0.1281"},{"day":"2026-03-08","asOf":"2026-03-08T06:21:16.022Z","closeKrw":"13151217","changeKrw":"705011","changePct":"5.6645"},{"day":"2026-03-09","asOf":"2026-03-09T06:21:16.022Z","closeKrw":"13092340","changeKrw":"-58877","changePct":"-0.4477"},{"day":"2026-03-10","asOf":"2026-03-10T06:21:16.022Z","closeKrw":"12509731","changeKrw":"-582609","changePct":"-4.4500"},{"day":"2026-03-11","asOf":"2026-03-11T06:21:16.022Z","closeKrw":"12826367","changeKrw":"316636","changePct":"2.5311"},{"day":"2026-03-12","asOf":"2026-03-12T06:21:16.022Z","closeKrw":"13435409","changeKrw":"609042","changePct":"4.7484"},{"day":"2026-03-13","asOf":"2026-03-13T06:21:16.022Z","closeKrw":"13070256","changeKrw":"-365153","changePct":"-2.7178"},{"day":"2026-03-14","asOf":"2026-03-14T06:21:16.022Z","closeKrw":"12664139","changeKrw":"-406117","changePct":"-3.1072"},{"day":"2026-03-15","asOf":"2026-03-15T06:21:16.022Z","closeKrw":"13243176","changeKrw":"579037","changePct":"4.5723"},{"day":"2026-03-16","asOf":"2026-03-16T06:21:16.022Z","closeKrw":"13609719","changeKrw":"366543","changePct":"2.7678"},{"day":"2026-03-17","asOf":"2026-03-17T06:21:16.022Z","closeKrw":"13046271","changeKrw":"-563448","changePct":"-4.1400"},{"day":"2026-03-18","asOf":"2026-03-18T06:21:16.022Z","closeKrw":"12935374","changeKrw":"-110897","changePct":"-0.8500"},{"day":"2026-03-19","asOf":"2026-03-19T06:21:16.022Z","closeKrw":"13638259","changeKrw":"702885","changePct":"5.4338"},{"day":"2026-03-20","asOf":"2026-03-20T06:21:16.022Z","closeKrw":"13679303","changeKrw":"41044","changePct":"0.3009"},{"day":"2026-03-21","asOf":"2026-03-21T06:21:16.022Z","closeKrw":"13077525","changeKrw":"-601778","changePct":"-4.3992"},{"day":"2026-03-22","asOf":"2026-03-22T06:21:16.022Z","closeKrw":"13303651","changeKrw":"226126","changePct":"1.7291"},{"day":"2026-03-23","asOf":"2026-03-23T06:21:16.022Z","closeKrw":"13959672","changeKrw":"656021","changePct":"4.9311"},{"day":"2026-03-24","asOf":"2026-03-24T06:21:16.022Z","closeKrw":"13677427","changeKrw":"-282245","changePct":"-2.0219"},{"day":"2026-03-25","asOf":"2026-03-25T06:21:16.022Z","closeKrw":"13207487","changeKrw":"-469940","changePct":"-3.4359"},{"day":"2026-03-26","asOf":"2026-03-26T06:21:16.022Z","closeKrw":"13724600","changeKrw":"517113","changePct":"3.9153"},{"day":"2026-03-27","asOf":"2026-03-27T06:21:16.022Z","closeKrw":"14175477","changeKrw":"450877","changePct":"3.2852"},{"day":"2026-03-28","asOf":"2026-03-28T06:21:16.022Z","closeKrw":"13656793","changeKrw":"-518684","changePct":"-3.6590"},{"day":"2026-03-29","asOf":"2026-03-29T06:21:16.022Z","closeKrw":"13454614","changeKrw":"-202179","changePct":"-1.4804"},{"day":"2026-03-30","asOf":"2026-03-30T06:21:16.022Z","closeKrw":"14140864","changeKrw":"686250","changePct":"5.1005"},{"day":"2026-03-31","asOf":"2026-03-31T06:21:16.022Z","closeKrw":"14282097","changeKrw":"141233","changePct":"0.9988"},{"day":"2026-04-01","asOf":"2026-04-01T06:21:16.022Z","closeKrw":"13675777","changeKrw":"-606320","changePct":"-4.2453"},{"day":"2026-04-02","asOf":"2026-04-02T06:21:16.022Z","closeKrw":"13807540","changeKrw":"131763","changePct":"0.9635"},{"day":"2026-04-03","asOf":"2026-04-03T06:21:16.022Z","closeKrw":"14497094","changeKrw":"689554","changePct":"4.9940"},{"day":"2026-04-04","asOf":"2026-04-04T06:21:16.022Z","closeKrw":"14305262","changeKrw":"-191832","changePct":"-1.3232"},{"day":"2026-04-05","asOf":"2026-04-05T06:21:16.022Z","closeKrw":"13783199","changeKrw":"-522063","changePct":"-3.6494"},{"day":"2026-04-06","asOf":"2026-04-06T06:21:16.022Z","closeKrw":"14228056","changeKrw":"444857","changePct":"3.2275"},{"day":"2026-04-07","asOf":"2026-04-07T06:21:16.022Z","closeKrw":"14754419","changeKrw":"526363","changePct":"3.6995"},{"day":"2026-04-08","asOf":"2026-04-08T06:21:16.022Z","closeKrw":"14293300","changeKrw":"-461119","changePct":"-3.1253"},{"day":"2026-04-09","asOf":"2026-04-09T06:21:16.022Z","closeKrw":"14005580","changeKrw":"-287720","changePct":"-2.0130"},{"day":"2026-04-10","asOf":"2026-04-10T06:21:16.022Z","closeKrw":"14661104","changeKrw":"655524","changePct":"4.6804"},{"day":"2026-04-11","asOf":"2026-04-11T06:21:16.022Z","closeKrw":"14900611","changeKrw":"239507","changePct":"1.6336"},{"day":"2026-04-12","asOf":"2026-04-12T06:21:16.022Z","closeKrw":"14304524","changeKrw":"-596087","changePct":"-4.0004"},{"day":"2026-04-13","asOf":"2026-04-13T06:21:16.022Z","closeKrw":"14340227","changeKrw":"35703","changePct":"0.2496"},{"day":"2026-04-14","asOf":"2026-04-14T06:21:16.022Z","closeKrw":"15049169","changeKrw":"708942","changePct":"4.9437"},{"day":"2026-04-15","asOf":"2026-04-15T06:21:16.022Z","closeKrw":"14953287","changeKrw":"-95882","changePct":"-0.6371"},{"day":"2026-04-16","asOf":"2026-04-16T06:21:16.022Z","closeKrw":"14392015","changeKrw":"-561272","changePct":"-3.7535"},{"day":"2026-04-17","asOf":"2026-04-17T06:21:16.022Z","closeKrw":"14755948","changeKrw":"363933","changePct":"2.5287"},{"day":"2026-04-18","asOf":"2026-04-18T06:21:16.022Z","closeKrw":"15347314","changeKrw":"591366","changePct":"4.0076"},{"day":"2026-04-19","asOf":"2026-04-19T06:21:16.022Z","closeKrw":"14955327","changeKrw":"-391987","changePct":"-2.5541"},{"day":"2026-04-20","asOf":"2026-04-20T06:21:16.022Z","closeKrw":"14589767","changeKrw":"-365560","changePct":"-2.4443"},{"day":"2026-04-21","asOf":"2026-04-21T06:21:16.022Z","closeKrw":"15201213","changeKrw":"611446","changePct":"4.1909"},{"day":"2026-04-22","asOf":"2026-04-22T06:21:16.022Z","closeKrw":"15534932","changeKrw":"333719","changePct":"2.1953"},{"day":"2026-04-23","asOf":"2026-04-23T06:21:16.022Z","closeKrw":"14963679","changeKrw":"-571253","changePct":"-3.6772"},{"day":"2026-04-24","asOf":"2026-04-24T06:21:16.022Z","closeKrw":"14903822","changeKrw":"-59857","changePct":"-0.4000"},{"day":"2026-04-25","asOf":"2026-04-25T06:21:16.022Z","closeKrw":"15617625","changeKrw":"713803","changePct":"4.7894"},{"day":"2026-04-26","asOf":"2026-04-26T06:21:16.022Z","closeKrw":"15621140","changeKrw":"3515","changePct":"0.0225"},{"day":"2026-04-27","asOf":"2026-04-27T06:21:16.022Z","closeKrw":"15034500","changeKrw":"-586640","changePct":"-3.7554"},{"day":"2026-04-28","asOf":"2026-04-28T06:21:16.022Z","closeKrw":"15310701","changeKrw":"276201","changePct":"1.8371"},{"day":"2026-04-29","asOf":"2026-04-29T06:21:16.022Z","closeKrw":"15955187","changeKrw":"644486","changePct":"4.2094"},{"day":"2026-04-30","asOf":"2026-04-30T06:21:16.022Z","closeKrw":"15642409","changeKrw":"-312778","changePct":"-1.9604"},{"day":"2026-05-01","asOf":"2026-05-01T06:21:16.022Z","closeKrw":"15208501","changeKrw":"-433908","changePct":"-2.7739"},{"day":"2026-05-02","asOf":"2026-05-02T06:21:16.022Z","closeKrw":"15763554","changeKrw":"555053","changePct":"3.6496"},{"day":"2026-05-03","asOf":"2026-05-03T06:21:16.022Z","closeKrw":"16185375","changeKrw":"421821","changePct":"2.6759"},{"day":"2026-05-04","asOf":"2026-05-04T06:21:16.022Z","closeKrw":"15653054","changeKrw":"-532321","changePct":"-3.2889"},{"day":"2026-05-05","asOf":"2026-05-05T06:21:16.022Z","closeKrw":"15500323","changeKrw":"-152731","changePct":"-0.9757"},{"day":"2026-05-06","asOf":"2026-05-06T06:21:16.022Z","closeKrw":"16204408","changeKrw":"704085","changePct":"4.5424"},{"day":"2026-05-07","asOf":"2026-05-07T06:21:16.022Z","closeKrw":"16308601","changeKrw":"104193","changePct":"0.6430"},{"day":"2026-05-08","asOf":"2026-05-08T06:21:16.022Z","closeKrw":"15711057","changeKrw":"-597544","changePct":"-3.6640"},{"day":"2026-05-09","asOf":"2026-05-09T06:21:16.022Z","closeKrw":"15894728","changeKrw":"183671","changePct":"1.1691"},{"day":"2026-05-10","asOf":"2026-05-10T06:21:16.022Z","closeKrw":"16579323","changeKrw":"684595","changePct":"4.3071"},{"day":"2026-05-11","asOf":"2026-05-11T06:21:16.022Z","closeKrw":"16354117","changeKrw":"-225206","changePct":"-1.3584"},{"day":"2026-05-12","asOf":"2026-05-12T06:21:16.022Z","closeKrw":"15862934","changeKrw":"-491183","changePct":"-3.0034"},{"day":"2026-05-13","asOf":"2026-05-13T06:21:16.022Z","closeKrw":"16350593","changeKrw":"487659","changePct":"3.0742"},{"day":"2026-05-14","asOf":"2026-05-14T06:21:16.022Z","closeKrw":"16852495","changeKrw":"501902","changePct":"3.0696"},{"day":"2026-05-15","asOf":"2026-05-15T06:21:16.022Z","closeKrw":"16372392","changeKrw":"-480103","changePct":"-2.8489"},{"day":"2026-05-16","asOf":"2026-05-16T06:21:16.022Z","closeKrw":"16131604","changeKrw":"-240788","changePct":"-1.4707"},{"day":"2026-05-17","asOf":"2026-05-17T06:21:16.022Z","closeKrw":"16811662","changeKrw":"680058","changePct":"4.2157"},{"day":"2026-05-18","asOf":"2026-05-18T06:21:16.022Z","closeKrw":"17015624","changeKrw":"203962","changePct":"1.2132"},{"day":"2026-05-19","asOf":"2026-05-19T06:21:16.022Z","closeKrw":"16421938","changeKrw":"-593686","changePct":"-3.4891"},{"day":"2026-05-20","asOf":"2026-05-20T06:21:16.022Z","closeKrw":"16510408","changeKrw":"88470","changePct":"0.5387"},{"day":"2026-05-21","asOf":"2026-05-21T06:21:16.022Z","closeKrw":"17221259","changeKrw":"710851","changePct":"4.3055"},{"day":"2026-05-22","asOf":"2026-05-22T06:21:16.022Z","closeKrw":"17090092","changeKrw":"-131167","changePct":"-0.7617"},{"day":"2026-05-23","asOf":"2026-05-23T06:21:16.022Z","closeKrw":"16554043","changeKrw":"-536049","changePct":"-3.1366"},{"day":"2026-05-24","asOf":"2026-05-24T06:21:16.022Z","closeKrw":"16964869","changeKrw":"410826","changePct":"2.4817"},{"day":"2026-05-25","asOf":"2026-05-25T06:21:16.022Z","closeKrw":"17537102","changeKrw":"572233","changePct":"3.3730"},{"day":"2026-05-26","asOf":"2026-05-26T06:21:16.022Z","closeKrw":"17121394","changeKrw":"-415708","changePct":"-2.3704"},{"day":"2026-05-27","asOf":"2026-05-27T06:21:16.022Z","closeKrw":"16799389","changeKrw":"-322005","changePct":"-1.8807"},{"day":"2026-05-28","asOf":"2026-05-28T06:21:16.022Z","closeKrw":"17441709","changeKrw":"642320","changePct":"3.8235"},{"day":"2026-05-29","asOf":"2026-05-29T06:21:16.022Z","closeKrw":"17742363","changeKrw":"300654","changePct":"1.7238"},{"day":"2026-05-30","asOf":"2026-05-30T06:21:16.022Z","closeKrw":"17167269","changeKrw":"-575094","changePct":"-3.2414"},{"day":"2026-05-31","asOf":"2026-05-31T06:21:16.022Z","closeKrw":"17160049","changeKrw":"-7220","changePct":"-0.0421"},{"day":"2026-06-01","asOf":"2026-06-01T06:21:16.022Z","closeKrw":"17882779","changeKrw":"722730","changePct":"4.2117"},{"day":"2026-06-02","asOf":"2026-06-02T06:21:16.022Z","closeKrw":"17850077","changeKrw":"-32702","changePct":"-0.1829"},{"day":"2026-06-03","asOf":"2026-06-03T06:21:16.022Z","closeKrw":"17282633","changeKrw":"-567444","changePct":"-3.1789"},{"day":"2026-06-04","asOf":"2026-06-04T06:21:16.022Z","closeKrw":"17608963","changeKrw":"326330","changePct":"1.8882"},{"day":"2026-06-05","asOf":"2026-06-05T06:21:16.022Z","closeKrw":"18240266","changeKrw":"631303","changePct":"3.5851"},{"day":"2026-06-06","asOf":"2026-06-06T06:21:16.022Z","closeKrw":"17899754","changeKrw":"-340512","changePct":"-1.8668"},{"day":"2026-06-07","asOf":"2026-06-07T06:21:16.022Z","closeKrw":"17505246","changeKrw":"-394508","changePct":"-2.2040"},{"day":"2026-06-08","asOf":"2026-06-08T06:21:16.022Z","closeKrw":"18097020","changeKrw":"591774","changePct":"3.3806"},{"day":"2026-06-09","asOf":"2026-06-09T06:21:16.022Z","closeKrw":"18489190","changeKrw":"392170","changePct":"2.1670"},{"day":"2026-06-10","asOf":"2026-06-10T06:21:16.022Z","closeKrw":"17947071","changeKrw":"-542119","changePct":"-2.9321"},{"day":"2026-06-11","asOf":"2026-06-11T06:21:16.022Z","closeKrw":"17845870","changeKrw":"-101201","changePct":"-0.5639"},{"day":"2026-06-12","asOf":"2026-06-12T06:21:16.022Z","closeKrw":"18565900","changeKrw":"720030","changePct":"4.0347"},{"day":"2026-06-13","asOf":"2026-06-13T06:21:16.022Z","closeKrw":"18633952","changeKrw":"68052","changePct":"0.3665"},{"day":"2026-06-14","asOf":"2026-06-14T06:21:16.022Z","closeKrw":"18049346","changeKrw":"-584606","changePct":"-3.1373"},{"day":"2026-06-15","asOf":"2026-06-15T06:21:16.022Z","closeKrw":"18285467","changeKrw":"236121","changePct":"1.3082"},{"day":"2026-06-16","asOf":"2026-06-16T06:21:16.022Z","closeKrw":"18963323","changeKrw":"677856","changePct":"3.7071"},{"day":"2026-06-17","asOf":"2026-06-17T06:21:16.022Z","closeKrw":"18707193","changeKrw":"-256130","changePct":"-1.3507"},{"day":"2026-06-18","asOf":"2026-06-18T06:21:16.022Z","closeKrw":"18250580","changeKrw":"-456613","changePct":"-2.4408"},{"day":"2026-06-19","asOf":"2026-06-19T06:21:16.022Z","closeKrw":"18780189","changeKrw":"529609","changePct":"2.9019"},{"day":"2026-06-20","asOf":"2026-06-20T06:21:16.022Z","closeKrw":"19256722","changeKrw":"476533","changePct":"2.5374"},{"day":"2026-06-21","asOf":"2026-06-21T06:21:16.022Z","closeKrw":"18761288","changeKrw":"-495434","changePct":"-2.5728"},{"day":"2026-06-22","asOf":"2026-06-22T06:21:16.022Z","closeKrw":"18569979","changeKrw":"-191309","changePct":"-1.0197"},{"day":"2026-06-23","asOf":"2026-06-23T06:21:16.022Z","closeKrw":"19272850","changeKrw":"702871","changePct":"3.7850"},{"day":"2026-06-24","asOf":"2026-06-24T06:21:16.022Z","closeKrw":"19441762","changeKrw":"168912","changePct":"0.8764"},{"day":"2026-06-25","asOf":"2026-06-25T06:21:16.022Z","closeKrw":"18854678","changeKrw":"-587084","changePct":"-3.0197"},{"day":"2026-06-26","asOf":"2026-06-26T06:21:16.022Z","closeKrw":"18996955","changeKrw":"142277","changePct":"0.7546"},{"day":"2026-06-27","asOf":"2026-06-27T06:21:16.022Z","closeKrw":"19707873","changeKrw":"710918","changePct":"3.7423"},{"day":"2026-06-28","asOf":"2026-06-28T06:21:16.022Z","closeKrw":"19543492","changeKrw":"-164381","changePct":"-0.8341"},{"day":"2026-06-29","asOf":"2026-06-29T06:21:16.022Z","closeKrw":"19036622","changeKrw":"-506870","changePct":"-2.5935"},{"day":"2026-06-30","asOf":"2026-06-30T06:21:16.022Z","closeKrw":"19493906","changeKrw":"457284","changePct":"2.4021"},{"day":"2026-07-01","asOf":"2026-07-01T06:21:16.022Z","closeKrw":"20045829","changeKrw":"551923","changePct":"2.8313"},{"day":"2026-07-02","asOf":"2026-07-02T06:21:16.022Z","closeKrw":"19609814","changeKrw":"-436015","changePct":"-2.1751"},{"day":"2026-07-03","asOf":"2026-07-03T06:21:16.022Z","closeKrw":"19334347","changeKrw":"-275467","changePct":"-1.4047"},{"day":"2026-07-04","asOf":"2026-07-04T06:21:16.022Z","closeKrw":"20006055","changeKrw":"671708","changePct":"3.4742"},{"day":"2026-07-05","asOf":"2026-07-05T06:21:16.022Z","closeKrw":"20273749","changeKrw":"267694","changePct":"1.3381"},{"day":"2026-07-06","asOf":"2026-07-06T06:21:16.022Z","closeKrw":"19698991","changeKrw":"-574758","changePct":"-2.8350"},{"day":"2026-07-07","asOf":"2026-07-07T06:21:16.022Z","closeKrw":"19745953","changeKrw":"46962","changePct":"0.2384"},{"day":"2026-07-08","asOf":"2026-07-08T06:21:16.022Z","closeKrw":"20475773","changeKrw":"729820","changePct":"3.6960"},{"day":"2026-07-09","asOf":"2026-07-09T06:21:16.022Z","closeKrw":"20408529","changeKrw":"-67244","changePct":"-0.3284"},{"day":"2026-07-10","asOf":"2026-07-10T06:21:16.022Z","closeKrw":"19864442","changeKrw":"-544087","changePct":"-2.6660"},{"day":"2026-07-11","asOf":"2026-07-11T06:21:16.022Z","closeKrw":"20240921","changeKrw":"376479","changePct":"1.8952"},{"day":"2026-07-12","asOf":"2026-07-12T06:21:16.022Z","closeKrw":"20857650","changeKrw":"616729","changePct":"3.0469"},{"day":"2026-07-13","asOf":"2026-07-13T06:21:16.022Z","closeKrw":"20492531","changeKrw":"-365119","changePct":"-1.7505"},{"day":"2026-07-14","asOf":"2026-07-14T06:21:16.022Z","closeKrw":"20140806","changeKrw":"-351725","changePct":"-1.7164"},{"day":"2026-07-15","asOf":"2026-07-15T06:21:16.022Z","closeKrw":"20768110","changeKrw":"627304","changePct":"3.1146"},{"day":"2026-07-16","asOf":"2026-07-16T06:21:16.022Z","closeKrw":"21130372","changeKrw":"362262","changePct":"1.7443"},{"day":"2026-07-17","asOf":"2026-07-17T06:21:16.022Z","closeKrw":"20582541","changeKrw":"-547831","changePct":"-2.5926"},{"day":"2026-07-18","asOf":"2026-07-18T06:21:16.022Z","closeKrw":"20534915","changeKrw":"-47626","changePct":"-0.2314"},{"day":"2026-07-19","asOf":"2026-07-19T06:21:16.022Z","closeKrw":"21269126","changeKrw":"734211","changePct":"3.5754"},{"day":"2026-07-20","asOf":"2026-07-20T06:21:16.022Z","closeKrw":"21302308","changeKrw":"33182","changePct":"0.1560"},{"day":"2026-07-21","asOf":"2026-07-21T06:21:16.022Z","closeKrw":"20734947","changeKrw":"-567361","changePct":"-2.6634"},{"day":"2026-07-22","asOf":"2026-07-22T06:21:16.022Z","closeKrw":"21024019","changeKrw":"289072","changePct":"1.3941"},{"day":"2026-07-23","asOf":"2026-07-23T06:21:16.022Z","closeKrw":"21693593","changeKrw":"669574","changePct":"3.1848"},{"day":"2026-07-24","asOf":"2026-07-24T06:21:16.022Z","closeKrw":"21409338","changeKrw":"-284255","changePct":"-1.3103"},{"day":"2026-07-25","asOf":"2026-07-25T06:21:16.022Z","closeKrw":"20991030","changeKrw":"-418308","changePct":"-1.9539"},{"day":"2026-07-26","asOf":"2026-07-26T06:21:16.022Z","closeKrw":"21561754","changeKrw":"570724","changePct":"2.7189"},{"day":"2026-07-27","asOf":"2026-07-27T06:21:16.022Z","closeKrw":"22012332","changeKrw":"450578","changePct":"2.0897"},{"day":"2026-07-28","asOf":"2026-07-28T06:21:16.022Z","closeKrw":"21505501","changeKrw":"-506831","changePct":"-2.3025"},{"day":"2026-07-29","asOf":"2026-07-29T06:21:16.022Z","closeKrw":"21366199","changeKrw":"-139302","changePct":"-0.6478"},{"day":"2026-07-30","asOf":"2026-07-30T06:21:16.022Z","closeKrw":"22090266","changeKrw":"724067","changePct":"3.3888"},{"day":"2026-07-31","asOf":"2026-07-31T06:21:16.022Z","closeKrw":"22224997","changeKrw":"134731","changePct":"0.6099"},{"day":"2026-08-01","asOf":"2026-08-01T06:21:16.022Z","closeKrw":"21648898","changeKrw":"-576099","changePct":"-2.5921"},{"day":"2026-08-02","asOf":"2026-08-02T06:21:16.022Z","closeKrw":"21845986","changeKrw":"197088","changePct":"0.9104"},{"day":"2026-08-03","asOf":"2026-08-03T06:21:16.022Z","closeKrw":"22555342","changeKrw":"709356","changePct":"3.2471"},{"day":"2026-08-04","asOf":"2026-08-04T06:21:16.022Z","closeKrw":"22360187","changeKrw":"-195155","changePct":"-0.8652"},{"day":"2026-08-05","asOf":"2026-08-05T06:21:16.022Z","closeKrw":"21886532","changeKrw":"-473655","changePct":"-2.1183"},{"day":"2026-08-06","asOf":"2026-08-06T06:21:16.022Z","closeKrw":"22389841","changeKrw":"503309","changePct":"2.2996"},{"day":"2026-08-07","asOf":"2026-08-07T06:21:16.022Z","closeKrw":"22920587","changeKrw":"530746","changePct":"2.3705"},{"day":"2026-08-08","asOf":"2026-08-08T06:21:16.022Z","closeKrw":"22467991","changeKrw":"-452596","changePct":"-1.9746"},{"day":"2026-08-09","asOf":"2026-08-09T06:21:16.022Z","closeKrw":"22242049","changeKrw":"-225942","changePct":"-1.0056"},{"day":"2026-08-10","asOf":"2026-08-10T06:21:16.022Z","closeKrw":"22941741","changeKrw":"699692","changePct":"3.1458"},{"day":"2026-08-11","asOf":"2026-08-11T06:21:16.022Z","closeKrw":"23176953","changeKrw":"235212","changePct":"1.0253"},{"day":"2026-08-12","asOf":"2026-08-12T06:21:16.022Z","closeKrw":"22606926","changeKrw":"-570027","changePct":"-2.4595"},{"day":"2026-08-13","asOf":"2026-08-13T06:21:16.022Z","closeKrw":"22709584","changeKrw":"102658","changePct":"0.4541"},{"day":"2026-08-14","asOf":"2026-08-14T06:21:16.022Z","closeKrw":"23444847","changeKrw":"735263","changePct":"3.2377"},{"day":"2026-08-15","asOf":"2026-08-15T06:21:16.022Z","closeKrw":"23345119","changeKrw":"-99728","changePct":"-0.4254"},{"day":"2026-08-16","asOf":"2026-08-16T06:21:16.022Z","closeKrw":"22828668","changeKrw":"-516451","changePct":"-2.2122"},{"day":"2026-08-17","asOf":"2026-08-17T06:21:16.022Z","closeKrw":"23255309","changeKrw":"426641","changePct":"1.8689"},{"day":"2026-08-18","asOf":"2026-08-18T06:21:16.022Z","closeKrw":"23856366","changeKrw":"601057","changePct":"2.5846"},{"day":"2026-08-19","asOf":"2026-08-19T06:21:16.022Z","closeKrw":"23470108","changeKrw":"-386258","changePct":"-1.6191"},{"day":"2026-08-20","asOf":"2026-08-20T06:21:16.022Z","closeKrw":"23164577","changeKrw":"-305531","changePct":"-1.3018"},{"day":"2026-08-21","asOf":"2026-08-21T06:21:16.022Z","closeKrw":"23826286","changeKrw":"661709","changePct":"2.8566"},{"day":"2026-08-22","asOf":"2026-08-22T06:21:16.022Z","closeKrw":"24158749","changeKrw":"332463","changePct":"1.3954"},{"day":"2026-08-23","asOf":"2026-08-23T06:21:16.022Z","closeKrw":"23609549","changeKrw":"-549200","changePct":"-2.2733"},{"day":"2026-08-24","asOf":"2026-08-24T06:21:16.022Z","closeKrw":"23617523","changeKrw":"7974","changePct":"0.0338"},{"day":"2026-08-25","asOf":"2026-08-25T06:21:16.022Z","closeKrw":"24364320","changeKrw":"746797","changePct":"3.1620"},{"day":"2026-08-26","asOf":"2026-08-26T06:21:16.022Z","closeKrw":"24364297","changeKrw":"-23","changePct":"-0.0001"},{"day":"2026-08-27","asOf":"2026-08-27T06:21:16.022Z","closeKrw":"23818640","changeKrw":"-545657","changePct":"-2.2396"},{"day":"2026-08-28","asOf":"2026-08-28T06:21:16.022Z","closeKrw":"24161153","changeKrw":"342513","changePct":"1.4380"},{"day":"2026-08-29","asOf":"2026-08-29T06:21:16.022Z","closeKrw":"24821177","changeKrw":"660024","changePct":"2.7318"},{"day":"2026-08-30","asOf":"2026-08-30T06:21:16.022Z","closeKrw":"24511962","changeKrw":"-309215","changePct":"-1.2458"},{"day":"2026-08-31","asOf":"2026-08-31T06:21:16.022Z","closeKrw":"24135754","changeKrw":"-376208","changePct":"-1.5348"},{"day":"2026-09-01","asOf":"2026-09-01T06:21:16.022Z","closeKrw":"24746804","changeKrw":"611050","changePct":"2.5317"},{"day":"2026-09-02","asOf":"2026-09-02T06:21:16.022Z","closeKrw":"25171201","changeKrw":"424397","changePct":"1.7150"},{"day":"2026-09-03","asOf":"2026-09-03T06:21:16.022Z","closeKrw":"24657201","changeKrw":"-514000","changePct":"-2.0420"},{"day":"2026-09-04","asOf":"2026-09-04T06:21:16.022Z","closeKrw":"24572433","changeKrw":"-84768","changePct":"-0.3438"},{"day":"2026-09-05","asOf":"2026-09-05T06:21:16.022Z","closeKrw":"25316222","changeKrw":"743789","changePct":"3.0269"},{"day":"2026-09-06","asOf":"2026-09-06T06:21:16.022Z","closeKrw":"25418040","changeKrw":"101818","changePct":"0.4022"},{"day":"2026-09-07","asOf":"2026-09-07T06:21:16.022Z","closeKrw":"24857503","changeKrw":"-560537","changePct":"-2.2053"},{"day":"2026-09-08","asOf":"2026-09-08T06:21:16.022Z","closeKrw":"25110396","changeKrw":"252893","changePct":"1.0174"},{"day":"2026-09-09","asOf":"2026-09-09T06:21:16.022Z","closeKrw":"25816811","changeKrw":"706415","changePct":"2.8132"},{"day":"2026-09-10","asOf":"2026-09-10T06:21:16.022Z","closeKrw":"25593711","changeKrw":"-223100","changePct":"-0.8642"},{"day":"2026-09-11","asOf":"2026-09-11T06:21:16.022Z","closeKrw":"25157399","changeKrw":"-436312","changePct":"-1.7048"},{"day":"2026-09-12","asOf":"2026-09-12T06:21:16.022Z","closeKrw":"25706334","changeKrw":"548935","changePct":"2.1820"},{"day":"2026-09-13","asOf":"2026-09-13T06:21:16.022Z","closeKrw":"26215383","changeKrw":"509049","changePct":"1.9802"},{"day":"2026-09-14","asOf":"2026-09-14T06:21:16.022Z","closeKrw":"25750259","changeKrw":"-465124","changePct":"-1.7742"},{"day":"2026-09-15","asOf":"2026-09-15T06:21:16.022Z","closeKrw":"25576850","changeKrw":"-173409","changePct":"-0.6734"},{"day":"2026-09-16","asOf":"2026-09-16T06:21:16.022Z","closeKrw":"26303243","changeKrw":"726393","changePct":"2.8400"},{"day":"2026-09-17","asOf":"2026-09-17T06:21:16.022Z","closeKrw":"26506855","changeKrw":"203612","changePct":"0.7741"},{"day":"2026-09-18","asOf":"2026-09-18T06:21:16.022Z","closeKrw":"25946185","changeKrw":"-560670","changePct":"-2.1152"},{"day":"2026-09-19","asOf":"2026-09-19T06:21:16.022Z","closeKrw":"26106053","changeKrw":"159868","changePct":"0.6162"},{"day":"2026-09-20","asOf":"2026-09-20T06:21:16.022Z","closeKrw":"26845339","changeKrw":"739286","changePct":"2.8319"},{"day":"2026-09-21","asOf":"2026-09-21T06:21:16.022Z","closeKrw":"26715593","changeKrw":"-129746","changePct":"-0.4833"},{"day":"2026-09-22","asOf":"2026-09-22T06:21:16.022Z","closeKrw":"26231186","changeKrw":"-484407","changePct":"-1.8132"},{"day":"2026-09-23","asOf":"2026-09-23T06:21:16.022Z","closeKrw":"26708024","changeKrw":"476838","changePct":"1.8178"},{"day":"2026-09-24","asOf":"2026-09-24T06:21:16.022Z","closeKrw":"27292645","changeKrw":"584621","changePct":"2.1889"},{"day":"2026-09-25","asOf":"2026-09-25T06:21:16.022Z","closeKrw":"26889073","changeKrw":"-403572","changePct":"-1.4787"},{"day":"2026-09-26","asOf":"2026-09-26T06:21:16.022Z","closeKrw":"26633196","changeKrw":"-255877","changePct":"-0.9516"},{"day":"2026-09-27","asOf":"2026-09-27T06:21:16.022Z","closeKrw":"27328284","changeKrw":"695088","changePct":"2.6099"},{"day":"2026-09-28","asOf":"2026-09-28T06:21:16.022Z","closeKrw":"27631462","changeKrw":"303178","changePct":"1.1094"},{"day":"2026-09-29","asOf":"2026-09-29T06:21:16.022Z","closeKrw":"27085503","changeKrw":"-545959","changePct":"-1.9759"},{"day":"2026-09-30","asOf":"2026-09-30T06:21:16.022Z","closeKrw":"27151111","changeKrw":"65608","changePct":"0.2422"},{"day":"2026-10-01","asOf":"2026-10-01T06:21:16.022Z","closeKrw":"27909107","changeKrw":"757996","changePct":"2.7918"},{"day":"2026-10-02","asOf":"2026-10-02T06:21:16.022Z","closeKrw":"27877963","changeKrw":"-31144","changePct":"-0.1116"},{"day":"2026-10-03","asOf":"2026-10-03T06:21:16.022Z","closeKrw":"27358637","changeKrw":"-519326","changePct":"-1.8629"},{"day":"2026-10-04","asOf":"2026-10-04T06:21:16.022Z","closeKrw":"27792409","changeKrw":"433772","changePct":"1.5855"},{"day":"2026-10-05","asOf":"2026-10-05T06:21:16.022Z","closeKrw":"28115086","changeKrw":"322677","changePct":"1.1610"},{"day":"2026-10-06","asOf":"2026-10-06T06:21:16.022Z","closeKrw":"28074000","changeKrw":"-41086","changePct":"-0.1461"}],"note":"한국 시간 날짜별 마지막 평가금액과 직전 기록일 대비 변화입니다. 입출금이 포함되어 투자 수익률과 다릅니다."},"markets":{"BTC":{"mode":"demo","symbol":"BTC","name":"비트코인","market":"KRW-BTC","asOf":"2026-10-06T06:21:16.022Z","priceKrw":"108400000","changePct":"2.3800","candles":[{"date":"2026-09-07","closeKrw":"98282244"},{"date":"2026-09-08","closeKrw":"98164393"},{"date":"2026-09-09","closeKrw":"96205432"},{"date":"2026-09-10","closeKrw":"95843327"},{"date":"2026-09-11","closeKrw":"98197149"},{"date":"2026-09-12","closeKrw":"100402424"},{"date":"2026-09-13","closeKrw":"99792478"},{"date":"2026-09-14","closeKrw":"97822414"},{"date":"2026-09-15","closeKrw":"97961934"},{"date":"2026-09-16","closeKrw":"100607980"},{"date":"2026-09-17","closeKrw":"102476202"},{"date":"2026-09-18","closeKrw":"101402319"},{"date":"2026-09-19","closeKrw":"99534544"},{"date":"2026-09-20","closeKrw":"100208447"},{"date":"2026-09-21","closeKrw":"103050242"},{"date":"2026-09-22","closeKrw":"104496805"},{"date":"2026-09-23","closeKrw":"103011026"},{"date":"2026-09-24","closeKrw":"101359016"},{"date":"2026-09-25","closeKrw":"102576031"},{"date":"2026-09-26","closeKrw":"105504119"},{"date":"2026-09-27","closeKrw":"106461667"},{"date":"2026-09-28","closeKrw":"104638391"},{"date":"2026-09-29","closeKrw":"103310245"},{"date":"2026-09-30","closeKrw":"105053686"},{"date":"2026-10-01","closeKrw":"107950378"},{"date":"2026-10-02","closeKrw":"108372762"},{"date":"2026-10-03","closeKrw":"106306078"},{"date":"2026-10-04","closeKrw":"105399103"},{"date":"2026-10-05","closeKrw":"107626639"},{"date":"2026-10-06","closeKrw":"108400000"}],"note":"빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다."},"ETH":{"mode":"demo","symbol":"ETH","name":"이더리움","market":"KRW-ETH","asOf":"2026-10-06T06:21:16.022Z","priceKrw":"4180000","changePct":"1.6400","candles":[{"date":"2026-09-07","closeKrw":"3701449"},{"date":"2026-09-08","closeKrw":"3662368"},{"date":"2026-09-09","closeKrw":"3732843"},{"date":"2026-09-10","closeKrw":"3832124"},{"date":"2026-09-11","closeKrw":"3836531"},{"date":"2026-09-12","closeKrw":"3761028"},{"date":"2026-09-13","closeKrw":"3738326"},{"date":"2026-09-14","closeKrw":"3824629"},{"date":"2026-09-15","closeKrw":"3916346"},{"date":"2026-09-16","closeKrw":"3901181"},{"date":"2026-09-17","closeKrw":"3823239"},{"date":"2026-09-18","closeKrw":"3819407"},{"date":"2026-09-19","closeKrw":"3918756"},{"date":"2026-09-20","closeKrw":"3998914"},{"date":"2026-09-21","closeKrw":"3964845"},{"date":"2026-09-22","closeKrw":"3888859"},{"date":"2026-09-23","closeKrw":"3905593"},{"date":"2026-09-24","closeKrw":"4014478"},{"date":"2026-09-25","closeKrw":"4079490"},{"date":"2026-09-26","closeKrw":"4028138"},{"date":"2026-09-27","closeKrw":"3958602"},{"date":"2026-09-28","closeKrw":"3996692"},{"date":"2026-09-29","closeKrw":"4111017"},{"date":"2026-09-30","closeKrw":"4157896"},{"date":"2026-10-01","closeKrw":"4091796"},{"date":"2026-10-02","closeKrw":"4033092"},{"date":"2026-10-03","closeKrw":"4092346"},{"date":"2026-10-04","closeKrw":"4207600"},{"date":"2026-10-05","closeKrw":"4234126"},{"date":"2026-10-06","closeKrw":"4180000"}],"note":"빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다."},"XRP":{"mode":"demo","symbol":"XRP","name":"리플","market":"KRW-XRP","asOf":"2026-10-06T06:21:16.022Z","priceKrw":"2610","changePct":"-1.8100","candles":[{"date":"2026-09-07","closeKrw":"2311"},{"date":"2026-09-08","closeKrw":"2287"},{"date":"2026-09-09","closeKrw":"2331"},{"date":"2026-09-10","closeKrw":"2393"},{"date":"2026-09-11","closeKrw":"2396"},{"date":"2026-09-12","closeKrw":"2348"},{"date":"2026-09-13","closeKrw":"2334"},{"date":"2026-09-14","closeKrw":"2388"},{"date":"2026-09-15","closeKrw":"2445"},{"date":"2026-09-16","closeKrw":"2436"},{"date":"2026-09-17","closeKrw":"2387"},{"date":"2026-09-18","closeKrw":"2385"},{"date":"2026-09-19","closeKrw":"2447"},{"date":"2026-09-20","closeKrw":"2497"},{"date":"2026-09-21","closeKrw":"2476"},{"date":"2026-09-22","closeKrw":"2428"},{"date":"2026-09-23","closeKrw":"2439"},{"date":"2026-09-24","closeKrw":"2507"},{"date":"2026-09-25","closeKrw":"2547"},{"date":"2026-09-26","closeKrw":"2515"},{"date":"2026-09-27","closeKrw":"2472"},{"date":"2026-09-28","closeKrw":"2496"},{"date":"2026-09-29","closeKrw":"2567"},{"date":"2026-09-30","closeKrw":"2596"},{"date":"2026-10-01","closeKrw":"2555"},{"date":"2026-10-02","closeKrw":"2518"},{"date":"2026-10-03","closeKrw":"2555"},{"date":"2026-10-04","closeKrw":"2627"},{"date":"2026-10-05","closeKrw":"2644"},{"date":"2026-10-06","closeKrw":"2610"}],"note":"빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다."},"SOL":{"mode":"demo","symbol":"SOL","name":"솔라나","market":"KRW-SOL","asOf":"2026-10-06T06:21:16.022Z","priceKrw":"238000","changePct":"0.8200","candles":[{"date":"2026-09-07","closeKrw":"211937"},{"date":"2026-09-08","closeKrw":"208683"},{"date":"2026-09-09","closeKrw":"211430"},{"date":"2026-09-10","closeKrw":"217439"},{"date":"2026-09-11","closeKrw":"219158"},{"date":"2026-09-12","closeKrw":"215288"},{"date":"2026-09-13","closeKrw":"212746"},{"date":"2026-09-14","closeKrw":"216556"},{"date":"2026-09-15","closeKrw":"222445"},{"date":"2026-09-16","closeKrw":"223052"},{"date":"2026-09-17","closeKrw":"218732"},{"date":"2026-09-18","closeKrw":"217095"},{"date":"2026-09-19","closeKrw":"221871"},{"date":"2026-09-20","closeKrw":"227392"},{"date":"2026-09-21","closeKrw":"226854"},{"date":"2026-09-22","closeKrw":"222316"},{"date":"2026-09-23","closeKrw":"221742"},{"date":"2026-09-24","closeKrw":"227335"},{"date":"2026-09-25","closeKrw":"232250"},{"date":"2026-09-26","closeKrw":"230589"},{"date":"2026-09-27","closeKrw":"226086"},{"date":"2026-09-28","closeKrw":"226688"},{"date":"2026-09-29","closeKrw":"232905"},{"date":"2026-09-30","closeKrw":"236996"},{"date":"2026-10-01","closeKrw":"234291"},{"date":"2026-10-02","closeKrw":"230084"},{"date":"2026-10-03","closeKrw":"231926"},{"date":"2026-10-04","closeKrw":"238538"},{"date":"2026-10-05","closeKrw":"241618"},{"date":"2026-10-06","closeKrw":"238000"}],"note":"빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다."}},"records":{"orders":{"mode":"demo","kind":"orders","label":"종료 주문","asOf":"2026-10-06T06:21:16.022Z","period":{"from":"2026-09-29T06:21:16.023Z","to":"2026-10-06T06:21:16.022Z"},"rows":[{"order_id":"demo-done","side":"bid","order_type":"limit","state":"done","market":"KRW-BTC","created_at":"2026-10-06T05:21:16.022Z","price":"92000000","volume":"0.01","remaining_volume":"0","paid_fee":"368","locked":"0","executed_volume":"0.01","executed_funds":"920000","at":"2026-10-06T05:21:16.022Z"}],"totals":{"KRW":{"count":1,"amount":"920000","fee":"368"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"주문 생성 시각 기준 기간입니다. 체결 기준 투자 성과가 아닙니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."},"pending":{"mode":"demo","kind":"pending","label":"대기 주문","asOf":"2026-10-06T06:21:16.022Z","period":null,"rows":[{"order_id":"demo-pending","side":"ask","order_type":"limit","state":"wait","market":"KRW-BTC","created_at":"2026-10-06T04:21:16.022Z","price":"115000000","volume":"0.005","remaining_volume":"0.005","paid_fee":"0","locked":"0.005","executed_volume":"0","executed_funds":"0","at":"2026-10-06T04:21:16.022Z"}],"totals":{"KRW":{"count":1,"amount":"0","fee":"0"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"현재 대기 주문 전체입니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."},"deposits":{"mode":"demo","kind":"deposits","label":"코인 입금","asOf":"2026-10-06T06:21:16.022Z","period":{"from":"2026-09-29T06:21:16.023Z","to":"2026-10-06T06:21:16.022Z"},"rows":[{"uuid":"demo-deposit-BTC","currency":"BTC","state":"DEPOSIT_ACCEPTED","created_at":"2026-10-05T06:21:16.022Z","done_at":"2026-10-05T06:22:16.022Z","amount":"0.01","fee":"0","at":"2026-10-05T06:22:16.022Z"}],"totals":{"BTC":{"count":1,"amount":"0.01","fee":"0"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"완료 시각(없으면 생성 시각) 기준 기간입니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."},"withdrawals":{"mode":"demo","kind":"withdrawals","label":"코인 출금","asOf":"2026-10-06T06:21:16.022Z","period":{"from":"2026-09-29T06:21:16.023Z","to":"2026-10-06T06:21:16.022Z"},"rows":[{"uuid":"demo-withdraw-BTC","currency":"BTC","state":"DONE","created_at":"2026-10-05T06:21:16.022Z","done_at":"2026-10-05T06:22:16.022Z","amount":"0.01","fee":"0.0002","at":"2026-10-05T06:22:16.022Z"}],"totals":{"BTC":{"count":1,"amount":"0.01","fee":"0.0002"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"완료 시각(없으면 생성 시각) 기준 기간입니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."},"krw_deposits":{"mode":"demo","kind":"krw_deposits","label":"원화 입금","asOf":"2026-10-06T06:21:16.022Z","period":{"from":"2026-09-29T06:21:16.023Z","to":"2026-10-06T06:21:16.022Z"},"rows":[{"uuid":"demo-deposit-KRW","currency":"KRW","state":"ACCEPTED","created_at":"2026-10-05T06:21:16.022Z","done_at":"2026-10-05T06:22:16.022Z","amount":"1000000","fee":"0","at":"2026-10-05T06:22:16.022Z"}],"totals":{"KRW":{"count":1,"amount":"1000000","fee":"0"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"완료 시각(없으면 생성 시각) 기준 기간입니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."},"krw_withdrawals":{"mode":"demo","kind":"krw_withdrawals","label":"원화 출금","asOf":"2026-10-06T06:21:16.022Z","period":{"from":"2026-09-29T06:21:16.023Z","to":"2026-10-06T06:21:16.022Z"},"rows":[{"uuid":"demo-withdraw-KRW","currency":"KRW","state":"DONE","created_at":"2026-10-05T06:21:16.022Z","done_at":"2026-10-05T06:22:16.022Z","amount":"100000","fee":"1000","at":"2026-10-05T06:22:16.022Z"}],"totals":{"KRW":{"count":1,"amount":"100000","fee":"1000"}},"coverage":{"complete":true,"pages":1,"maxPages":50,"note":"완료 시각(없으면 생성 시각) 기준 기간입니다."},"notice":"통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다."}},"explain":{"mode":"demo","asOf":"2026-10-06T06:21:16.020Z","scope":[],"summary":"총 평가금액은 28,074,000원입니다. 원화 2,800,000원, 가상자산 4종 25,274,000원입니다. 보유분 평가손익은 +2,594,000원 (11.44%)입니다. 비중이 큰 자산은 비트코인 48.3%, 이더리움 23.8%, 리플 11.2%입니다.","largest":[{"symbol":"BTC","name":"비트코인","valueKrw":"13550000","allocationPct":"48.2653"},{"symbol":"ETH","name":"이더리움","valueKrw":"6688000","allocationPct":"23.8228"},{"symbol":"XRP","name":"리플","valueKrw":"3132000","allocationPct":"11.1562"}],"coverage":{"assets":5,"priced":5,"unpriced":[],"unknownCost":[]},"warnings":[]}};
+  const clone = value => JSON.parse(JSON.stringify(value));
+  let boards = clone(DATA.boards);
+  const fail = (message, status = 400) => Promise.reject(Object.assign(new Error(message), { status }));
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `sample-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const won = value => `${Math.round(Number(value)).toLocaleString('ko-KR')}원`;
+
+  // 원화 포함 전체 응답을 일부 자산으로 좁힙니다. 샘플 표시용 단순 계산입니다.
+  function project(symbols) {
+    const full = DATA.portfolio;
+    if (!symbols.length) return full;
+    const holdings = full.holdings.filter(h => symbols.includes(h.symbol));
+    const total = holdings.reduce((sum, h) => sum + Number(h.valueKrw ?? 0), 0);
+    const comparable = holdings.filter(h => h.profitKrw !== null);
+    const cost = comparable.reduce((sum, h) => sum + Number(h.costKrw), 0), profit = comparable.reduce((sum, h) => sum + Number(h.profitKrw), 0);
+    const cash = Number(holdings.find(h => h.symbol === 'KRW')?.valueKrw ?? 0);
+    return { ...full, scope: symbols,
+      holdings: holdings.map(h => ({ ...h, allocationPct: total ? (Number(h.valueKrw) / total * 100).toFixed(4) : null })),
+      summary: { ...full.summary, totalValueKrw: String(total), cashKrw: String(cash), cryptoValueKrw: String(total - cash),
+        profitKrw: comparable.length ? String(profit) : null, profitRatePct: cost ? (profit / cost * 100).toFixed(4) : null,
+        comparableCostKrw: String(cost), assetCount: holdings.filter(h => h.symbol !== 'KRW').length } };
+  }
+  const ratio = symbols => symbols.length ? Number(project(symbols).summary.totalValueKrw) / Number(DATA.portfolio.summary.totalValueKrw) : 1;
+  function history(params) {
+    const symbols = (params.get('symbols') || '').split(',').filter(Boolean), share = ratio(symbols);
+    if (params.get('daily') === '1') {
+      const result = clone(DATA.daily);
+      result.daily = result.daily.map(row => ({ ...row, closeKrw: String(Math.round(row.closeKrw * share)), changeKrw: row.changeKrw === null ? null : String(Math.round(row.changeKrw * share)) }));
+      return { ...result, scope: symbols };
+    }
+    const result = clone(DATA.histories[params.get('days')] ?? DATA.histories[30]);
+    result.points = result.points.map(p => ({ ...p, totalValueKrw: String(Math.round(p.totalValueKrw * share)) }));
+    return { ...result, scope: symbols };
+  }
+  function explain(params) {
+    const symbols = (params.get('symbols') || '').split(',').filter(Boolean);
+    if (!symbols.length) return DATA.explain;
+    const p = project(symbols), s = p.summary;
+    const largest = p.holdings.filter(h => h.valueKrw !== null).sort((a, b) => b.valueKrw - a.valueKrw).slice(0, 3).map(({ symbol, name, valueKrw, allocationPct }) => ({ symbol, name, valueKrw, allocationPct }));
+    const lines = [`총 평가금액은 ${won(s.totalValueKrw)}입니다. 원화 ${won(s.cashKrw)}, 가상자산 ${s.assetCount}종 ${won(s.cryptoValueKrw)}입니다.`];
+    if (s.profitKrw !== null) lines.push(`보유분 평가손익은 ${Number(s.profitKrw) > 0 ? '+' : ''}${won(s.profitKrw)}${s.profitRatePct === null ? '' : ` (${Number(s.profitRatePct).toFixed(2)}%)`}입니다.`);
+    if (largest.length) lines.push(`비중이 큰 자산은 ${largest.map(h => `${h.name} ${Number(h.allocationPct).toFixed(1)}%`).join(', ')}입니다.`);
+    return { ...DATA.explain, scope: symbols, summary: lines.join(' '), largest };
+  }
+  function records(params) {
+    const result = clone(DATA.records[params.get('kind')] ?? DATA.records.orders);
+    if (result.kind === 'pending') return result;
+    const kst = (value, end) => Date.parse(`${value}T${end ? '23:59:59.999' : '00:00:00.000'}+09:00`);
+    const from = params.get('from') ? kst(params.get('from')) : Date.now() - 7 * 86400000, to = params.get('to') ? kst(params.get('to'), true) : Date.now();
+    result.rows = result.rows.filter(row => { const at = Date.parse(row.at ?? row.created_at); return at >= from && at <= to; });
+    result.period = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+    return result;
+  }
+  function saveBoard(input, base = {}) {
+    if (!String(input?.name ?? '').trim() || !Array.isArray(input.widgets) || !input.widgets.length) return null;
+    const { name, symbols = [], widgets, days = 30, refreshSeconds = 0 } = input;
+    return { ...base, name: name.trim(), symbols, widgets, days, refreshSeconds, updatedAt: new Date().toISOString() };
+  }
+  async function request(method, path, body) {
+    const url = new URL(path, 'http://sample.local'), params = url.searchParams, id = url.pathname.split('/')[3];
+    if (method === 'GET') {
+      switch (url.pathname) {
+        case '/api/status': return clone(DATA.status);
+        case '/api/boards': return { boards: clone(boards) };
+        case '/api/portfolio': return clone(project((params.get('symbols') || '').split(',').filter(Boolean)));
+        case '/api/history': return history(params);
+        case '/api/explain': return explain(params);
+        case '/api/records': return records(params);
+        case '/api/market': return DATA.markets[params.get('symbol')] ? clone(DATA.markets[params.get('symbol')]) : fail('샘플 데이터에 없는 원화 마켓입니다.', 404);
+      }
+    }
+    if (method === 'POST' && url.pathname === '/api/boards') {
+      const board = saveBoard(body, { id: newId(), revision: 1 });
+      if (!board) return fail('이름과 위젯을 확인하세요.');
+      boards.push(board);
+      return clone(board);
+    }
+    if (method === 'POST' && url.pathname === '/api/boards/import') {
+      const created = (body.boards ?? []).map(item => saveBoard(item, { id: newId(), revision: 1 }));
+      if (!created.length || created.some(item => !item)) return fail('대시보드 설정을 확인하세요.');
+      boards.push(...created);
+      return { boards: clone(created) };
+    }
+    const index = boards.findIndex(item => item.id === id);
+    if (index < 0) return fail('대시보드를 찾을 수 없습니다.', 404);
+    if (boards[index].revision !== body?.revision) return fail('다른 창에서 설정이 바뀌었습니다. 다시 불러온 뒤 저장하세요.', 409);
+    if (method === 'PUT') {
+      const board = saveBoard(body, { ...boards[index], revision: boards[index].revision + 1 });
+      if (!board) return fail('이름과 위젯을 확인하세요.');
+      boards[index] = board;
+      return clone(board);
+    }
+    if (method === 'DELETE') {
+      if (boards.length <= 1) return fail('대시보드는 최소 한 개가 필요합니다.');
+      boards.splice(index, 1);
+      return { deleted: id };
+    }
+    return fail('샘플 페이지에서 지원하지 않는 요청입니다.', 405);
+  }
+  return { request };
+})();
+</script>
+<script type="module">
+// Asset Kit 대시보드 화면. asset-kit dashboard의 로컬 /api만 사용하며 API 키는 브라우저로 오지 않습니다.
+// 샘플 HTML(examples/sample-dashboard.html)에서는 window.AssetKitFixture가 같은 형식의 응답을 대신 돌려줍니다.
+
+const $ = selector => document.querySelector(selector);
+const fixture = globalThis.AssetKitFixture;
+const WIDGETS = { summary: '자산 요약', trend: '자산 추이', allocation: '자산 비중', holdings: '보유 내역', activity: '거래·입출금' };
+const PERIODS = [[7, '7일'], [30, '30일'], [90, '90일'], [365, '1년']];
+const REFRESH = { 0: '수동 갱신', 30: '30초마다 갱신', 60: '1분마다 갱신', 300: '5분마다 갱신' };
+const KINDS = { orders: '종료 주문', pending: '대기 주문', krw_deposits: '원화 입금', krw_withdrawals: '원화 출금', deposits: '코인 입금', withdrawals: '코인 출금' };
+const STATES = { wait: '미체결', watch: '예약 대기', done: '체결 완료', cancel: '취소', DONE: '완료', ACCEPTED: '완료', DEPOSIT_ACCEPTED: '입금 완료', PROCESSING: '처리 중', DEPOSIT_PROCESSING: '입금 처리 중', CANCELLED: '취소', REJECTED: '거절' };
+const COLORS = ['#F37321', '#2C6BED', '#14B8A6', '#8B5CF6', '#F5B700', '#8B95A1', '#D5DAE0'];
+
+const saved = {
+  get: key => { try { return localStorage.getItem(`asset-kit:${key}`); } catch { return null; } },
+  set: (key, value) => { try { localStorage.setItem(`asset-kit:${key}`, value); } catch { /* 저장할 수 없으면 이 창에서만 유지 */ } },
+};
+const state = {
+  status: null, boards: [], boardId: null, portfolio: null, history: null, daily: null, market: null, activity: null, activityShown: 100,
+  hidden: saved.get('hidden') === '1', view: saved.get('view') === 'calendar' ? 'calendar' : 'chart', month: null,
+  loadRequest: 0, historyRequest: 0, marketRequest: null, timer: null, draft: null, allSymbols: [], saving: Promise.resolve(),
+};
+const board = () => state.boards.find(b => b.id === state.boardId);
+const scope = () => board()?.symbols.join(',') ?? '';
+
+// ===== 표시 형식 =====
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+const missing = value => value === null || value === undefined || value === '';
+const number = (value, digits = 0) => missing(value) ? '—' : Number(value).toLocaleString('ko-KR', { maximumFractionDigits: digits });
+const money = (value, signed = false) => state.hidden ? '••••' : missing(value) ? '—' : `${signed && Number(value) > 0 ? '+' : ''}${number(value)}원`;
+const percent = value => state.hidden ? '••' : missing(value) ? '—' : `${Number(value) > 0 ? '+' : ''}${number(value, 2)}%`;
+const amount = (value, unit) => state.hidden ? '••••' : missing(value) ? '—' : `${number(value, 8)} ${esc(unit)}`;
+const sign = value => Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '';
+const tone = value => state.hidden ? '' : sign(value);
+const compact = value => { const n = Math.abs(value), s = value > 0 ? '+' : value < 0 ? '-' : ''; return n >= 1e8 ? `${s}${(n / 1e8).toFixed(1).replace('.0', '')}억` : n >= 1e4 ? `${s}${(n / 1e4).toFixed(1).replace('.0', '')}만` : `${s}${number(n)}`; };
+const kstDay = value => new Date(Date.parse(value) + 9 * 3600000).toISOString().slice(0, 10);
+const date = value => missing(value) ? '—' : new Date(value).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
+const query = params => new URLSearchParams(Object.entries(params).filter(([, value]) => !missing(value))).toString();
+
+// ===== 서버 연결 =====
+async function api(path, { method = 'GET', body } = {}) {
+  if (fixture) return fixture.request(method, path, body);
+  const options = { method, signal: AbortSignal.timeout(path.startsWith('/api/records') ? 180000 : 20000) };
+  if (body !== undefined) { options.headers = { 'Content-Type': 'application/json', 'X-Asset-Kit': '1' }; options.body = JSON.stringify(body); }
+  let response;
+  try { response = await fetch(path, options); } catch (error) {
+    throw new Error(error.name === 'TimeoutError' ? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해주세요.' : '로컬 대시보드 서버에 연결하지 못했습니다. 터미널에서 실행 중인지 확인하세요.');
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data.error?.message || '요청을 처리하지 못했습니다. 다시 시도해주세요.'), { code: data.error?.code, status: response.status });
+  return data;
+}
+function notice(message) { const toast = $('#toast'); toast.textContent = message; toast.hidden = false; clearTimeout(notice.timer); notice.timer = setTimeout(() => { toast.hidden = true; }, 3000); }
+function showError(message) { $('#error').textContent = message; $('#error').hidden = !message; }
+
+async function init() {
+  syncPrivacy();
+  try {
+    state.status = await api('/api/status');
+    const demo = state.status.mode === 'demo';
+    $('#demo-note').hidden = !demo;
+    if (state.status.sample) $('#demo-text').textContent = '샘플 페이지입니다. 모든 숫자는 합성 데이터이며 화면 설정 변경은 이 창에서만 유지됩니다.';
+    $('#mode-label').textContent = demo ? 'DEMO' : state.status.configured ? 'LOCAL · READ ONLY' : '계좌 연결 전';
+    $('#mode-label').classList.toggle('is-demo', demo);
+    $('#setup').hidden = state.status.configured;
+    $('#dashboard').hidden = $('#board-add').hidden = !state.status.configured;
+    if (!state.status.configured) return;
+    state.boards = (await api('/api/boards')).boards;
+    const last = saved.get('board');
+    selectBoard(state.boards.some(b => b.id === last) ? last : state.boards[0].id);
+  } catch (error) { showError(error.message); }
+}
+
+// ===== 보드(화면 설정) =====
+function selectBoard(id) {
+  state.boardId = id;
+  saved.set('board', id);
+  Object.assign(state, { portfolio: null, history: null, daily: null, activity: null, activityShown: 100, month: null });
+  renderTabs(); mount(); schedule(); void load();
+}
+function renderTabs() {
+  $('#board-tabs').innerHTML = state.boards.map(b => `<button type="button" class="tab${b.id === state.boardId ? ' is-active' : ''}" data-action="board" data-id="${esc(b.id)}"${b.id === state.boardId ? ' aria-current="page"' : ''}>${esc(b.name)}</button>`).join('');
+}
+const TEMPLATES = {
+  summary: () => `<section class="summary" id="summary" aria-label="자산 요약" aria-busy="true">
+    <div class="summary__total"><span class="label" id="total-label">총 평가금액</span><div class="total" id="total">—<span>원</span></div><span class="summary__updated" id="updated">불러오는 중</span></div>
+    <dl class="summary__metrics">
+      <div class="card"><dt>보유분 평가손익</dt><dd id="profit">—</dd><span id="profit-rate" class="sub">—</span></div>
+      <div class="card"><dt>보유 원화</dt><dd id="cash">—</dd><span class="sub">주문 중 금액 포함</span></div>
+      <div class="card"><dt>보유 가상자산</dt><dd id="count">—</dd><span class="sub" id="crypto-total">—</span></div>
+    </dl></section>`,
+  trend: () => `<section class="card" id="trend" aria-labelledby="trend-title">
+    <div class="card__head"><h2 id="trend-title">자산 추이</h2>
+      <div class="segmented" role="group" aria-label="보기 방식"><button type="button" data-action="view" data-view="chart">추이</button><button type="button" data-action="view" data-view="calendar">일별 손익</button></div>
+      <div class="segmented" role="group" aria-label="조회 기간" id="days">${PERIODS.map(([days, label]) => `<button type="button" data-action="days" data-days="${days}">${label}</button>`).join('')}</div>
+    </div>
+    <div id="chart" class="chart" aria-live="polite"><p class="empty">불러오는 중</p></div>
+    <div id="calendar" class="calendar" aria-live="polite" hidden></div>
+    <div class="card__foot"><span id="history-summary">—</span><span>입출금 포함 · 수익률과 다름</span></div></section>`,
+  allocation: () => `<section class="card" aria-labelledby="allocation-title"><div class="card__head"><h2 id="allocation-title">자산 비중</h2></div><div id="allocation" class="allocation"><p class="empty">불러오는 중</p></div></section>`,
+  holdings: () => `<section class="card" id="holdings" aria-labelledby="holdings-title">
+    <div class="card__head"><h2 id="holdings-title">보유 내역 <span class="count" id="holding-count">0</span></h2><button type="button" class="button" id="export" data-action="export" disabled>CSV 내보내기 ↓</button></div>
+    <div class="toolbar"><input class="input" id="search" type="search" placeholder="자산명 또는 심볼 검색" aria-label="보유자산 검색">
+      <label class="checkbox"><input type="checkbox" id="cash-filter"> 원화 제외</label>
+      <select class="input" id="sort" aria-label="정렬 기준"><option value="value">평가금액순</option><option value="profit">수익률순</option><option value="name">이름순</option></select></div>
+    <div class="table-scroll"><table><thead><tr><th scope="col">자산</th><th scope="col">보유 수량</th><th scope="col">현재가</th><th scope="col">평가금액</th><th scope="col">평가손익 / 수익률</th><th scope="col">비중</th></tr></thead><tbody id="holdings-body"><tr><td colspan="6" class="empty">불러오는 중</td></tr></tbody></table></div>
+    <p class="card__foot">평가손익은 API 평균 매수가 기준이며 수수료와 실현손익은 포함하지 않습니다. 가격·원가 미확인 항목은 합계에서 제외됩니다.</p></section>`,
+  activity: () => `<section class="card" id="activity" aria-labelledby="activity-title">
+    <div class="card__head"><h2 id="activity-title">거래·입출금 내역</h2></div>
+    <div class="toolbar">
+      <select class="input" id="activity-kind" aria-label="내역 종류">${Object.entries(KINDS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select>
+      <input class="input" type="date" id="activity-from" aria-label="시작일"><span class="muted">~</span><input class="input" type="date" id="activity-to" aria-label="종료일">
+      <button type="button" class="button button--primary" id="activity-load" data-action="activity">내역 조회</button>
+    </div>
+    <p class="coverage muted small" id="activity-coverage">종류와 기간(최대 366일, 한국 시간)을 고른 뒤 조회하세요.</p>
+    <div class="table-scroll"><table><thead><tr><th scope="col">종류 / 자산</th><th scope="col">시각</th><th scope="col">수량 / 금액</th><th scope="col">수수료</th><th scope="col">상태</th></tr></thead><tbody id="activity-body"><tr><td colspan="5" class="empty">조회 전입니다.</td></tr></tbody></table></div>
+    <div class="pagination"><button type="button" class="button" id="activity-more" data-action="activity-more" hidden>더 보기</button></div></section>`,
+};
+// 위젯을 보드 순서대로 배치합니다. 추이와 비중이 이어지면 한 줄에 나란히 둡니다.
+function mount() {
+  const b = board(), widgets = b.widgets, pair = ['trend', 'allocation'], parts = [];
+  $('#board-name').textContent = b.name;
+  $('#board-scope').textContent = `${b.symbols.length ? b.symbols.join(' · ') : '원화 포함 전체 자산'} · ${REFRESH[b.refreshSeconds]}`;
+  for (let i = 0; i < widgets.length; i++) {
+    if (pair.includes(widgets[i]) && pair.includes(widgets[i + 1]) && widgets[i] !== widgets[i + 1]) {
+      parts.push(`<div class="grid-2${widgets[i] === 'allocation' ? ' is-reversed' : ''}">${TEMPLATES[widgets[i]]()}${TEMPLATES[widgets[i + 1]]()}</div>`);
+      i++;
+    } else parts.push(TEMPLATES[widgets[i]]());
+  }
+  $('#widgets').innerHTML = parts.join('');
+  if ($('#activity-from')) {
+    $('#activity-to').value = kstDay(new Date().toISOString());
+    $('#activity-from').value = kstDay(new Date(Date.now() - 6 * 86400000).toISOString());
+  }
+  syncTrendControls();
+  charts.disconnect();
+  if ($('#chart')) charts.observe($('#chart'));
+}
+function schedule() {
+  clearInterval(state.timer);
+  const seconds = board()?.refreshSeconds;
+  if (seconds) state.timer = setInterval(() => { if (!document.hidden && !$('#refresh').disabled && !document.querySelector('dialog[open]')) void load(); }, seconds * 1000);
+}
+
+// ===== 조회 =====
+async function load() {
+  const b = board();
+  if (!b) return;
+  const request = ++state.loadRequest;
+  $('#refresh').disabled = true;
+  $('#summary')?.setAttribute('aria-busy', 'true');
+  try {
+    const portfolio = await api(`/api/portfolio?${query({ symbols: scope() })}`);
+    if (request !== state.loadRequest) return;
+    state.portfolio = portfolio;
+    showError('');
+    renderPortfolio();
+    if (b.widgets.includes('trend')) void loadHistory();
+    if (!fixture && state.status.mode !== 'demo') {
+      const status = await api('/api/status');
+      if (status.historyError) showError(`추이 기록: ${status.historyError.message}`);
+    }
+  } catch (error) {
+    if (request !== state.loadRequest) return;
+    showError(`${error.message}${state.portfolio ? ' 마지막으로 성공한 조회 결과를 표시합니다.' : ''}`);
+    if (!state.portfolio) renderFailure();
+  } finally {
+    if (request === state.loadRequest) { $('#refresh').disabled = false; $('#summary')?.setAttribute('aria-busy', 'false'); }
+  }
+}
+function renderFailure() {
+  if ($('#updated')) $('#updated').textContent = '조회 실패 · 새로고침으로 다시 시도하세요.';
+  if ($('#holdings-body')) $('#holdings-body').innerHTML = '<tr><td colspan="6" class="empty">계좌 데이터를 가져오지 못했습니다.</td></tr>';
+  if ($('#allocation')) $('#allocation').innerHTML = '<p class="empty">자산 데이터가 없습니다.</p>';
+  if ($('#chart')) $('#chart').innerHTML = '<p class="empty">연결 후 추이를 확인할 수 있습니다.</p>';
+}
+async function loadHistory() {
+  const b = board();
+  if (!b?.widgets.includes('trend')) return;
+  const request = ++state.historyRequest, calendar = state.view === 'calendar';
+  const params = calendar ? { days: 365, daily: 1, symbols: scope() } : { days: b.days, symbols: scope() };
+  try {
+    const result = await api(`/api/history?${query(params)}`);
+    if (request !== state.historyRequest) return;
+    if (calendar) state.daily = result; else state.history = result;
+    renderTrend();
+  } catch (error) {
+    if (request !== state.historyRequest) return;
+    const box = $(calendar ? '#calendar' : '#chart');
+    if (box) box.innerHTML = `<p class="empty">${esc(error.message)}</p>`;
+    if ($('#history-summary')) $('#history-summary').textContent = '조회 실패';
+  }
+}
+
+// ===== 요약·비중·보유 내역 =====
+function renderPortfolio() {
+  const p = state.portfolio;
+  if (!p) return;
+  $('#warnings').textContent = p.warnings.join(' ');
+  $('#warnings').hidden = !p.warnings.length;
+  renderSummary(); renderAllocation(); renderHoldings();
+}
+function renderSummary() {
+  const p = state.portfolio;
+  if (!p || !$('#summary')) return;
+  const s = p.summary;
+  $('#total-label').textContent = s.valuationComplete ? '총 평가금액' : '확인된 평가금액';
+  $('#total').innerHTML = `${state.hidden ? '••••••••' : number(s.totalValueKrw)}<span>원</span>`;
+  $('#profit').textContent = money(s.profitKrw, true);
+  $('#profit').className = tone(s.profitKrw);
+  $('#profit-rate').textContent = `${percent(s.profitRatePct)}${s.profitComplete ? '' : ' · 일부 자산 기준'}`;
+  $('#profit-rate').className = `sub ${tone(s.profitKrw)}`;
+  $('#cash').textContent = money(s.cashKrw);
+  $('#count').textContent = state.hidden ? '••종' : `${s.assetCount}종`;
+  $('#crypto-total').textContent = money(s.cryptoValueKrw);
+  $('#updated').textContent = `${date(p.asOf)} 기준 · ${p.mode === 'demo' ? '합성 예시' : '30초 조회 캐시'}`;
+}
+function renderAllocation() {
+  const box = $('#allocation');
+  if (!box || !state.portfolio) return;
+  const holdings = state.portfolio.holdings.filter(h => h.allocationPct !== null && Number(h.allocationPct) > 0);
+  if (state.hidden || !holdings.length) { box.innerHTML = `<p class="empty">${state.hidden ? '금액과 자산 비중을 숨겼습니다.' : '평가 가능한 자산이 없습니다.'}</p>`; return; }
+  const shown = holdings.slice(0, 5);
+  if (holdings.length > 5) shown.push({ name: '기타', symbol: '', allocationPct: String(holdings.slice(5).reduce((sum, h) => sum + Number(h.allocationPct), 0)) });
+  let offset = 0;
+  const arcs = shown.map((h, i) => {
+    const share = Number(h.allocationPct);
+    const arc = `<circle cx="66" cy="66" r="52" pathLength="100" fill="none" stroke="${COLORS[i % COLORS.length]}" stroke-width="15" stroke-dasharray="${share} ${100 - share}" stroke-dashoffset="${-offset}"/>`;
+    offset += share;
+    return arc;
+  }).join('');
+  const swatch = i => `<svg class="swatch" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="${COLORS[i % COLORS.length]}"/></svg>`;
+  box.innerHTML = `<div class="donut"><svg viewBox="0 0 132 132" role="img" aria-label="자산 비중 도넛 차트. 상세는 아래 목록">${arcs}</svg><div class="donut__label"><strong>${holdings.length}</strong><span>평가 자산</span></div></div>
+    <ul class="legend">${shown.map((h, i) => h.symbol
+      ? `<li><button type="button" data-action="detail" data-symbol="${esc(h.symbol)}">${swatch(i)}<span>${esc(h.name)}</span><b>${number(h.allocationPct, 1)}%</b></button></li>`
+      : `<li><span class="legend__row">${swatch(i)}<span>${esc(h.name)}</span><b>${number(h.allocationPct, 1)}%</b></span></li>`).join('')}</ul>`;
+}
+function renderHoldings() {
+  const body = $('#holdings-body');
+  if (!body || !state.portfolio) return;
+  const p = state.portfolio, search = $('#search').value.trim().toLowerCase(), sort = $('#sort').value;
+  const rows = p.holdings.filter(h => (!$('#cash-filter').checked || h.symbol !== 'KRW') && `${h.name} ${h.symbol}`.toLowerCase().includes(search));
+  if (sort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  if (sort === 'profit') rows.sort((a, b) => Number(b.profitRatePct ?? -Infinity) - Number(a.profitRatePct ?? -Infinity));
+  $('#holding-count').textContent = p.holdings.length;
+  $('#export').disabled = state.hidden || !p.holdings.length;
+  body.innerHTML = rows.length ? rows.map(h => `<tr>
+    <td><button type="button" class="asset-button" data-action="detail" data-symbol="${esc(h.symbol)}" aria-label="${esc(h.name)} 상세 보기"><span class="asset-symbol">${esc(h.symbol)}</span><span class="asset-name">${esc(h.name)}<small>${esc(h.symbol)}</small></span></button></td>
+    <td>${state.hidden ? '••••' : esc(number(h.quantity, 8))}<small>${esc(h.symbol)}</small></td>
+    <td>${h.symbol === 'KRW' ? '—' : h.currentPriceKrw === null ? '가격 미확인' : `${number(h.currentPriceKrw, 4)}원`}<small>${h.staleQuote ? '시세 지연' : h.symbol === 'KRW' ? '원화 잔고' : h.priceSource?.startsWith('BTC-') ? 'BTC 마켓 환산' : '원화 현재가'}</small></td>
+    <td><strong>${money(h.valueKrw)}</strong>${h.valueKrw === null ? '<small>합계에서 제외</small>' : ''}</td>
+    <td class="${tone(h.profitKrw)}">${h.symbol === 'KRW' ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${h.symbol === 'KRW' ? '현금' : percent(h.profitRatePct)}</small></td>
+    <td>${state.hidden ? '••' : h.allocationPct === null ? '—' : `${number(h.allocationPct, 1)}%`}</td>
+  </tr>`).join('') : '<tr><td colspan="6" class="empty">표시할 자산이 없습니다.</td></tr>';
+}
+
+// ===== 추이 차트 · 일별 손익 달력 =====
+function syncTrendControls() {
+  for (const button of document.querySelectorAll('[data-view]')) { const on = button.dataset.view === state.view; button.classList.toggle('selected', on); button.setAttribute('aria-pressed', String(on)); }
+  for (const button of document.querySelectorAll('[data-days]')) { const on = Number(button.dataset.days) === board()?.days; button.classList.toggle('selected', on); button.setAttribute('aria-pressed', String(on)); }
+  if ($('#days')) $('#days').hidden = state.view === 'calendar';
+}
+function renderTrend() {
+  if (!$('#trend')) return;
+  const calendar = state.view === 'calendar';
+  $('#chart').hidden = calendar;
+  $('#calendar').hidden = !calendar;
+  if (calendar) renderCalendar(); else renderChartArea();
+}
+// 화면 너비에 맞춘 SVG 선 차트. points: [{ at, value }]
+function lineChart(box, points, { label, height = 210, tick = value => `${number(value / 10000)}만` }) {
+  const values = points.map(p => p.value);
+  let low = Math.min(...values), high = Math.max(...values);
+  const pad = Math.max((high - low) * 0.2, Math.abs(high) * 0.001, 1);
+  low -= pad; high += pad;
+  const start = Date.parse(points[0].at), span = Math.max(Date.parse(points.at(-1).at) - start, 1);
+  const width = Math.max(280, Math.round(box.clientWidth) - 32), left = 54, right = width - 12, top = 18, bottom = height - 30;
+  const x = p => left + (Date.parse(p.at) - start) / span * (right - left);
+  const y = value => bottom - (value - low) / (high - low) * (bottom - top);
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(p).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const day = p => new Date(p.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Seoul' });
+  const grid = [low, (low + high) / 2, high].map(t => `<line class="grid-line" x1="${left}" x2="${right}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text x="0" y="${(y(t) + 4).toFixed(1)}">${esc(tick(t))}</text>`).join('');
+  box.dataset.width = String(box.clientWidth);
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(`${label} ${day(points[0])}부터 ${day(points.at(-1))}까지`)}">${grid}<path class="area" d="${line} L${right},${bottom} L${left},${bottom} Z"/><path class="line" d="${line}"/><circle cx="${x(points.at(-1)).toFixed(1)}" cy="${y(values.at(-1)).toFixed(1)}" r="4"/><text x="${left}" y="${height - 6}">${esc(day(points[0]))}</text><text x="${right}" y="${height - 6}" text-anchor="end">${esc(day(points.at(-1)))}</text></svg>`;
+}
+function renderChartArea() {
+  const box = $('#chart'), h = state.history;
+  if (!box) return;
+  if (!h) { box.innerHTML = '<p class="empty">불러오는 중</p>'; return; }
+  if (state.hidden) { box.innerHTML = '<p class="empty">금액을 숨겼습니다.</p>'; $('#history-summary').textContent = '금액 숨김'; return; }
+  const points = h.points.filter(p => p.valuationComplete && p.totalValueKrw !== null);
+  const omitted = h.points.length - points.length;
+  $('#history-summary').textContent = `${h.mode === 'demo' ? '합성 예시' : '로컬 기록'} · ${points.length}개 시점${h.sampled ? '(간추림)' : ''}${omitted ? ` · 가격 미확인 ${omitted}개 제외` : ''}`;
+  if (points.length < 2) { box.innerHTML = '<p class="empty">기록이 두 번 이상 쌓이면 추이가 나타납니다.<br>조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록합니다.</p>'; return; }
+  box.innerHTML = lineChart(box, points.map(p => ({ at: p.asOf, value: Number(p.totalValueKrw) })), { label: '평가금액 추이(수익률 아님)' });
+}
+function renderCalendar() {
+  const box = $('#calendar'), d = state.daily;
+  if (!box) return;
+  if (!d) { box.innerHTML = '<p class="empty">불러오는 중</p>'; return; }
+  if (state.hidden) { box.innerHTML = '<p class="empty">금액을 숨겼습니다.</p>'; $('#history-summary').textContent = '금액 숨김'; return; }
+  const days = new Map(d.daily.filter(row => row.changeKrw !== null).map(row => [row.day, row]));
+  $('#history-summary').textContent = `${d.mode === 'demo' ? '합성 예시' : '로컬 기록'} · 손익 기록 ${days.size}일`;
+  if (!days.size) { box.innerHTML = '<p class="empty">이틀 이상 기록되면 날짜별 손익이 표시됩니다.</p>'; return; }
+  const today = kstDay(new Date().toISOString()), first = [...days.keys()][0].slice(0, 7), last = today.slice(0, 7);
+  if (!state.month || state.month < first || state.month > last) state.month = last;
+  const [year, month] = state.month.split('-').map(Number);
+  const blanks = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(), length = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let total = 0, counted = 0;
+  const cells = Array.from({ length }, (_, i) => {
+    const day = `${state.month}-${String(i + 1).padStart(2, '0')}`, row = days.get(day), change = row ? Number(row.changeKrw) : 0;
+    if (row) { total += change; counted++; }
+    const cls = row ? sign(change) : '';
+    return `<div class="calendar__day${cls ? ` is-${cls}` : ''}${day === today ? ' is-today' : ''}"${row ? ` title="${esc(`${day} 마감 ${number(row.closeKrw)}원`)}"` : ''}><span class="calendar__date">${i + 1}</span>${row ? `<strong>${compact(change)}</strong><small>${percent(row.changePct)}</small>` : ''}</div>`;
+  });
+  box.innerHTML = `<div class="calendar__head">
+      <button type="button" class="button" data-action="month" data-step="-1" aria-label="이전 달"${state.month <= first ? ' disabled' : ''}>‹</button>
+      <strong>${year}년 ${month}월</strong>
+      <button type="button" class="button" data-action="month" data-step="1" aria-label="다음 달"${state.month >= last ? ' disabled' : ''}>›</button>
+      <span class="calendar__total">월 손익<strong class="${counted ? sign(total) : ''}">${counted ? money(total, true) : '—'}</strong></span>
+    </div>
+    <div class="calendar__grid">${['일', '월', '화', '수', '목', '금', '토'].map(w => `<span class="calendar__weekday">${w}</span>`).join('')}${'<div class="calendar__day is-blank"></div>'.repeat(blanks)}${cells.join('')}</div>
+    <p class="calendar__note">한국 시간 날짜별 마지막 평가금액의 변화 · 입출금 포함 · 최근 1년</p>`;
+}
+function setView(view) {
+  if (state.view === view) return;
+  state.view = view;
+  saved.set('view', view);
+  syncTrendControls(); renderTrend();
+  if (view === 'calendar' ? !state.daily : !state.history) void loadHistory();
+}
+function setDays(days) {
+  const b = board();
+  if (!b || b.days === days) return;
+  b.days = days;
+  syncTrendControls();
+  state.history = null; renderTrend(); void loadHistory();
+  persist(b.id, { days });
+}
+function shiftMonth(step) {
+  const [year, month] = state.month.split('-').map(Number);
+  state.month = new Date(Date.UTC(year, month - 1 + step, 1)).toISOString().slice(0, 7);
+  renderCalendar();
+}
+// 기간 버튼처럼 바로 저장하는 변경은 순서대로 보내 revision 충돌을 피합니다.
+function persist(id, changes) {
+  state.saving = state.saving.then(async () => {
+    const current = state.boards.find(b => b.id === id);
+    if (!current) return;
+    const { name, symbols, widgets, days, refreshSeconds, revision } = { ...current, ...changes };
+    try {
+      const result = await api(`/api/boards/${id}`, { method: 'PUT', body: { name, symbols, widgets, days, refreshSeconds, revision } });
+      state.boards = state.boards.map(b => b.id === id ? result : b);
+    } catch (error) { notice(`설정을 저장하지 못했어요: ${error.message}`); await reloadBoards(); }
+  });
+}
+
+// ===== 거래·입출금 =====
+async function loadActivity() {
+  const kind = $('#activity-kind').value, button = $('#activity-load');
+  const period = kind === 'pending' ? {} : { from: $('#activity-from').value, to: $('#activity-to').value };
+  button.disabled = true;
+  button.textContent = '조회 중…';
+  $('#activity-coverage').textContent = '페이지를 이어서 조회하고 있습니다. 기간이 길면 시간이 걸릴 수 있습니다.';
+  try {
+    state.activity = await api(`/api/records?${query({ kind, ...period })}`);
+    state.activityShown = 100;
+    renderActivity();
+  } catch (error) { $('#activity-coverage').textContent = error.message; notice(error.message); }
+  finally { button.disabled = false; button.textContent = '내역 조회'; }
+}
+function renderActivity() {
+  const r = state.activity, body = $('#activity-body');
+  if (!r || !body) return;
+  const b = board(), only = new Set(b.symbols), order = r.kind === 'orders' || r.kind === 'pending';
+  const rows = r.rows.filter(row => !only.size || only.has(row.market ? row.market.split('-')[1] : row.currency));
+  body.innerHTML = rows.length ? rows.slice(0, state.activityShown).map(row => {
+    if (order) {
+      const [quote, base] = row.market.split('-');
+      return `<tr><td>${row.side === 'bid' ? '매수' : '매도'} · <strong>${esc(base)}</strong><small>${esc(row.market)} · ${esc(row.order_type)}</small></td><td>${date(row.at ?? row.created_at)}</td><td>${amount(row.volume, base)}<small>체결 ${amount(row.executed_volume, base)}${Number(row.executed_funds) ? ` · ${amount(row.executed_funds, quote)}` : ''}</small></td><td>${amount(row.paid_fee, quote)}</td><td>${esc(STATES[row.state] ?? row.state)}</td></tr>`;
+    }
+    return `<tr><td>${r.kind.includes('deposit') ? '입금' : '출금'} · <strong>${esc(row.currency)}</strong><small>${esc(row.net_type ?? (row.currency === 'KRW' ? '원화' : '가상자산'))}</small></td><td>${date(row.at)}</td><td>${amount(row.amount, row.currency)}</td><td>${amount(row.fee, row.currency)}</td><td>${esc(STATES[row.state] ?? row.state)}</td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">선택한 조건에 해당하는 내역이 없습니다.</td></tr>';
+  $('#activity-more').hidden = rows.length <= state.activityShown;
+  const range = r.period ? `${kstDay(r.period.from)} ~ ${kstDay(r.period.to)}` : '현재';
+  $('#activity-coverage').textContent = `${r.mode === 'demo' ? '합성 예시 · ' : ''}${r.label} ${rows.length}건${only.size ? `(${b.symbols.join('·')} 범위)` : ''} · ${range} · ${r.coverage.complete ? '요청 범위 조회 완료' : `일부만 조회됨(최대 ${r.coverage.maxPages}페이지)`} · ${r.coverage.note}`;
+}
+
+// ===== 대화상자: 자산 상세 · 요약 =====
+async function showHolding(symbol) {
+  const h = state.portfolio?.holdings.find(item => item.symbol === symbol);
+  if (!h) return;
+  const cash = h.symbol === 'KRW';
+  const rows = [['보유 수량', amount(h.quantity, h.symbol)], ['가용 수량', amount(h.available, h.symbol)], ['주문 중 수량', amount(h.locked, h.symbol)],
+    ['평균 매수가', cash ? '—' : money(h.averagePriceKrw)], ['현재가', cash ? '—' : h.currentPriceKrw === null ? '가격 미확인' : `${number(h.currentPriceKrw, 4)}원`],
+    ['비중', state.hidden ? '••' : h.allocationPct === null ? '—' : `${number(h.allocationPct, 1)}%`]];
+  $('#detail').innerHTML = `<div class="dialog__head"><h2 id="detail-title">${esc(h.name)} <span class="muted">${esc(h.symbol)}</span></h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+    <div class="detail-hero"><span>평가금액</span><strong>${money(h.valueKrw)}</strong>${cash || h.profitKrw === null ? '' : `<span class="${tone(h.profitKrw)}">${money(h.profitKrw, true)} · ${percent(h.profitRatePct)}</span>`}</div>
+    <dl class="detail-metrics">${rows.map(([name, value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl>
+    ${cash ? '' : '<h3 class="section-title">원화 시세 · 최근 30일 일봉</h3><div id="detail-chart" class="chart chart--small"><p class="empty">시세를 불러오는 중</p></div>'}
+    <p class="note">${h.quoteAt ? `현재가 기준 ${date(h.quoteAt)}${h.priceSource?.startsWith('BTC-') ? '(BTC 마켓 환산)' : ''}. ` : ''}${h.averagePriceModified ? '수정된 평균 매수가를 사용합니다. ' : ''}수량에는 주문 중인 자산이 포함됩니다.</p>`;
+  $('#holding-dialog').showModal();
+  state.market = null;
+  state.marketRequest = symbol;
+  if (cash) return;
+  charts.observe($('#detail-chart'));
+  try {
+    const market = await api(`/api/market?${query({ symbol, days: 30 })}`);
+    if (state.marketRequest !== symbol) return;
+    state.market = market;
+    renderMarket();
+  } catch (error) { if (state.marketRequest === symbol && $('#detail-chart')) $('#detail-chart').innerHTML = `<p class="empty">${esc(error.message)}</p>`; }
+}
+function renderMarket() {
+  const box = $('#detail-chart'), m = state.market;
+  if (!box || !m) return;
+  const points = m.candles.map(c => ({ at: `${c.date}T00:00:00+09:00`, value: Number(c.closeKrw) }));
+  if (points.length < 2) { box.innerHTML = '<p class="empty">일봉 데이터가 부족합니다.</p>'; return; }
+  box.innerHTML = lineChart(box, points, { label: `${m.name} 원화 일봉 종가`, height: 180, tick: value => value >= 1e8 ? `${number(value / 1e8, 2)}억` : value >= 1e4 ? `${number(value / 1e4, 1)}만` : number(value, 2) });
+}
+async function showExplain() {
+  try {
+    const e = await api(`/api/explain?${query({ symbols: scope() })}`);
+    $('#explain-body').innerHTML = state.hidden ? '<p>금액 숨김을 해제하면 요약을 볼 수 있습니다.</p>' : `<p class="explain">${esc(e.summary)}</p>
+      ${e.largest.length ? `<ul class="kv-list">${e.largest.map(h => `<li><span>${esc(h.name)} <small>${esc(h.symbol)}</small></span><b>${money(h.valueKrw)} · ${number(h.allocationPct, 1)}%</b></li>`).join('')}</ul>` : ''}
+      ${e.warnings.length ? `<p class="note">${e.warnings.map(esc).join('<br>')}</p>` : ''}
+      <p class="note">${date(e.asOf)} 기준 · ${e.mode === 'demo' ? '합성 예시' : '계좌 조회'} · 계산된 숫자만 설명하며 외부 AI로 보내지 않습니다.</p>`;
+    $('#explain-dialog').showModal();
+  } catch (error) { notice(error.message); }
+}
+
+// ===== 대화상자: 화면 편집 =====
+async function openEditor(mode) {
+  const b = board();
+  const base = mode === 'new' ? { name: '새 대시보드', symbols: [], widgets: ['summary', 'trend', 'allocation', 'holdings'], days: 30, refreshSeconds: 60 } : b;
+  state.draft = { id: mode === 'edit' ? b.id : null, revision: mode === 'edit' ? b.revision : null, order: [...base.widgets, ...Object.keys(WIDGETS).filter(w => !base.widgets.includes(w))], enabled: new Set(base.widgets), confirmDelete: false };
+  $('#board-title').textContent = { edit: '화면 편집', copy: '화면 복제', new: '새 대시보드' }[mode];
+  $('#board-name-input').value = mode === 'copy' ? `${b.name} 복사`.slice(0, 48) : base.name;
+  $('#board-symbols').value = base.symbols.join(', ');
+  $('#board-days').value = String(base.days);
+  $('#board-refresh').value = String(base.refreshSeconds);
+  $('#board-error').hidden = true;
+  $('#board-delete').textContent = '삭제';
+  $('#board-delete').disabled = state.boards.length <= 1;
+  for (const button of document.querySelectorAll('#board-form [data-existing]')) button.hidden = mode !== 'edit';
+  renderOrder(); renderChips();
+  if (!$('#board-dialog').open) $('#board-dialog').showModal();
+  $('#board-name-input').focus();
+  if (!state.allSymbols.length) {
+    try { state.allSymbols = (await api('/api/portfolio')).holdings.map(h => h.symbol); renderChips(); } catch { /* 빠른 선택만 생략 */ }
+  }
+}
+const typedSymbols = () => [...new Set($('#board-symbols').value.split(/[\s,]+/).map(s => s.trim().toUpperCase()).filter(Boolean))];
+function renderChips() {
+  const selected = new Set(typedSymbols());
+  $('#symbol-chips').innerHTML = state.allSymbols.map(symbol => `<button type="button" class="chip" data-action="chip" data-symbol="${esc(symbol)}" aria-pressed="${selected.has(symbol)}">${esc(symbol)}</button>`).join('');
+}
+function toggleChip(symbol) {
+  const list = typedSymbols(), index = list.indexOf(symbol);
+  if (index >= 0) list.splice(index, 1); else list.push(symbol);
+  $('#board-symbols').value = list.join(', ');
+  renderChips();
+}
+function renderOrder() {
+  const d = state.draft;
+  $('#widget-order').innerHTML = d.order.map((w, i) => `<li class="${d.enabled.has(w) ? '' : 'is-off'}"><label><input type="checkbox" data-widget="${w}"${d.enabled.has(w) ? ' checked' : ''}> ${WIDGETS[w]}</label><button type="button" class="icon-button" data-action="move" data-index="${i}" data-step="-1" aria-label="${WIDGETS[w]} 위로"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="icon-button" data-action="move" data-index="${i}" data-step="1" aria-label="${WIDGETS[w]} 아래로"${i === d.order.length - 1 ? ' disabled' : ''}>↓</button></li>`).join('');
+}
+function moveWidget(index, step) {
+  const order = state.draft.order;
+  [order[index], order[index + step]] = [order[index + step], order[index]];
+  renderOrder();
+  document.querySelector(`[data-action="move"][data-index="${index + step}"][data-step="${step}"]:not(:disabled)`)?.focus();
+}
+function formError(message) { $('#board-error').textContent = message; $('#board-error').hidden = false; }
+async function reloadBoards() { try { state.boards = (await api('/api/boards')).boards; renderTabs(); } catch { /* 다음 조회에서 다시 시도 */ } }
+async function submitBoard(event) {
+  event.preventDefault();
+  const d = state.draft, widgets = d.order.filter(w => d.enabled.has(w));
+  const payload = { name: $('#board-name-input').value.trim(), symbols: typedSymbols(), widgets, days: Number($('#board-days').value), refreshSeconds: Number($('#board-refresh').value) };
+  if (!payload.name) return formError('이름을 입력하세요.');
+  if (!widgets.length) return formError('위젯을 하나 이상 선택하세요.');
+  if (payload.symbols.some(s => !/^[A-Z0-9][A-Z0-9_]{0,29}$/.test(s))) return formError('자산 심볼은 BTC, ETH처럼 영문·숫자로 입력하세요.');
+  $('#board-save').disabled = true;
+  try {
+    const result = d.id ? await api(`/api/boards/${d.id}`, { method: 'PUT', body: { ...payload, revision: d.revision } }) : await api('/api/boards', { method: 'POST', body: payload });
+    state.boards = d.id ? state.boards.map(b => b.id === result.id ? result : b) : [...state.boards, result];
+    $('#board-dialog').close();
+    notice('화면 설정을 저장했어요.');
+    selectBoard(result.id);
+  } catch (error) {
+    if (error.status === 409) await reloadBoards();
+    formError(error.message);
+  } finally { $('#board-save').disabled = false; }
+}
+async function deleteBoard() {
+  const d = state.draft;
+  if (!d.confirmDelete) { d.confirmDelete = true; $('#board-delete').textContent = '한 번 더 누르면 삭제'; return; }
+  try {
+    await api(`/api/boards/${d.id}`, { method: 'DELETE', body: { revision: d.revision } });
+    state.boards = state.boards.filter(b => b.id !== d.id);
+    $('#board-dialog').close();
+    notice('화면을 삭제했어요. 자산 기록은 그대로 남습니다.');
+    selectBoard(state.boards[0].id);
+  } catch (error) {
+    if (error.status === 409) await reloadBoards();
+    formError(error.message);
+  }
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a');
+  link.href = url; link.download = name; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportBoards() {
+  download('asset-kit-boards.json', `${JSON.stringify(state.boards.map(({ name, symbols, widgets, days, refreshSeconds }) => ({ name, symbols, widgets, days, refreshSeconds })), null, 2)}\n`, 'application/json');
+  notice('화면 설정만 내보냈어요. 자산 데이터는 들어 있지 않습니다.');
+}
+async function importBoards(file) {
+  try {
+    if (file.size > 65536) throw new Error('설정 파일은 64KB 이하만 가져올 수 있습니다.');
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { throw new Error('JSON 설정 파일이 아닙니다.'); }
+    const result = await api('/api/boards/import', { method: 'POST', body: { boards: Array.isArray(data) ? data : data.boards } });
+    state.boards = [...state.boards, ...result.boards];
+    $('#board-dialog').close();
+    notice(`화면 ${result.boards.length}개를 가져왔어요.`);
+    selectBoard(result.boards[0].id);
+  } catch (error) { formError(error.message); }
+}
+
+// ===== 기타 동작 =====
+function syncPrivacy() { $('#privacy').textContent = state.hidden ? '금액 보기' : '금액 숨기기'; $('#privacy').setAttribute('aria-pressed', String(state.hidden)); }
+function togglePrivacy() {
+  state.hidden = !state.hidden;
+  saved.set('hidden', state.hidden ? '1' : '0');
+  syncPrivacy(); renderPortfolio(); renderTrend(); renderActivity();
+}
+function exportCsv() {
+  const p = state.portfolio;
+  if (!p || state.hidden) return;
+  const rows = [['모드', '조회시각', '자산', '이름', '수량', '가용수량', '주문중수량', '현재가KRW', '평가금액KRW', '평가손익KRW', '수익률%', '비중%'], ...p.holdings.map(h => [p.mode, p.asOf, h.symbol, h.name, h.quantity, h.available, h.locked, h.currentPriceKrw, h.valueKrw, h.profitKrw, h.profitRatePct, h.allocationPct])];
+  // 스프레드시트 수식으로 해석될 수 있는 값은 작은따옴표로 시작합니다.
+  const cell = value => { const text = String(value ?? ''); return `"${(/^[=+@\t\r]/.test(text) || (/^-/.test(text) && !/^-[\d.]+$/.test(text)) ? `'${text}` : text).replace(/"/g, '""')}"`; };
+  download(`bithumb-assets-${p.mode}-${p.asOf.slice(0, 10)}.csv`, `﻿${rows.map(row => row.map(cell).join(',')).join('\r\n')}`, 'text/csv;charset=utf-8');
+  notice('보유자산 CSV를 저장했어요.');
+}
+async function copyCommand() {
+  try { await navigator.clipboard.writeText('npm run demo'); notice('실행 명령을 복사했어요.'); }
+  catch { notice('npm run demo 명령을 직접 선택해 복사해주세요.'); }
+}
+
+// 차트는 칸 너비가 바뀔 때만 다시 그립니다.
+const charts = new ResizeObserver(() => {
+  cancelAnimationFrame(charts.frame);
+  charts.frame = requestAnimationFrame(() => {
+    const chart = $('#chart'), detail = $('#detail-chart');
+    if (chart && !chart.hidden && Number(chart.dataset.width) !== chart.clientWidth) renderChartArea();
+    if (detail && Number(detail.dataset.width) !== detail.clientWidth) renderMarket();
+  });
+});
+
+document.addEventListener('click', event => {
+  const close = event.target.closest('[data-close]');
+  if (close) { close.closest('dialog')?.close(); return; }
+  const target = event.target.closest('[data-action]');
+  if (!target || target.disabled) return;
+  const actions = {
+    board: () => target.dataset.id !== state.boardId && selectBoard(target.dataset.id),
+    'board-new': () => openEditor('new'), 'board-edit': () => openEditor('edit'), 'board-copy': () => openEditor('copy'),
+    'board-delete': deleteBoard, 'boards-export': exportBoards, 'boards-import': () => $('#board-import-file').click(),
+    refresh: load, privacy: togglePrivacy, explain: showExplain, guide: () => $('#guide-dialog').showModal(), copy: copyCommand, export: exportCsv,
+    view: () => setView(target.dataset.view), days: () => setDays(Number(target.dataset.days)), month: () => shiftMonth(Number(target.dataset.step)),
+    detail: () => showHolding(target.dataset.symbol), activity: loadActivity, 'activity-more': () => { state.activityShown += 100; renderActivity(); },
+    chip: () => toggleChip(target.dataset.symbol), move: () => moveWidget(Number(target.dataset.index), Number(target.dataset.step)),
+  };
+  void actions[target.dataset.action]?.();
+});
+document.addEventListener('input', event => {
+  if (['search', 'cash-filter', 'sort'].includes(event.target.id)) renderHoldings();
+  if (event.target.id === 'board-symbols') renderChips();
+});
+document.addEventListener('change', event => {
+  const { target } = event;
+  if (target.id === 'activity-kind') $('#activity-from').disabled = $('#activity-to').disabled = target.value === 'pending';
+  if (target.dataset.widget) {
+    const enabled = state.draft.enabled;
+    if (target.checked) enabled.add(target.dataset.widget); else enabled.delete(target.dataset.widget);
+    renderOrder();
+  }
+  if (target.id === 'board-import-file' && target.files[0]) { const file = target.files[0]; target.value = ''; void importBoards(file); }
+});
+$('#board-form').addEventListener('submit', submitBoard);
+for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('click', event => {
+  if (event.target !== dialog) return;
+  const r = dialog.getBoundingClientRect();
+  if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close();
+});
+$('#holding-dialog').addEventListener('close', () => { state.marketRequest = null; state.market = null; });
+
+void init();
+</script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 이동</a>
+  <header class="header">
+    <!-- 빗썸 공식 로고(assets/bithumb_logo_RGB_orange_가로형.png, 14974px)를 화면용 320px로 줄인 사본입니다. -->
+    <a href="#" class="logo" aria-label="Asset Kit 홈"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAABQCAYAAABoMayFAAAAAXNSR0IArs4c6QAAAHhlWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAAEsAAAAAQAAASwAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAAAUCgAwAEAAAAAQAAAFAAAAAAnI8nzwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAMP1JREFUeAHtnQmYJUWV7yPz3qpumkZRkFWw5eECorb7UxkEZXGZcZzFGZ/PBcHnMgrIuKLvPVtxnO/N4MIgqDxUlBnG9XOccUO2RhQFVDaRAVmEpmnopmVReqm6N/P9/hGVdTPz5s2IW5VVLbw89d26eSMjTkSciHMi4sSJE5GZJ6THmP9iUnOVicz2fPshIkpqEtMxp/P0Y74vM781t0Vnmi3+xG2MlgItBVoKNEeBeN6oUvNM0w0UfsrMCUnl+xY+Z5lp8yPzcPOR9C1mF71uoaVAS4GWAotFgSYE4BFzKmyfVPoY8ygTm3eaSXN2+gaeW2gp0FKgpcAiUWBeAjB9LTO/yPwRC9q5g2aE03w65kVmufkgP7VIbqGlQEuBlgILToF5CUCzo3kys7fHzksAZlXs8RCZ15ljzD5ZUPvdUqClQEuBhaTA/ARgyqwtZu7WBGgmGJsd0BEe1AS6FkdLgZYCLQV8FJizAJxZqh4WtPPrK0X23i1+H5v9bL9bCrQUaCmwkBSYswA0x5m9EH4rG1n+LmQNW9wtBVoKtBQYQYG5C8DUPM9MYMCipWtTIFyRWdMUuhZPS4GWAi0F6igwdwHYN3Mzf6krTZ/94MT8vC5K+66lQEuBlgJNUWBOAjB9VwPmL+UaaCslNTdiD3hd+VX7u6VAS4GWAgtBgTkJQLPZPIMd2xWN6v9cSc6PPgH2FloKtBRoKbAIFJibAOyYFzZm/pJVsm+1iedmP9vvlgItBVoKLDQFxhaA6Sux++ubQxvd/JD5S2o2MKO8bKEr3OJvKdBSoKVARoGxBaDZ2TwGEfjkRpe/0v8l5mfRaebOrGDtd0uBlgItBRaaAuMLwK45kOXvwxqdAaqWkfnBQle2xd9SoKVAS4E8BcYSgPb0R2IOzyNo5LlvtjIDvKgRXC2SlgItBVoKBFJA2rcCpG/CvNnYzyD8HpNGXzObcX6qmd+VzACbcYCgHNzy92rzOPNs82t+b604WyxXqz1EpMTkPSahLM6R1qCE7VNLgZYCLQXGpkB3KEVsnm+Wmf0QNQPYDp/NxnyFsJWIp8cU3g1ize3JbYBcFB1rtqZvM3+MS6y9Cvh7CL9pRF9sHsBG8D6zu7k7fYfZiAh8gAy36hOdYr/nln+bqqVAS4H/bylQEIB2h7drPgQ1DprV8SnGFvNt/n8F4Sfzl7ggoOZLOrnHj8w5zC6XkOcn+cjF/gA0QxRIIEd2HvgA79fzfBOfKxGEl6ZvxyX/FEL6BvNAtJo4LbQUaCnQUiCAAoUlMDOwxyBUdL/H4IyvBGBi3mweac5A7FzM4vh5jS1A3exvPTj3Y5a3D6L1J+RVEMpDdVCa/EczxMhcT9rv8fR18FxndjX3RausyBxK3ga0FGgp0FIgo0BxEyRGuHVzwk+xemYTnwvMHebRvGve/MWYyzj9oSX2ocww64WfyqPZoWaD0gK6uV6EAHwin+MJ+Q7L5I+au8wB6ZFmKb9baCnQUqClwEgKFAVgeYfXnc+91pzKcnOJOZhZlhyWNgupOReUMXgPn/OcTQJRwjDFR3XEZUuT5puU9K/So/jfQkuBlgItBUZQYFYApsezyI3MIQUh5Jaa3yVcwuXlI3DMPbhvfg/e75p3mL3J4+mFvOeCVcLZzQr3Ad8ZbOacyG1ze84FVZumpUBLgYc+BQZLzinzNJagjy4IoQSNmjHnmvdi/vKA+a+Fd/OljWaXffMrDsDdwoWYr0EP+PAZ4TVfzG55HIGxg9vWjknTo82J0efsMnv+uMfAYE2KpihBGSZNPzrd0rb8ZtF/2zLeYyJMi6Z8maermKlvhK5luNOaSXnTl5Plf7MBN4mPodkBefbdCtNDn+uGtdnA9uGhToHF4p2BADQzDg4y8xd1xQTnpAmbIlvMc+mauzcqAN2s8kLZ9LGL27xxdaYrjMzbmQneAkE/vZhCh+wlgg8y2zGzzlstShwmZkt6nLmV799gwnP/Yndm27kmzB606a7kvStPEeVZx/Nt0cloUEfBBjarJswThkTlbmaaNlxHP1kTnVGTfgTeGQuAIxgqlgzR6m5zf/o35jY00bdEZ5JDCw95Ciwm70gMGTv67sZJjJhZXsasEo3T5qzoVPM6Oug/0Dnf3eg43AFbal7MIvgyBNRV5N2ccXW+izg95p3U5Y+jTy+es1WEzMOZ01wC3arqpXnh9dD6DFj+7Ogka9OYL/WCPTMbfiRC+Tnk/xfQ/0A+uyGqNdzdweebCOVTok/Z50IZbKc8xpxOulcP9QOZJ0Wkic03EFSnMtBImAYD/Wt/Iv+Qz7KhRBHu0WLzC3I4BcH7vcUcxIbK0gYsCgUs70xgEdI1KyomXY3yjpsB7kJGxjypkFkKa3A+184WUmaHmlE1BRK7PZhk2vwMMbESQbB3Ie+m8hEeCfQuTN4xfwujHbVoRtNLzFOg3xOo1/AS2CCCUk6+xMyoNlthITvLBQfMnHaiNG8go+Mp2x42Q7WrPjFlNeZ9CmNA/J9Dp22OsRtghxB3GWmHIbKnhD4ga07SrxpKP5xiEJKYFzCz3Gl28B28Udm2Iz9ZCOzLvv7NvPpl/nX7/BCkgOOdx4/kHdMc7zidS4elWqe0w9tnadZhVN7O2uc9sVEBJZEQmZ8ymt/HqH44+VQJieZaVkIwZhMnxYxnsSDiylDVKxMw5W+VKYLmkTlqMYpkzYIiczT5fYTPHnYWpzJk5Ro8H8XbnYfK1EegxwxUg3iDtMKhcEFi3mgewV8gWL1iB1pl5aj6lia6wyDdN68MRNtGe3BTQAPeaN6RRrgh3onpbzHMcGiBXk4cXc25jDUIqEOIodO4zUKH0x8HMzeLmV1mesdmcxhgU9ljDtml5lWDwIV7srPmfmlHvSo7V+99mDEt7ACgvHdEvRGZ90ODop4tXy5XnkfR5tINFqFLfToVGyD5WBKCMcJzoiJ9Pl7++Q6W5All8/UvlS3mxHgLD2kKWN4xgbyTmn3sADoPisQshnakYz23IIS0xEnM+TCMRt7DvZ1z3AL00PxNo3Ncya5zag4o5D0urtD4YrDIvBhhszw0yZzjLbFmPU/11svNv+9F+eBj/zkXRQntQNNjM6iDwsE32MRo8SI+OZgR6Id607o0mxCAOqcdBkvNM+l/YRtsyeLv5IdVoo3VGAXEOymrDX8/FT/fM998Y0b7A+iAexYylPlLF/OXtyIctd5ukj3dXOdaa/7SN5oDNu9bsIoqImiEHmk3zhovNCQVJ2qq8tQAE3ESZlWB+lUx5xe2P7OyFFr7OpXaJjXXMkdcW8gwYaCKAzqlS/9rc+8Yjm0Tlr86X+4D6aR1VLKFhzYFxuOdy+fLOzqB8Tw6lhNLIq26YorZwSQ7s5NjjM6hzSKmN8aav5BP8+Yvo8ohIS4zC2OeOipKE+Fko6N5YfXqo9Xqm/OayLcWR2weRZl2rBWAapeYLZnUnDl0MdVSPAR1SO8bCJ1AXx1qrmL1klru+PCqcgn64l4rAGvb+UH+0vKOCbxuN6E3JEzS5gmxZdb8zEACMDGXWNOMHmYqIaPzOIWQZ78u+j8dU0tLS+9x8Mwlrhg05dzwQsKRLDM1qORpWpWfK8s6Npl+UfW60bClqBwMy1LlWQUK11pg2pzD5+x8lJlOWdQR5yPknxPEeYrqJBR2CNxgczPLq9As3haKuo33IKTAO+AdEyAT1F/7rDKWmivmW0sJwB/aWV+GKQV1ZP7V3v0bm5d5GTlLF/It4drH/m2Ttf17EYJw4cxfqsrjZhr7Vr1qLGw5O+rdAJ+Jjqm/F33M3N1Y3qMQLWczKzWfp52nbVurAzmh574jTuP0zccJfZvdmc/jeZO1Ezyc9/Xg2vZG8P64PmLubWr+jPL4N9hceb/Ockf7fy08VCkwjTlUKO8Y890meEeL3+/RuZ2FvZOsd7FQvJzF0AF05hUwTnMgJjHmYphMSvbD6PwuxAYvwj9XF40yCwmHUquBSmFUTtJppYuw/CV/Kzg65jQGszMo29UE3cn3Otr3Gr7l6PZEnj9eZQDNDPUZvNvF2w/UkjHC7xTzu1FVzofP7PaF2ZcmzF5jayidR9E+P9QoIHvPcN4JX2nU0KlL57+Ozn0xkvcw28l7GCd/jBOfb8cHYIwobHLMTcghxrj6eNhqmpmSb1ZRU/B5vFowN1npa5nNRAH1cgPNBuL+aB71GCtp9E/m1xiCf5T2fhatsCvfGg42IKqvY4vk+pHKZF2BqlPVviW9HNsaTmpIyRACk2ysROhjfXg1lPRxdTtlbgxB28Z5cFJgW/FOV2dROWv5cbrt3ghBnVw416yia26YMU5tip5i+gSsCYrsHvl0S56fm8rHjyeMQf14hmPsaB5P4OO8IsAtF68n7hLO4D6H+I+ALloKTvCJEDfT/NYs+R6+70IA3Dkzax7OsybEbjIsR40RsZ2VgWqfsk/bQS/YMzfQ/jdkr8rfzNKWEfcFQQOVtnPoQ5wJ/usCHgmwKXM5xxBvLoRH1i5RNoD1oH5jzOqs/rZOO2C1IMuFPjaEqfX7mPD7AXDdzfda5rfrxjqJQgbUdWeG+8NsbnX/nEC+HbpdXBcte5ceS3+I2Uz0DfbCO22u5ujptbNp5aGpZ15CHR0VshcRIYY2nDbXRp8xv8mCs29rG3e3VV08mjBtgG0PbYRjK/9xfcGxxS1mbUbTLF35m0yiGUuQXegvsiR4OCE6xeT6qSyIZTIV2wMNG6ij+ul9ZTxBvx3v7GtrVpdAvOMmbUsY0GXbqs29OfNO1+bVQ3Edc0Kgg1eWabMaz8978uwfnesKWn7nmP4KFlPrEYNvgISaBTodVBbXMWf2q/lvdYFoAQ/Uy9Ski9DoeYqueso0OTYf5HtX24hd24iZoOpBf9nScR2VFYA3IiivooP9rHKZKmxV8AgGmYQ8ZPych67tZr+nrNcjsL5kPmV+AGlcqfLxlsO8vQCB7tJo8fJm6lJkddG8S7gpCcAEYTNBbJ8A1KZZZL5vj/FF1irh6fzW2eE9wSsBqLoJi5bJG3m6nZMsV0Gvy2HzKxCEYV5q3E73Bym9Sjwa1I+noBmqnNGRcm8S81fU83Xeerq++W5SzgpA+OM5pJXmU5YFDtRKupQiQtDE5hqEwOkI45/qJc9LCHsKw4DUFrq/Z2+CHwWNtudZGKTqUp9aR0y1vVRdl5Y9JUG7XYkjGmswfzw4dWxyZzBog0/ntSf4CNTTNxN+L0OsJje3gfOXxLmCXK8buaqwSUv/xuGdlHYX70SU0zB5EM+ls4P8WLxjBSBSe5pR48t0nxsRSzdRrVeAXLOS5sA14HkiCjNOLRXlfMGBRrjEEnYvW6lhVmyuHOnCeF+xpzl0/C0EHF33p9GeTH0djKK1wiOrV7sRev0EQfBvdK4LoaNPzIpRD6JbPLkkkpyoU76pZZR9MIa/yXyiYokppXSHtvLnpDpoDvN4cA5AeWjW3y/OUphtaSbxfG//Uv/oW+NnxX8fORxIyH7kod9O7PFlIaOjauXujLkCtv0OeX2D/r0uizbyu89Mq2PPQ4+MYl9oqR+PnjXnE1uBlHLRV2JXBvlXxWdXl/up043FF5iEyHZ1UDc3YchonOJDMzW70CdeTxtJGLyEzwsp30rCd+PjOCyLL+QZLvUpqT+Wmwso51cRoleA5zGE6VDEgXwfQHrNyCRAJ2064cnjyvANwrcgjG4n+EqE8PcRpN+u9S6k9MC25B03A6QQMwz1U+oSmbdhxxYyOtviB/xzDbyZmKtt7BSvIz02ADLG0nimkaWL55TI/DlxDuZ31lQ2SSP/hDEa311TUN470eEMAqU4/6lL6s46hsWXydDTQPZkaLQSkbAbA9ZXaLORs5uZZdChtsOOEq4qXZdlhJjfsH2Rg5njee6Mbi689rGcj3pXwo7/hpJ3maWcfTFmBe/qwTGbToUeR9xnUhddnDXMhEUsamUJgxfT1k9lgbwPDP5xGFyMWQkMyMuJe6Btu7oyCfM0tYkC7RFjW8f9bD93danMn/qJTnLycFMWgfZbxoTE6clHl0lWHEeQ5u2045N4lk2llqqORvV9S97Sn81Hgm5/aPQtnp8Pjufze1/KUzyLy8sAWEq6fYm3L6L3WXzvh0PiT1Ut0wu4HO/41QSDRI3xzqwAnMX9Jk5mRAF2bLMJAh7UcfosgVLzn4o9yi1VqgXkk9il7LBbGTH9Ht3wAZlWRHEdY03Fm/kHyWhcu6X1nW7u+Tha6Oz088hnJ9hQtn3fHInwHkZudfAQGsrRQRn2pC49OnFI+nLa/G/sAof0cX1mKRPMKny4XXtJTyim9Am+Qa5ZXB2xi8ybSK8VzocYMApH/AYJmFVGVl2QC6p4lKDqYbeJjrHi7XBQH6GqO3aygX44hgsRfyToOU/NXe+6nlmjZqS+/pSSQ2SOAcNOY9FIOYv+kV15vZzvlfzeCxxOwygazgWyNo2ZTaZoELtmkmts/3f0SZbJo6BLP5Oxvq+uo9L7wl2ZKnknW4QOUEzao3H+0XmQwv+kjoMZQ3SaZdqR8aPVeP89FXOHPss8dYqmwTXqTU2jtfgSdkudX70FQT+L1DXmE2COE9C3PHY2vPwwxfKoE3DGVnR2S+wihj4CvWN1QcXw0F/C20fgRDOz/pl0LEkn6Ath5i9KI+3XfJhRCvIOHmo21qgnOqw4OnYzZaaUNV+ckR8S6BXRU7eCOaziVTFIdNLR06hkQO48NA37Ryymzn7tZB/mQqcsjTZBRe1MgGWY5/otPG5VdyTrlFfUopH5yzbinWEBqGl0zOjcJCSWrOcFo4wDFczBCImojpbSFMN6lnGwVMa1RuMpy5WsM1XGajDQjZTPBONfj8Qaw/DaT/aBzGE6mD6VYb4C3fWsaxn3i7vMMn/RccSmGK1c7vJv1ybaLHkrs8AhEyjCtCXkX+o7ga6jgqvLWVT+frvdoHmOt56uX97OsHBlhseqH0LKNJsge5jH90L0XeFMOfEVm7fZO4cqimd5JzF/RLzFgYx3Esc7BQFoR+dxCB9SZNdxdNrhspDoNk4HLddCMEjCDvQmTkU0DZtZqnRYsi/UFL6qvG5f8FXpe+hgJbB2lhEbGL5OpbZJrKnNpXkUtlOGpM8nyj8Lr7RlKR7Fz7K72YO3UrLHbLD5yjZIMXgSXod7EBbypL4kHd+GCkcY65klm4ALuZRvyibF9k6NE5CtdmGLd+xUJRIHpuzifoJ2yEDqBzNH9UNGo7nQKcu/6nuueMUTsijpQeMq2Fa8ExvLOwUBSEH3onP6XdFUVWRUmOYg6Rh6E+HpsxfddAOqprpAfa8aXYTynhscDN22Gzup6qhyORXBeMzthO0T2dOW0rkI04RF6LV8Atkx3zVonm4rINiEMJcO1pe+kGjmR8YoCSeMprioPgfIPDnPP4z/47WuyqmP9rXTGTMm99sGev9J2Mrhb8wm1TDoegC3cTD8bhCiNuLYaPD1BbIIiJld+kB71pE5D4IMhoSpOagfsr6ko6yikb5Fo/EoPVzaAe11hYXMaHpj442Z3+r6hWrYprxTbKCueSmVk/Fls9Bhm53Lj4KRyvZIHa7JWaAaso+926pGsZr0szTu1fZ+jeDqzXYg7KZIdD2dQxcjPZKPbubbMZhSXWsDt5J05UPhLweP33xFzBGZr8sMiqcBdDij20E5Pk4/EC7XZlomfhaMJw2ZnxzHzCZh1zK0J2RMnbBEj9ml1CaaGLuDgYs87sTWxEQt6wfhStBvlyHGTi9EIDtD74JAL6PKfttdZWP+lLLWg+uTG4j0/ULECM/X4+jERHfZ9kXcyZJCqw6DvDMV0k7sqwn3G5wXCsCPAe1/BZ3/A6pfizi/j+/l/NZpotfzHWYq5+gw5I19m/MOfgdnBSBllLLZr7QtE6rut4jYg7nTMQ7IC592pJoGuc/pjlmOkDL8wqxAYzpsazcqreusG6DJ6ZToHDqrDEhlvDlJ2H48f5jn/YOEhOirneccpF8l9Q9RKvtAaXXaJMUeMwdWDZJYW7Jc6IhHl382d7mXWD/jczY4z8H04Y6hVM7uUELQDw53n7i6iEmnx29n/vd760PIebU+Fwb8Le+ODKKVcpQb9RykJ7Bzer81A8qFVjxKUGmw2nmgp6uINQiK8TgUMwv3CXpXx5+zq3xXlpgd0x3pDQcG0UiJ1J8M/Toxf0f9rmHg+S2Knp41D47ZWOlgQN/Bt7tOg/gEskXFP1cuzUy/BM+cZlcI4mPhfTTYdFhChu2xOYnvsP2CqMIR8Xx4p8+gEWNtOB/eic0+swIQSyt1zGd5G40aB4PrOL+keX8Tmsbqr6bolGHjehhaN9KuoTEHVvZhKf2xJjHRkLt9X2cXJnVWXTUamXfB0BfRmTbkZ6TpkXSqHVDU45OPmIO24cdI6JcU+z9kN0/2b77yOJr8JyLl1wXc8sYRBwh0V5dfkfZ0PlOk0fUJN/G8ZuRuf9+e/vCfK1aBVL6UMyp98zFs+NYoKAdbeb6fY2Yf4/2fUF9nApKLMOKxOKe9H71UFx1gCK10hHNV8DEvGSP7zXwkaFJzbmF1NI0KKkR3qAqqDVIj/e1x8Ng14Mnbhep5E27nvoLoewXleZm3niSw4PrGmWD7sPmMuZVilkXnZgT1WYjDN1CGp3nxKrUEVRm6bH40yTvLUUOl5gtk4+cdlYkjqKqqgz6dIcTrRxY/5FvYE7y/FBumPqVmQSGjZz2W4lvHTJcwDs7tnGIRW/nX4dBNXbkeXGeX7d4JaFK+rftz88JPiSPde9sz34Vma6FBGJTc15NImwxhzkuNucjmmc9JhrAxtqA+UH2k59uCsN7O/DMHos5B8F03Svixsym97sFDrFSVjxi7z+x4yvwj+MrCb5BiHScZDAI8lFaGGUMeIma6UQCzKA1n5CsEQR6bfZ41IB96UwoQ/eSFqezlRrv30pn5QHXWpl7MCZlHjj7yF32eEx9pyeVdHe6BUD1RBsyj6mzt+mJmxKqHDxSngyFSGWJr/uLHoBipNaE7ATz/MZJ3+uY7wbzjcK7Ld52DQa7qNwdu9+2SsRD20et05rChUJeJpH2E/7Dhkawulfed3dpPAhw4CpMo3Tdf5PMtdGOjDHKN+bTdpLkrqGOpXjFL6DyEdiod6apyx+VssvydUs5PDUKPw+/RP5jfDekR82XS8652Y+bxNlX5Xf63cpb358j8HQy4Nv+q/GxnTjqHGgKiVYLfwxnA/EVLN52cqAeVp2cHzh/VR5x5u5s1vn66t57qD9pV3mKFuE1sTXKkfvCVSbFVLula1+K8eBU1q4MUwR+KU7P5vvk/nDmfpdVI1H2Ekr+nuLImxVXgDO/4HQcrcyfsz6Rc3xryVp4v3Li8w13YVgBavVGIJ9Z8Zr5n15E3o6Yv2oHVpEP/pMPWf+lpzhoMFa8c8e6kE19U8XZ+QVtZanYDTR10SN+Yfxo1Q8oKAtm0LxgGEmF9c2sWmeNMD4N2fv1RRhOcK2Rp9W31TzoOVc9OWYfUaYhwb9Yyq9HGig/cEPzvRPOaTUEm6a11tagfnK7InkSykddjEhNx7ihk+au7iHsDOnsyk/pGdof1oDJzHr4wGG4MVD+o/XRtRWo+F7i62jGIRsLbQ5+4nflBfeFn3/rrqaiiRVq6z7lvead4F9Es2tyD66trSH+Kj3dyqfyP4p3I3Cr0hlO5u/BDCvhmQY4spyqmvqNyWcLOmY7/NFkO11kuohR3jsp2zuGdwCWUo/JXWbBIR1YLVgcaYicnBkpY3kzmRuoJdjnlxNZHP6VNETC7lZaE6pQh+ifVh3udObw0sF2rqdWMoDqsJsrgVYqKPcF+8JTcsbDB2+LTe+1Sfe8gIdZnl3RTztmAHCt0KhTzxRycsOeUhneGm6ULNSB3DHhulsx+a/AKUT+I/n12Zh9Vox7II47YlPEJZMVXv+iYs0NMfexsVdeU+vAKZx85kLAZkwddhhWifnC88zXqemM+eeXz8ejD5cQlpEzinSXmFod+CcsTmWH4ElbmWhMY0Zm1ZxQAHJrWbuYxfMJ2lQJw2iha6iVjmuEE4LZb+CHLFXUA7bb2zZftks2Pe3faQZ96cC13M9q+O2YjbqFT+e7uVWSVKcb2rLx0khF8FKB/chmGmxRpg03nkn2zLc3+5Dkmtop9l0vd/83WAYC8ntSD6hsx283bgIZaPDjzlwvrM3BvrflLHHCqQW0nLzlxaZY7jvohNv8+1H4VhWRjTadfZLZSD05Q6QDC+fURZ97eDTXl/cc32KquKaZemwczaISneNy/1M94JzX/GlJXZq97kFcY70RMRnYwMzpA2Ud1aI7mYXtmgAXTg6osrOJ40rybTurfvaxCMCpMDJWgJJfrraZBW/ghu6Wus/8S+l4dVIQeJkCh92Qk5qd0DLvzZ9UYOmPrA9fRN5GqQBNr/uK8idRjcOl/T33CdGLCJk8uOuwewoQGhX2gW33wSW89UV9g3qrM2m2dEfjpO63h83O9Atm13a2oOa705uEiyKlCmPmL7PXWsiaYgTHVD3dA059naWu/5dMxQlD5Bh/V1TBL2zlwVuk226SyqgfRnvPgkTb4MthgVhB2QFCZEkx7ZN4TBk8dl3dctbX8bRpEGC0xYkxaasAKv11x52PYUpen2SZBxE/M18yp2EY1DZn5iw+v6wAXBi3phCuxBr5KVQ/SFHZzuhpn/rKSUbAe1OIpivctpSWFls4GE4wQRtHdwWv9y/nZgmhZGHbXg5jlfCrvYytjBb7w+kCUlCqmnztfvgXTja71l1ef2tHqJ8HWA3HgOXqViQ2owopA+uRw9cOloeoH6Bmme3V1PZ9BwteDHM2iwBM9Wn+VN9vk0UjmLz4QnSQ8Q9QhwhXKOypRx12p6QSg4XrChQH5KzuWpYGW2EOAw8S9mbB+iMK8myKF2nIN4akMUM36aP5SdBoBDFWJoy5QB7hDzF/Eyj3nsbcOnd7NeD0+lIasB1e3OzBN/clsRF0oHbOJ5APHfBcVRmSlWWLTe2fr1FlwUaDy3VidZoj5i/Am9gz4JTYH378L7LFN/4pBtEo4QZIX+Kk1v+j6sph5P475S6hA3swi8MJC/p3m1Q90vfDDDQlrgq65oFCmET/sZuU4m2290mx1HN6R/WUAWN6RBUQI7ySojTYZ28+6Vpm5AffivoQBhRiKotlEjJlIx3wLo9VvkMdV/NZRKemE5OBSbnD2IlwurZsFJyTOIifdvdEosNsqx5xhepUerDc5MHWoLUjEkTo5hfWNwY6pv2nOHJwggK4yCHbiqS4TjcgRCvQy9NmAmghKr6Now+nL+LLf0+jp4oCTLa69LmW2viZLWvs9YbT89R/bdBT5fibw7VJftna+/qZ0Pdik4xiltix6uTurKN0HHdJ2fZbUPx4Y5bMKkk7spYFl0rHJ85SlF45HJ9ZjV983q3e61xtp/7Cl/nJshvtMmnx4RUPZIH5mYKpleSdUJyne6QY6n5D1SGcM3jnDqR+6fC0l4Y5eYs41gjzLahcqMu+gMlshiLafRfKlEFDGsRqlmgURXrOJreazmd6n0Qw0WzVWcPvRxjDRfX4DbAaihzFffRu0kCgYDa5uouM/82gpl77V7nz5baqc4NSJmEJHRyjovge/6yaX/lZqVNzRG11avQk7FeFw626SsKFYZ4rVi3xQdsW2IxaJm1iR+HIRnVNaZGmg9UDPHIUA2T5IKMScv/55bnNwT0xy+ghQn0ARjfrQ/i5MYEKgR5uGnANWXWOWmp9gchICW+2JHpWmHhzec/gacPjC8c7fkEt9mVSexMqgWd7pQqAlBC7zJK2vqO+tCpbYzRC5dtfEfAAD0gzC5vskxkgwOr6ndMxrvniz9LqMJUVghZRd2oYQK6z17IBPBM+ULoB9BjZ4S9BppfaWtKyE1d+ie8qSonwiZhIvKR10Yj4GdOkv5op1nWjxAuTR4Ba2LOzRMftmtRcpEWbOy+ruinoQO+jo4VTOWcQDzFw61l6yPq3eyoLgXi9VdBnR06jpa4lfD6KfU8t8sxCxjy/JEOcTjm8uKOgOC4hKP6QT06zeRyeVW7dBBoBdMd4daEAuQ+kp5rp5GId3JJZDeGeDOZZB3X9+Xv2hzy53jnfksEeuokP1IfmqjPcsImcdJP88HhZ/bNfp1zLKnxLcUfxYizF0FV/Ipe6qpw7gTzE1rwEY6GW0wPHQp74dHAPIe/AnC3ZpzsVU/ein/JU+5vTGoCVcqdzpkbD0CNCh9A7L8P9jEMpyQeUTrMpZpyI2BKorEgROHDADd/S6hNPKWjY6SEkXoipwbaeZvvwFjgR7g5rBm5/OI/sEjRuYv858+9YCQs1mQ0Cnbzphy18E1TLK9IJZnhuFXzTqQ3ksCkZFKYRvYACJAs6KOz68hha9pZBeV8CG8o5hoJo2KwrpSz/Q/enkWDjv4BgizztdMpDjHS1LHxqgevS45/jRpU7WZO3y9+z68LrGPppolcp9hN9f8u4kWsC/CSQG4jgQi7LVPFmwOq00cESW8WdpRIZRdKGhzsT6QQzeNUfjin9lIfIEv/DOweXrulhnAPHsnceDsKonl/eFDFhhSzAZ0WrY9gkc4Y1KV3527eCl8taDBKBcim3HJt4q805UKUPaPfTaz6Dd/p6SPA989RTUW80nO1wStGpQ8gVTP9zNjAhvJ956SlBpk0LX1YZAxOZfuKu1C6LVJbrJSUQ9pQalcLzzRgIqN0JyvOO3YRbvTNM/1xfNv7rI2K2whcTggx/cCPtjpv2fz3eyxis2jRipn6sNshSTRnifPdaaYvwLnXItXWKSTvQEnv+Ct6+AifwN6EZUGc+eWNiBnWB2GQfaVPU4jlQekTeiD4sD9E+qkeoSM/vqsLGRB/UdfC3mg+xznyWYlCw+QSVhUzaVGELmAmaWYC8a8XoQ7ATO7wi4eBDIk+ZQ6ichoO2i2ByNJnBXXfFIPaQ/FR20cXcQZT6C97vzrCGgHpTnNCe915c2xELVD2r/PsvJQPUDsV9I2fweaYRXq4KcUCZkNKS0aQiUda9ZGqk6thXvRObDBd6hTF2subag/fkdTe23qM8q8Yf47QT472jM99feQNVE2Z0fsmlQ+Tu+Y+5lMN1RlO2VMM39PHf5yOREbrTCPEk7IXMiCvCiSy9dniPD6aH5SamiSh+Z4RFZd5l0KYMvfYYuIXb+CJPw9jhS1y+eakBQLWNmGb4E6wYuwdabFdAu7AyvBP61pZVAzCxMbRICiteHth17qc9h1Huaukooav6pKyCX8d4PEn4JesjtWH59rZQiVP2gXMqz2RE5U+xw3WsfgTRdnBWNQGvsZlsU4PzDDdZDm20W77biHfnZvMv8qly3rpYdrKPvokkfV375oPotok+bf6SDVk6XG61LH8cGHcbyeAzzId1OlvKRXxQnzEI0Ua7YGjH75kz2kj8/xEDysae6+2DUiOzulfWlLr7PCxDl3WdDZrfSVZHrEVKdwCVY31xuTkZchoDzIbeDV2CLxujLhpZgPXRSzu5AMcKgz0ahNguzemcz2ux3HRbXNhK6x6PoKNSRQWKSoeMQ2x/qcKikckjaDTx9I91ryB3Vru1uRDAPnETUlWOczTapfMqbbcI9f96J7BAS2nrinR4+Au8zXxjiHV655onscTEV78EJqmSKbVoPbytl9+4LUSO53ZEzgdBGUBkGzCL2cykHYaNL6YTfDxin31++YCg9mqVzyB3OauXybqiKpPTy0pwx9OhSjH7jetDsMbPZiHIUEXpMLbK+9sJKoZ3NEJDATyoMe2VXlqBFdeUOweTi5NtKz/nfo7Aoj8jOsN7F/0to9GIqqR+iwN1Lg+nS2kAbSeleQ50CcMtdsPnLOJtto2arzmXV5ZQvHAZUc0OXUg7CRuNxvCO/kh8o806WKOsGBbdI2csHxbeWF32mtj3ztwi/hXB4OkQG25FjnIAuNDjBfi6N/Rbqtm4ou+2tPm4PrwBzna24GypkS5iNakYaJnqGsrcBfbpXv3iqwd6JG2r+oiWYKaavzog+L3fxhg0HX3nVq+UuKsqZCmVIT2HOFZvvji0As/Sh346zZNpzAnQ+u3JglvohxPel2g9hXjWDqSyOdK86g+UDCZGZI2HeqLrPOWVQ8wkeV9Zh3etMBrzW8H+WL795vx/wzlsreWcmA9dMEcpVdUQ/yeZdrkYRSPgZBENs3swu1s2N4vYh28qdBD1sikTopkGtorrhBYP/b8Qx/G/4HoZQ10tq16oRWSbq2SpgGLs/ROVMMF9ZWtKtHMsSLLKnBepxuN73azTQYad1nPmL/6pJ1SplCVbhVIFXMsU/hXLfs2BC0PVLHcM8hiH59JoZ1hH1BJp5K/OXyTHMX9IxdK9yaxYCUmfEgbrXPrrXa0q613we9+LtW15ntiXvzJTHdcGd2JlK8FbifuWL+of77ATEPXSNt2BZJK8ovnlBo3VhVNkEwvfQyW+zwqoJ7GJc1ynkZ+8DCNhj0I2tsUxbwm/NX8JdClWPyAm6X7mJn2u7K13KlQflEwQpivLwJdiFUd5TSKmehZ9O3+kvregYl8xf8oiuYWukb/4XQe7qyPy7+TyrZK5f/hS6vIopxb+MWnpZjzRyEebrtcIpb8r3B3oTku411PzFjKF7nZgxf/HRR7Sv0r3m0lmaJNuOd3JFcV0f4aFLbT6Xf/EH/ew62UbK+BpY+DuUP3QPs9lqncrO3rS147vGCi41/lxA6Zzg02XiXwPnYRzXPik61WzkVfWiY4ndtApzBqDjU6cMz5CFH0H1jXkJ8Jh7GIbhJfQnPzVczb43nHw4hA0D7T4fNvymFKJc+4iLiYGtZCmGiVbTX6Yxj07wQpQyRxPt/aUtoxn8Vn8UDg2GGhQfwLB9J5asdVcfbEJP17EmNAM8VU8SgNzcZ+/2qHpfDotZ/obqXlEFUG2fCHY5JJxVDgGnez3HG3UheMeYrwbxTq5wIq+DTTCefOepMf+QwQm/2+nk/40x8QfBepEFqBOdR24ddKrzZaD/JJ+NlhFURlG2iqkUpk/GNK4+66H9WXxeginwkWjlrqBe1s8fMUfBC8hryaiXs+GuDKM9mqTmo4iDn1mDnqryziIqPah+0+xqThedl1qnoJG1kSslKP1U+h6bEVPMQkLgbjYMTKC9Y4rA/1j9eVmrk5ti0BfNU/Nv4NbBe9cuvrbT+6z9dNW78833XpapBzFwnRx9zvzWuyLpIqhC7QA6LBkDwOpeTeDRQ6m8Sj4hR2VhPa1oVl89FA+SiS4JS9+y9+dBjNknulqed07mxfx4JzUvZk32hkDemS2HmtyCGo2KngjjfikL+4P7dqPslRD4f2CEcgUjeYgV1oJWQx2dfnE7YusELPv+L51aDHUIn/3JeGc+2xOmrqEmVxfawn9dMH07oXIqcDHC58d8r0WbORUi0EGi3bCX8t+vwdP4Xnd86lPkehwG2Qnlj+xl3rvPlJaENeAE92V4bymYdlCXleDah0/1AJChFEV0pePpdPwQkLPWLtpGzfXrBLXKldQsf3N5SQgys7wUofXfwb0SOh1OmQ7ksy+fnYgqZx3CqLIKpvjWOej1hN9APpdBq4sZtK5Co7hZc3fL2Dbq6H+pvDTrNIsw19VF7/r2NPJPRmPLvTmeO0XkZSmE9n3UXhuD7+t5DvRxm2V15VWb9lCJnBZ2VjzHO++Dd06HFgvOOzlq2cdCdaxeacKcSSd+te1o5djb6rcIq5Km5suU6z3MutaKeNuqOKPytYLplVBvKZ8lGDkvpaQJPvoiGMktCbXjeT/msxtR/P+WOLotoUfT96ieY7FRyHPhdqQ/BkX3JHkI4yjQgCHT3U2YOtTo2WbKvZStC3VynSxZRrpC3xjKYhkhW8zNOKssGJdyTG4PGNt/UbzmrlvMLSzDbxjCXRHASYwnwIQrauurdMLbM1dGJ1v9ZgWm6iAEYUyrTCBuZBb+MGi782zbaQCLEX5TtNZ2tNtGxN1SBJ7aj+u2QgatfK7kJfu/AwmbyIePeP49m2DDJjQVka2h8gRLazn8rAPRaDPXsp5W9Ao0Kkn6Xvx29jgtVNfXlFh4WUWiE755FK5R4YvFO+X8hzq5Pdydmq/T4AdS6W0PYuK+HXE/AsN8DmGxeRxhsS0rMNOobvaXFeRJdM5VJp1vHawn7Q0eIaU8cUQfyqCz5Q3BK9yrTUI9CgPRLA699wFKl1A6gFfnaIgeAGPgHYXN1mMV+V2by7OhtlOetv1GZV4KH7v9Sukrf1KX0EnEQrVpZblmAivzbJD+Wd6VHQp7qxV06y/S5Q7aZkLQLbESyiBh/FFMQK+jI/j0Ylm92u+WAi0FWgp4KVAtALXg1E1eUpAbzrAq1mJo25SP5ktOh3Eh359E5J3HrG8LrwozDWK10FKgpUBLgXlRoFIAZhjtfQ7T5s8QSu9FCD7FhksMMT9tDDKhp2930/z5PH0BLcl57E1ujWSy0EJLgZYCLQUWgAK1AlD5WfurjdaJ4Z8zB3sNQc9GyT1phaAEYfZR5BDIBF4Wt4+KPsKgJeJ40jQf7U7dwG5oK/gyCrXfLQVaCiwQBbwCMMvX7hDL7izm+r7YHIzA0mUrMvXYld+6kT3bqXWLVQnGbJs/E5Ips7mUHbTI2mjpvs9LwXEZYTcQdxrDg+lQxWxWrva7pUBLgZYCc6VAsADMMiiYC+yA9Y7uouhi+hDjEMlYr8Y6nP96nuXz7ot830YceU9Zj7C7EwOLdcz5NlgTApmA7GH6rdDLqNt+txRoKbCYFPh/nNdJ5ocVYCkAAAAASUVORK5CYII=" alt="bithumb" width="80" height="20"><span>Asset Kit</span></a>
+    <nav class="boards" id="board-tabs" aria-label="내 대시보드"></nav>
+    <button type="button" class="icon-button" id="board-add" data-action="board-new" aria-label="대시보드 추가" title="대시보드 추가" hidden>＋</button>
+    <span class="badge" id="mode-label">연결 확인 중</span>
+  </header>
+
+  <main id="main" class="shell">
+    <div class="notice" id="demo-note" hidden><strong>예시 모드</strong><span id="demo-text">실제 계좌와 연결되지 않은 예시 데이터입니다.</span><button type="button" class="button button--ghost" data-action="guide">연결 안내</button></div>
+    <div id="error" class="alert" role="alert" hidden></div>
+    <div id="warnings" class="alert alert--info" role="status" hidden></div>
+
+    <section id="setup" class="card setup" hidden>
+      <h1>빗썸 계좌 연결</h1>
+      <p class="muted">조회용 API 키를 이 컴퓨터에 설정하면 보유자산과 평가금액을 가져옵니다.</p>
+      <button type="button" class="button button--primary" data-action="guide">연결 방법 보기</button>
+      <p class="muted small">예시 데이터로 먼저 보기: <code>npm run demo</code></p>
+    </section>
+
+    <div id="dashboard" hidden>
+      <section class="page-head">
+        <div><h1 id="board-name">내 자산</h1><p class="muted small" id="board-scope">전체 자산</p></div>
+        <div class="actions">
+          <button type="button" class="button" id="privacy" data-action="privacy" aria-pressed="false">금액 숨기기</button>
+          <button type="button" class="button" data-action="explain">요약 보기</button>
+          <button type="button" class="button" data-action="board-edit">화면 편집</button>
+          <button type="button" class="button" id="refresh" data-action="refresh">새로고침 ↻</button>
+        </div>
+      </section>
+      <div id="widgets" class="widgets"></div>
+    </div>
+
+    <section class="card" id="toolkit" aria-labelledby="toolkit-title">
+      <div class="card__head"><h2 id="toolkit-title">이 데이터로 나만의 대시보드</h2><button type="button" class="button button--ghost" data-action="guide">연결 가이드</button></div>
+      <div class="toolkit">
+        <div><h3>실행</h3><div class="command"><code>npm run demo</code><button type="button" class="button button--ghost" data-action="copy">복사</button></div><p class="muted small">화면 편집에서 위젯·순서·자산 범위·기간을 바꾸거나, 화면 파일을 고쳐 <code>asset-kit dashboard --web-dir 폴더</code>로 띄울 수 있습니다.</p></div>
+        <div><h3>MCP 도구 13개 · CLI · Skill</h3><div class="tags"><span>잔고·손익</span><span>비중·추이</span><span>일별 손익</span><span>원화 시세</span><span>주문·입출금</span><span>종합 보고서</span><span>화면 설정</span><span>화면 템플릿</span></div></div>
+      </div>
+    </section>
+
+    <footer class="footer"><span>Asset Kit 0.2.0 · 개인 제작 · 빗썸 공식 서비스 아님</span><a href="https://apidocs.bithumb.com/docs/mcp" target="_blank" rel="noreferrer">빗썸 API 문서 ↗</a></footer>
+  </main>
+
+  <dialog id="guide-dialog" aria-labelledby="guide-title">
+    <div class="dialog__head"><h2 id="guide-title">내 빗썸 계좌 연결</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+    <ol class="steps">
+      <li><strong>자산 조회용 API 키 발급</strong><p><a href="https://www.bithumb.com/react/api-support/management-api" target="_blank" rel="noreferrer">빗썸 API 관리 ↗</a>에서 자산·주문·입출금 조회 권한과 허용 IP를 설정하세요.</p></li>
+      <li><strong>키를 이 컴퓨터에 저장</strong><p>터미널에서 아래 명령을 실행하면 입력한 키가 화면에 보이지 않고 이 컴퓨터에만 저장됩니다. <code>.env</code> 파일을 써도 됩니다. 키를 채팅창에 붙여넣지 마세요.</p><pre>node cli/asset-kit.js config init
+node cli/asset-kit.js doctor</pre></li>
+      <li><strong>실제 자산 모드로 실행</strong><p>데모 실행을 종료한 뒤 프로젝트 폴더에서 실행하세요.</p><pre>npm start</pre></li>
+    </ol>
+    <p class="note">브라우저에는 자산 데이터만 전달합니다. MCP를 사용하면 조회 결과가 연결한 AI 서비스에 전달될 수 있습니다. 자산 추이는 조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록됩니다.</p>
+    <button type="button" class="button button--primary" data-close>확인</button>
+  </dialog>
+
+  <dialog id="holding-dialog" aria-labelledby="detail-title">
+    <div id="detail"></div>
+    <button type="button" class="button" data-close>닫기</button>
+  </dialog>
+
+  <dialog id="explain-dialog" aria-labelledby="explain-title">
+    <div class="dialog__head"><h2 id="explain-title">현재 자산 요약</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+    <div id="explain-body"></div>
+    <button type="button" class="button" data-close>닫기</button>
+  </dialog>
+
+  <dialog id="board-dialog" aria-labelledby="board-title">
+    <form id="board-form" class="form" novalidate>
+      <div class="dialog__head"><h2 id="board-title">화면 편집</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+      <label class="field"><span>이름</span><input class="input" id="board-name-input" maxlength="48" required autocomplete="off"></label>
+      <div class="field">
+        <label for="board-symbols">표시할 자산 <small>비워 두면 원화 포함 전체</small></label>
+        <input class="input" id="board-symbols" placeholder="BTC, ETH" autocomplete="off" spellcheck="false">
+        <div class="chips" id="symbol-chips" aria-label="보유 자산 빠른 선택"></div>
+      </div>
+      <fieldset class="field"><legend>위젯과 표시 순서</legend><ol class="order-list" id="widget-order"></ol></fieldset>
+      <div class="field-row">
+        <label class="field"><span>추이 기간</span><select class="input" id="board-days"><option value="7">7일</option><option value="30">30일</option><option value="90">90일</option><option value="365">1년</option></select></label>
+        <label class="field"><span>자동 갱신</span><select class="input" id="board-refresh"><option value="0">수동</option><option value="30">30초</option><option value="60">1분</option><option value="300">5분</option></select></label>
+      </div>
+      <p class="form-error" id="board-error" role="alert" hidden></p>
+      <button type="submit" class="button button--primary" id="board-save">저장</button>
+      <div class="dialog__secondary">
+        <button type="button" class="button button--ghost" data-action="board-copy" data-existing>이 화면 복제</button>
+        <button type="button" class="button button--ghost" data-action="boards-export">설정 내보내기 ↓</button>
+        <button type="button" class="button button--ghost" data-action="boards-import">설정 가져오기 ↑</button>
+        <button type="button" class="button button--ghost danger" id="board-delete" data-action="board-delete" data-existing>삭제</button>
+        <input type="file" id="board-import-file" accept="application/json,.json" hidden>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

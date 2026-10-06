@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>내 자산 · Asset Kit</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 이동</a>
+  <header class="header">
+    <!-- 빗썸 공식 로고(assets/bithumb_logo_RGB_orange_가로형.png, 14974px)를 화면용 320px로 줄인 사본입니다. -->
+    <a href="/" class="logo" aria-label="Asset Kit 홈"><img src="/assets/bithumb-logo.png" alt="bithumb" width="80" height="20"><span>Asset Kit</span></a>
+    <nav class="boards" id="board-tabs" aria-label="내 대시보드"></nav>
+    <button type="button" class="icon-button" id="board-add" data-action="board-new" aria-label="대시보드 추가" title="대시보드 추가" hidden>＋</button>
+    <span class="badge" id="mode-label">연결 확인 중</span>
+  </header>
+
+  <main id="main" class="shell">
+    <div class="notice" id="demo-note" hidden><strong>예시 모드</strong><span id="demo-text">실제 계좌와 연결되지 않은 예시 데이터입니다.</span><button type="button" class="button button--ghost" data-action="guide">연결 안내</button></div>
+    <div id="error" class="alert" role="alert" hidden></div>
+    <div id="warnings" class="alert alert--info" role="status" hidden></div>
+
+    <section id="setup" class="card setup" hidden>
+      <h1>빗썸 계좌 연결</h1>
+      <p class="muted">조회용 API 키를 이 컴퓨터에 설정하면 보유자산과 평가금액을 가져옵니다.</p>
+      <button type="button" class="button button--primary" data-action="guide">연결 방법 보기</button>
+      <p class="muted small">예시 데이터로 먼저 보기: <code>npm run demo</code></p>
+    </section>
+
+    <div id="dashboard" hidden>
+      <section class="page-head">
+        <div><h1 id="board-name">내 자산</h1><p class="muted small" id="board-scope">전체 자산</p></div>
+        <div class="actions">
+          <button type="button" class="button" id="privacy" data-action="privacy" aria-pressed="false">금액 숨기기</button>
+          <button type="button" class="button" data-action="explain">요약 보기</button>
+          <button type="button" class="button" data-action="board-edit">화면 편집</button>
+          <button type="button" class="button" id="refresh" data-action="refresh">새로고침 ↻</button>
+        </div>
+      </section>
+      <div id="widgets" class="widgets"></div>
+    </div>
+
+    <section class="card" id="toolkit" aria-labelledby="toolkit-title">
+      <div class="card__head"><h2 id="toolkit-title">이 데이터로 나만의 대시보드</h2><button type="button" class="button button--ghost" data-action="guide">연결 가이드</button></div>
+      <div class="toolkit">
+        <div><h3>실행</h3><div class="command"><code>npm run demo</code><button type="button" class="button button--ghost" data-action="copy">복사</button></div><p class="muted small">화면 편집에서 위젯·순서·자산 범위·기간을 바꾸거나, 화면 파일을 고쳐 <code>asset-kit dashboard --web-dir 폴더</code>로 띄울 수 있습니다.</p></div>
+        <div><h3>MCP 도구 13개 · CLI · Skill</h3><div class="tags"><span>잔고·손익</span><span>비중·추이</span><span>일별 손익</span><span>원화 시세</span><span>주문·입출금</span><span>종합 보고서</span><span>화면 설정</span><span>화면 템플릿</span></div></div>
+      </div>
+    </section>
+
+    <footer class="footer"><span>Asset Kit 0.2.0 · 개인 제작 · 빗썸 공식 서비스 아님</span><a href="https://apidocs.bithumb.com/docs/mcp" target="_blank" rel="noreferrer">빗썸 API 문서 ↗</a></footer>
+  </main>
+
+  <dialog id="guide-dialog" aria-labelledby="guide-title">
+    <div class="dialog__head"><h2 id="guide-title">내 빗썸 계좌 연결</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+    <ol class="steps">
+      <li><strong>자산 조회용 API 키 발급</strong><p><a href="https://www.bithumb.com/react/api-support/management-api" target="_blank" rel="noreferrer">빗썸 API 관리 ↗</a>에서 자산·주문·입출금 조회 권한과 허용 IP를 설정하세요.</p></li>
+      <li><strong>키를 이 컴퓨터에 저장</strong><p>터미널에서 아래 명령을 실행하면 입력한 키가 화면에 보이지 않고 이 컴퓨터에만 저장됩니다. <code>.env</code> 파일을 써도 됩니다. 키를 채팅창에 붙여넣지 마세요.</p><pre>node cli/asset-kit.js config init
+node cli/asset-kit.js doctor</pre></li>
+      <li><strong>실제 자산 모드로 실행</strong><p>데모 실행을 종료한 뒤 프로젝트 폴더에서 실행하세요.</p><pre>npm start</pre></li>
+    </ol>
+    <p class="note">브라우저에는 자산 데이터만 전달합니다. MCP를 사용하면 조회 결과가 연결한 AI 서비스에 전달될 수 있습니다. 자산 추이는 조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록됩니다.</p>
+    <button type="button" class="button button--primary" data-close>확인</button>
+  </dialog>
+
+  <dialog id="holding-dialog" aria-labelledby="detail-title">
+    <div id="detail"></div>
+    <button type="button" class="button" data-close>닫기</button>
+  </dialog>
+
+  <dialog id="explain-dialog" aria-labelledby="explain-title">
+    <div class="dialog__head"><h2 id="explain-title">현재 자산 요약</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+    <div id="explain-body"></div>
+    <button type="button" class="button" data-close>닫기</button>
+  </dialog>
+
+  <dialog id="board-dialog" aria-labelledby="board-title">
+    <form id="board-form" class="form" novalidate>
+      <div class="dialog__head"><h2 id="board-title">화면 편집</h2><button type="button" class="close" data-close aria-label="닫기">×</button></div>
+      <label class="field"><span>이름</span><input class="input" id="board-name-input" maxlength="48" required autocomplete="off"></label>
+      <div class="field">
+        <label for="board-symbols">표시할 자산 <small>비워 두면 원화 포함 전체</small></label>
+        <input class="input" id="board-symbols" placeholder="BTC, ETH" autocomplete="off" spellcheck="false">
+        <div class="chips" id="symbol-chips" aria-label="보유 자산 빠른 선택"></div>
+      </div>
+      <fieldset class="field"><legend>위젯과 표시 순서</legend><ol class="order-list" id="widget-order"></ol></fieldset>
+      <div class="field-row">
+        <label class="field"><span>추이 기간</span><select class="input" id="board-days"><option value="7">7일</option><option value="30">30일</option><option value="90">90일</option><option value="365">1년</option></select></label>
+        <label class="field"><span>자동 갱신</span><select class="input" id="board-refresh"><option value="0">수동</option><option value="30">30초</option><option value="60">1분</option><option value="300">5분</option></select></label>
+      </div>
+      <p class="form-error" id="board-error" role="alert" hidden></p>
+      <button type="submit" class="button button--primary" id="board-save">저장</button>
+      <div class="dialog__secondary">
+        <button type="button" class="button button--ghost" data-action="board-copy" data-existing>이 화면 복제</button>
+        <button type="button" class="button button--ghost" data-action="boards-export">설정 내보내기 ↓</button>
+        <button type="button" class="button button--ghost" data-action="boards-import">설정 가져오기 ↑</button>
+        <button type="button" class="button button--ghost danger" id="board-delete" data-action="board-delete" data-existing>삭제</button>
+        <input type="file" id="board-import-file" accept="application/json,.json" hidden>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

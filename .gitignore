@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.asset-kit/
+artifacts/
+*.tgz
+.DS_Store

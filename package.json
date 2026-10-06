@@ -1,0 +1,43 @@
+{
+  "name": "bithumb-asset-dashboard-kit",
+  "version": "0.2.0",
+  "private": true,
+  "license": "MIT",
+  "description": "빗썸 보유자산을 AI에 연결하는 MCP 서버 · CLI · Skill · 로컬 대시보드 (외부 의존성 없음)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/realmi-lab/asset_kit.git"
+  },
+  "homepage": "https://github.com/realmi-lab/asset_kit#readme",
+  "bugs": {
+    "url": "https://github.com/realmi-lab/asset_kit/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "bin": {
+    "asset-kit": "cli/asset-kit.js",
+    "asset-kit-mcp": "mcp/index.js"
+  },
+  "files": [
+    "cli",
+    "mcp",
+    "src",
+    "web",
+    "!web/assets/bithumb_logo_RGB_orange_가로형.png",
+    "skills",
+    "examples",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "scripts": {
+    "start": "node cli/asset-kit.js dashboard",
+    "demo": "node cli/asset-kit.js dashboard --demo",
+    "mcp": "node mcp/index.js",
+    "sample": "node examples/build.js",
+    "test": "node --test"
+  }
+}
