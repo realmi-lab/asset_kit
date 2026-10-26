@@ -2,13 +2,92 @@ English | [한국어](./README.md)
 
 # Bithumb Asset Toolkit · MCP
 
-An **MCP server** that connects a Bithumb account's balances, valuation, allocation, daily asset changes, orders, and deposit/withdrawal history to AI clients. Ask “build a dashboard from my assets” and the AI saves a layout and opens a local dashboard.
+**Connect your Bithumb account to AI, read-only, and draw an asset dashboard with one sentence.**
 
-- **Zero dependencies** — Node.js 22.13+ built-ins only. No `npm install`.
-- **Read-only** — no order, cancel, or withdrawal tools. The only writes are local dashboard layouts.
-- **Keys stay local** — never accepted as tool input, never sent to the browser or the AI.
+![Node.js 22.13+](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=node.js&logoColor=white)
+![dependencies 0](https://img.shields.io/badge/dependencies-0-success)
+![read only](https://img.shields.io/badge/account-read--only-blue)
+![MCP Apps](https://img.shields.io/badge/MCP%20Apps-inline%20dashboard-F37321)
+![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
-Independent single-user prototype; not an official Bithumb package and not published to npm.
+An **MCP server** that brings a Bithumb account's balances, unrealized P&L, allocation, value history, daily asset changes, and order and deposit/withdrawal history to AI clients. The same features are available from a **CLI**, a **local dashboard**, and an AI workflow guide (**Skill**).
+
+- “Show me my asset dashboard” → the dashboard is drawn inside the conversation (in MCP Apps clients).
+- “Make a BTC + ETH board and open it” → the layout is saved and you get a local URL with that board selected.
+- “What did I deposit in KRW last month?” → the period is read in bounded pages and totalled.
+
+<p align="center">
+  <img src="docs/images/mcp-app-light.png" width="760" alt="Asset dashboard drawn inside a conversation: total value, unrealized P&L, value trend line chart, allocation donut, top holdings table">
+  <br><sub>A dashboard drawn inside the conversation (<code>dashboard_snapshot</code> + MCP Apps). Every number in this README is synthetic demo data.</sub>
+</p>
+
+| | |
+| --- | --- |
+| **Zero dependencies** | Node.js 22.13+ built-ins only. No `npm install`. |
+| **Read-only** | No order, cancel, or withdrawal tools. The only writes are local dashboard layouts. |
+| **Keys stay local** | Never accepted as tool input, never sent to the browser or the AI. |
+| **Exact amounts** | BigInt decimals with no floating-point error; unknown values are `null`, never `0`. |
+| **Built for AI** | Small one-call responses for drawing, field selection, continuation cursors, progress and cancellation. |
+
+> An independent single-user prototype. Not an official Bithumb package and not published to npm.
+
+---
+
+## What you can do
+
+### 1. Draw a dashboard inside the conversation
+
+Ask “show me my asset dashboard” and the AI calls `dashboard_snapshot` **once**. One response (about 2.6KB for 30 days on the demo account) carries the summary, top holdings with an exact `others` slice, the value trend as columns, and optionally daily changes.
+
+- In **MCP Apps clients** (for example Claude, ChatGPT, VS Code) the result is drawn inline. You can switch the period (7/30/90 days, 1 year), refresh, hide amounts, and open the local dashboard. It follows the host's light/dark theme and narrow widths.
+- Other clients receive the same data as JSON and answer with tables, charts, or summaries.
+- Saved boards can be drawn with `boardId`, reusing their asset scope and period.
+
+<p align="center"><img src="docs/images/mcp-app-dark.png" width="560" alt="The inline dashboard in dark theme"><br><sub>The view follows the host's dark theme.</sub></p>
+
+### 2. Ask about your assets
+
+| Ask | Tool the AI uses | You get |
+| --- | --- | --- |
+| “Show my Bithumb balance and P&L” | `portfolio_get_summary` | Total value, unrealized P&L, largest assets, missing-data warnings |
+| “Only coins in profit, best return first” | `portfolio_get_holdings` (`performance: gain`, `sort: profit`) | Matching holdings with only the fields needed |
+| “What share are BTC and ETH?” | `portfolio_get_allocation` (`symbols`) | Allocation recomputed for that subset |
+| “My XRP average price and P&L?” | `portfolio_get_holdings` (`symbol: XRP`) | Quantity, average cost, price, P&L |
+| “Balance plus recent KRW deposits” | `portfolio_get_report` (`sections`) | A report that calls only the selected sections |
+| “Something seems disconnected” | `system_diagnose` | Mode, key status (no values), API connectivity |
+
+### 3. Build your own boards
+
+“Make a long-term BTC + ETH board and open it” → `dashboard_save_board` with `open: true` saves the layout, starts the local dashboard and returns `http://127.0.0.1:4319/?board=<id>` in one call.
+
+- Each board keeps its asset scope, widgets (summary, trend, allocation, holdings, activity) and their order, trend period, and refresh interval.
+- Edits send only the changed fields; `revision` prevents lost updates from other windows.
+- **A dashboard already open in the browser picks up the change within seconds.** No reload needed.
+
+<p align="center"><img src="docs/images/local-dashboard.png" width="760" alt="Local dashboard with board tabs, total value, value trend with a point scrubber, allocation and holdings"><br><sub>The local dashboard (<code>npm run demo</code>). Tabs at the top are saved boards.</sub></p>
+
+### 4. Trends and daily asset changes
+
+Recorded portfolio values (at most one point per five minutes, endpoints preserved when sampled) and a KST daily calendar with gaps marked. They include deposits and withdrawals: **not investment returns, never back-filled.**
+
+### 5. Orders and transfers
+
+`account_get_records` returns at most 50 rows / 5 upstream pages per call and continues with `nextCursor`, so long periods stay small and `coverage.complete` says when the chain is done. Filter by asset, state, or side and select fields. Read-only.
+
+### 6. Prices without keys
+
+“ETH price and 30 daily candles” → `market_get_candles`, public data that works without an account.
+
+### 7. Terminal and custom screens
+
+```bash
+node cli/asset-kit.js portfolio --demo
+node cli/asset-kit.js history --days 30 --daily --demo
+```
+
+The dashboard is plain HTML/CSS/JS with no build step: edit `web/`, or let the AI fetch only the files it needs with `dashboard_get_template` and serve a folder with `asset-kit dashboard --web-dir <folder>`. [`examples/sample-dashboard.html`](./examples/sample-dashboard.html) opens without a server.
+
+---
 
 ## Quick start
 
@@ -18,7 +97,7 @@ cd asset_kit
 npm run demo   # synthetic data at http://127.0.0.1:4319, no install needed
 ```
 
-## MCP
+## Connect an AI client
 
 ```json
 {
@@ -28,44 +107,72 @@ npm run demo   # synthetic data at http://127.0.0.1:4319, no install needed
 }
 ```
 
-Append `"--demo"` to `args` for synthetic data. Full guide (Korean): [mcp/README.md](./mcp/README.md) — client configs, modules, `--modules`/`--read-only`/`--verbose` options, and the dashboard workflow. Codex: `command = "node"`, `args = ["/absolute/path/to/asset_kit/mcp/index.js"]` under `[mcp_servers.bithumb_assets]`.
-
-15 tools: `dashboard_snapshot` (one compact, chart-ready call; renders inline in MCP Apps clients), `portfolio_get_summary`, `portfolio_get_holdings`, `portfolio_get_allocation`, `portfolio_get_history` (`daily: true` for daily asset changes), `portfolio_get_report`, `market_get_candles`, `account_get_records` (bounded pages and continuation, ≤366 days), `account_get_orders`, `account_get_transfers`, `system_diagnose`, `dashboard_list_boards`, `dashboard_save_board` (`open: true` saves and opens in one call), `dashboard_open` (starts the local dashboard and returns its URL; `boardId` selects a board), `dashboard_get_template`.
-
-**0.5.0 — drawing dashboards:** `dashboard_snapshot` returns the summary, top holdings plus an exact `others` slice, a columnar trend (60 points by default, endpoints preserved) and optional daily changes in one response: about 2.6KB for 30 days and 3.7KB for a year on the demo account, versus four calls (about 6.5KB) or a 32KB year of history before. `boardId` reuses a saved board's scope and period. In MCP Apps clients (Claude, ChatGPT, VS Code, …) the tool's `_meta.ui.resourceUri` points to `ui://bithumb-asset-kit/dashboard.html` (`text/html;profile=mcp-app`), so the dashboard is drawn inside the conversation, with period switching, refresh, hide-amounts and "open local dashboard". The view needs no network access. Local dashboard links accept `?board=<id>`, and an open dashboard picks up boards saved through MCP within seconds.
-
-In 0.4.0, holdings support search, gain/loss filters, exact sorting, fields, limits and offsets. Summary/holdings/allocation/market/report accept `force:true`; reports can select `sections`; history accepts `maxPoints`. Every tool publishes an output schema and actionable tool errors.
-
-**Migration:** `account_get_records` now defaults to at most 50 returned rows and 5 upstream pages per call. Continue with the same `kind` and `pagination.nextCursor` as `cursor`, even if `rows` is empty. Filters stay fixed; fields may be selected on each call. Totals cover only that response's rows; `coverage.complete` describes the entire cursor chain, not just the last page. Tokens are process-local, expire 10 minutes after the query starts, and have a 32-token storage bound. Each chain permits at most 1,000 upstream pages/10,000 matching IDs; narrow the query on `QUERY_LIMIT`. Account changes during paging are not an atomic snapshot. HTTP/CLI collection behavior is unchanged.
-
-Progress uses `_meta.progressToken` and `notifications/progress`; cancellation uses `notifications/cancelled`. Cancelling a private order/transfer request stops its HTTP request and retries. Shared reads continue if another subscriber still needs them. Get dashboard source only when needed: `dashboard_get_template` with `manifest:true`, then selected `paths`.
+Append `"--demo"` to `args` for synthetic data. Codex: `command = "node"`, `args = ["/absolute/path/to/asset_kit/mcp/index.js"]` under `[mcp_servers.bithumb_assets]`. The full guide (Korean) in [mcp/README.md](./mcp/README.md) covers every client, `--modules`/`--read-only`/`--verbose`, and the dashboard workflow.
 
 ## Keys
 
-Create a **read-only** API key with an allowed IP at [Bithumb API management](https://www.bithumb.com/react/api-support/management-api), then run `node cli/asset-kit.js config init` (hidden input, saved with 0600 permissions) and `node cli/asset-kit.js doctor`. `BITHUMB_ACCESS_KEY`/`BITHUMB_SECRET_KEY` environment variables take precedence. Never paste keys into AI chat.
+Create a **read-only** API key with an allowed IP at [Bithumb API management](https://www.bithumb.com/react/api-support/management-api), then run `node cli/asset-kit.js config init` (hidden input, saved with 0600 permissions) and `node cli/asset-kit.js doctor`. `BITHUMB_ACCESS_KEY`/`BITHUMB_SECRET_KEY` environment variables take precedence. **Never paste keys into AI chat.** Account data you query through MCP may be processed by the connected AI service.
 
-## Dashboard and CLI
+## 15 MCP tools
+
+| Module | Tools |
+| --- | --- |
+| **Dashboard** | `dashboard_snapshot` (one compact, chart-ready call; drawn inline in MCP Apps clients), `dashboard_list_boards`, `dashboard_save_board` (`open: true` saves and opens), `dashboard_open` (`boardId` selects a board), `dashboard_get_template` |
+| **Portfolio** | `portfolio_get_summary`, `portfolio_get_holdings` (search, gain/loss filters, sorting, fields, paging), `portfolio_get_allocation`, `portfolio_get_history` (`maxPoints`, `daily: true`), `portfolio_get_report` (`sections`) |
+| **Market** | `market_get_candles` (no key needed) |
+| **Account** | `account_get_records` (bounded pages and continuation, ≤366 days), `account_get_orders`, `account_get_transfers` |
+| **System** | `system_diagnose` |
+
+Every tool publishes an `outputSchema`; errors carry `retryable` and a `recovery` hint. Progress uses `_meta.progressToken` and `notifications/progress`; cancellation uses `notifications/cancelled`.
+
+**`account_get_records` migration (0.4.0):** at most 50 rows and 5 upstream pages per call. Continue with the same `kind` and `pagination.nextCursor` as `cursor`, even if `rows` is empty. Filters stay fixed; fields may be selected on each call. Totals cover only that response's rows; `coverage.complete` describes the entire cursor chain. Tokens are process-local, expire 10 minutes after the query starts, and have a 32-token storage bound. Each chain permits at most 1,000 upstream pages/10,000 matching IDs; narrow the query on `QUERY_LIMIT`. HTTP/CLI collection behavior is unchanged.
+
+## Local dashboard
 
 ```bash
 npm run demo     # synthetic data at http://127.0.0.1:4319
 npm start        # live account
-node cli/asset-kit.js --help
 ```
 
-Multiple dashboards (tabs) retain widgets, asset scope, periods (7/30/90 days, 1 year), and refresh settings.
+- Board tabs keep widgets, asset scope, periods (7/30/90 days, 1 year), and refresh settings. `?board=<id>` opens a board directly; boards changed through MCP or another window appear within seconds.
+- Explore chart values with the pointer, touch slider, or arrow keys. The daily calendar marks changes across missing recording days.
+- Search holdings, filter gains/losses/unknown P&L, sort in either direction, and export exactly what is visible. Filters persist per board.
+- Orders/transfers with 7-day, 30-day, or current-month presets, date validation, cancellation, filters, and CSV export with coverage metadata.
+- Hide amounts (CSV exports are disabled; public prices stay visible), pause/resume refresh, and keep the last snapshot after a failed refresh.
 
-- Search holdings, filter gains/losses/unknown P&L, reverse sorting, and export the exact visible selection. Filters persist per board.
-- Explore chart values with the pointer, touch slider, or arrow keys. The calendar labels changes across missing recording days; values include deposits and withdrawals, not investment returns.
-- Query orders/transfers with 7-day, 30-day, or current-month presets. Validate dates, cancel a pending view request, search/filter results, and export all matching retrieved rows with coverage metadata.
-- Pause/resume automatic refresh, inspect the last retrieval time, and retain the previous snapshot after a refresh failure. Old responses cannot overwrite a different board or query.
-- Hide account values and disable CSV exports. Public market prices remain visible.
-- Concurrent reads share upstream work. Portfolio/records cache for 30 seconds; markets cache for 60 seconds. Explicit refresh bypasses the cache (`force=1` on the corresponding HTTP endpoints). Record caches retain at most eight query ranges.
+## How it works
 
-`examples/sample-dashboard.html` opens without a server (`npm run sample` rebuilds it with synthetic data). Sample date presets use the captured snapshot date, so older samples remain useful.
+```mermaid
+flowchart LR
+  A["AI client<br/>Claude · Codex · Cursor …"] -- "stdio JSON-RPC" --> M["MCP server<br/>mcp/index.js"]
+  A -. "MCP Apps (ui://)" .-> V["Inline dashboard<br/>mcp/view.html"]
+  T["CLI"] --> S
+  M --> S["Shared service<br/>src/"]
+  D["Local dashboard<br/>127.0.0.1 · web/"] --> S
+  S -- "signed read requests" --> B[("Bithumb API")]
+  S --> L[("~/.bithumb-asset-kit<br/>history · boards · keys")]
+```
 
-## Scope
+## Scope and security
 
-Quantities include locked balances; amounts use exact BigInt decimals and are returned as decimal strings; unknown values are `null`. Unrealized P&L uses the API average cost of current holdings and excludes fees and realized P&L. Recorded history includes deposits/withdrawals and is never back-filled. Compatibility with official MCP SDK 1.32.2 was verified using a real stdio client, all 15 output schemas, the MCP Apps view resource, progress, cancellation and cursor replay. Run `npm run verify:mcp-sdk` with `MCP_SDK_ROOT` pointing to an external SDK installation; normal `npm test` remains dependency-free. **Live account access with real API keys has not been verified yet.**
+- Quantities include locked balances; amounts use exact BigInt decimals returned as decimal strings; unknown values are `null`.
+- Unrealized P&L uses the API average cost of current holdings and excludes fees and realized P&L. Coins without a KRW market are valued through BTC × KRW-BTC.
+- Recorded history includes deposits/withdrawals and is never back-filled. No all-time realized P&L, tax, staking, or lending products.
+- The dashboard binds to `127.0.0.1` and checks Host/Origin; layout writes need a same-origin JSON request with a custom header. Data lives in `~/.bithumb-asset-kit` (0700/0600), configurable with `ASSET_KIT_DATA_DIR`. The inline view uses no network or external files.
+
+## Changelog
+
+- **0.5.0** — `dashboard_snapshot`; the MCP Apps view `ui://bithumb-asset-kit/dashboard.html`; `open: true`, `boardId`, `?board=<id>` and live board sync. On the demo account a dashboard is about 2.6KB for 30 days and 3.7KB for a year, versus four calls (about 6.5KB) or a 32KB year of history before.
+- **0.4.0** — holdings search/filters/sorting/fields, `force`, report `sections`, history `maxPoints`, output schemas, actionable errors, bounded records with cursors, progress and cancellation.
+
+## Development and verification
+
+```bash
+npm test         # dependency-free regression tests
+npm run sample   # rebuild the synthetic sample page
+```
+
+Verified with the official MCP SDK client 1.32.2 over real stdio: all 15 output schemas, the MCP Apps view resource, progress, cancellation and cursor replay (`npm run verify:mcp-sdk` with `MCP_SDK_ROOT` pointing to an external SDK install). The inline view was checked in a test host that follows the MCP Apps protocol. **Display inside a real MCP Apps client and live account access with real API keys have not been verified yet.**
 
 ## License
 

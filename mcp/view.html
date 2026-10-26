@@ -64,8 +64,8 @@ button { font: inherit; color: inherit; }
 .metric strong { display: block; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
 .metric--total strong { font-size: 22px; }
 .metric small { color: var(--text-2); font-size: 12px; }
-.positive { color: var(--up); }
-.negative { color: var(--down); }
+.positive, .metric small.positive { color: var(--up); }
+.negative, .metric small.negative { color: var(--down); }
 .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 12px; }
 .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; }
 .card__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }

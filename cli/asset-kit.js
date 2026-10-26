@@ -4,8 +4,8 @@ import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { publicError, KitError } from '../src/errors.js';
+import { VERSION } from '../mcp/index.js';
 
-const VERSION = '0.2.0';
 const HELP = `내 자산 킷 ${VERSION} · 빗썸 자산 대시보드 (조회 전용)
 
 화면·연결
