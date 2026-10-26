@@ -202,6 +202,70 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 - “BTC·ETH만 묶은 대시보드 만들고 열어줘”
 - “그 화면 기간을 1년으로 바꾸고 거래·입출금도 넣어줘”
 
+## MCP 조회를 작게 나누기 (0.4.0)
+
+기존 14개 도구 이름을 유지하며 필터, 필드 선택, 이어받기와 진행·취소를 추가했습니다. **`account_get_records`는 0.4.0부터 한 번에 전체 내역을 반환하지 않습니다.** 기본 최대 50건·거래소 5페이지를 읽고 `pagination.nextCursor`로 계속 조회합니다. HTTP 대시보드와 CLI `records`의 기존 수집 방식은 그대로입니다.
+
+### 필요한 자산과 필드만 조회
+
+먼저 `portfolio_get_summary`로 요약합니다. 세부 내역이 필요하면 `portfolio_get_holdings`의 `search`, `excludeCash`, `performance`(all/gain/loss/unknown), `sort`(value/profit/pnl/change/quantity/name), `direction`, `limit`, `offset`, `fields`를 사용합니다.
+
+```json
+{
+  "symbols": ["BTC", "ETH", "XRP"],
+  "performance": "gain",
+  "sort": "pnl",
+  "direction": "desc",
+  "limit": 5,
+  "fields": ["name", "valueKrw", "profitKrw", "profitRatePct"],
+  "force": true
+}
+```
+
+- `symbol`, `valuationStatus`, `staleQuote`와 응답의 `mode`, `asOf`, `scope`, `warnings`는 필드를 줄여도 유지합니다.
+- `pagination.total`은 검색·필터 결과 수, `nextOffset`은 다음 위치입니다. 오프셋은 같은 `asOf`의 결과 안에서 사용하세요. 새 시세로 순서가 바뀌면 처음부터 조회합니다.
+- 비중의 분모는 `symbols` 범위 전체입니다. 검색·손익 필터·페이지 제한으로 비중을 다시 계산하지 않습니다.
+- 요약·보유 내역·비중·시세·보고서에 `force: true`를 주면 캐시를 건너뜁니다. 이미 진행 중인 공유 조회는 합쳐질 수 있습니다.
+- `portfolio_get_history`의 `maxPoints`(2~400)는 첫·끝 기록을 보존하며 추이 응답을 줄입니다. `daily: true`에는 함께 쓰지 않습니다.
+- `portfolio_get_report`의 `sections`로 필요한 내역만 호출합니다. 예: `{"sections":["krwDeposits"]}`. 빈 배열이면 내역 API 호출을 생략합니다. `symbols`는 이 보고서의 포트폴리오에만 적용되며, 내역 섹션은 계좌 전체의 첫 30건입니다.
+
+### 기간 내역 이어받기
+
+첫 `account_get_records` 호출:
+
+```json
+{"kind":"orders","from":"2026-10-01","to":"2026-10-26","symbols":["BTC"],"side":"bid","states":["done"],"pageSize":50,"scanPages":5,"fields":["volume","executed_funds","paid_fee"]}
+```
+
+`pagination.nextCursor`가 있으면 다음 호출에 그 값을 그대로 넣습니다.
+
+```json
+{"kind":"orders","cursor":"이전 응답의 nextCursor","fields":["volume","executed_funds","paid_fee"]}
+```
+
+- 첫 조회 기본값은 `pageSize=50`(최대 200), `scanPages=5`(최대 20)입니다. 필터에 맞는 행이 없어 `rows=[]`여도 `nextCursor`가 있으면 조회가 끝난 것이 아닙니다.
+- 날짜·자산·상태·매수/매도·페이지 조건은 이어받는 동안 고정합니다. 생략하면 원래 값을 사용합니다. `fields`는 응답 표시용이므로 바꿀 수 있고 매 호출에 다시 지정합니다.
+- `coverage.complete`는 이어받기 전체가 끝났는지 뜻합니다. `rows`와 `totals`는 **이번 응답에 반환한 행만** 포함합니다. 통화별 합계를 실현손익이나 전체 기간 합계로 해석하지 마세요.
+- 주문은 생성 시각, 입출금은 완료 시각(없으면 생성 시각)으로 기간을 판정합니다. 입출금의 완료 시각순 정렬은 보장하지 않습니다. 거래소 내역이 도중에 바뀔 수 있어 원자적 스냅샷도 아닙니다.
+- 토큰은 현재 MCP 프로세스에서만 유효하고 시작 후 10분간 유지됩니다. 최대 32개의 토큰을 보관하며 오래된 토큰은 먼저 해제합니다. 만료·재시작·해제 후에는 `CURSOR_EXPIRED`와 재조회 안내를 반환합니다.
+- 한 조회는 최대 1,000개의 거래소 페이지·10,000개의 일치하는 고유 내역까지 처리합니다. `QUERY_LIMIT`이면 날짜나 자산 범위를 나누세요. 제한을 전체 조회 성공으로 표시하지 않습니다.
+- 같은 첫 조회는 30초 캐시·동시 요청 병합을 사용합니다. 새 조회는 `cursor` 없이 `force:true`로 시작합니다. 성공한 cursor를 재호출하면 같은 페이지를 돌려주며, 오류·취소는 이어받기 위치를 전진시키지 않습니다.
+- `order_id`/`uuid`, `at`, `market`/`currency`, `state`는 `fields`를 줄여도 유지합니다. `unknownTimestampRows`가 0보다 크면 날짜를 판정하지 못한 행이 있어 조회 완료로 표시하지 않습니다.
+
+### 진행·취소와 오류 복구
+
+클라이언트가 `tools/call`의 `_meta.progressToken`을 보내면 `notifications/progress`를 반환합니다. 수치는 단조 증가하는 진행 단계이며 전체 비율이 아닙니다. 내역을 조회할 때는 실제 읽은 페이지 수를 메시지에 표시합니다.
+
+`notifications/cancelled`의 `requestId`로 진행 중인 호출을 취소합니다. 취소된 요청의 최종 응답은 보내지 않고 이후 진행 알림도 멈춥니다. 주문·입출금 요청은 HTTP 요청/재시도까지 중단합니다. 공유 중인 자산·시세 조회는 다른 호출에 필요할 수 있어 내부 계산이 완료될 수 있습니다. 같은 첫 내역 조회를 여러 호출이 공유하는 경우 마지막 구독자가 취소해야 공급자 요청도 중단됩니다.
+
+도구 오류는 `isError:true`이며 텍스트 JSON에 `code`, `message`, `retryable`, `recovery`가 들어갑니다. 입력 오류에는 값 대신 `path`(예: `$.limit`)를 알려줍니다. 모든 도구는 `outputSchema`를 공개하고 성공 응답의 `structuredContent`와 텍스트 JSON에 같은 데이터를 반환합니다.
+
+구현 기준: [MCP 도구 응답 규격](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [진행 알림](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress), [취소 알림](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation).
+
+### 템플릿은 목록부터 확인
+
+`dashboard_get_template({"manifest":true})`는 파일 경로·크기와 API 계약만 반환합니다. 필요한 파일은 `{"paths":["index.html"]}`처럼 요청합니다. 옵션 없는 기존 호출은 호환성을 위해 전체 텍스트를 반환합니다. 계좌 질문에 답할 때 템플릿을 가져올 필요는 없습니다.
+
 ## 대시보드 만들기
 
 “BTC·ETH만 묶은 대시보드 만들고 열어줘”라고 요청하면 AI가 아래 순서로 도구를 호출합니다.
@@ -249,7 +313,7 @@ AI가 알려준 주소를 브라우저로 열면 저장한 화면이 위쪽 탭�
 | `days` | 추이 기간 7, 30, 90, 365 | 30 |
 | `refreshSeconds` | 자동 갱신 0(수동), 30, 60, 300 | 60 |
 
-화면 구성 자체를 새로 만들려면 `dashboard_get_template`으로 HTML·CSS·JS를 받아 고친 뒤 `node cli/asset-kit.js dashboard --web-dir <폴더>`로 띄웁니다.
+화면 구성 자체를 새로 만들려면 `dashboard_get_template`에 `manifest:true`로 목록을 확인한 뒤 `paths`로 필요한 HTML·CSS·JS를 받아 고칩니다. `node cli/asset-kit.js dashboard --web-dir <폴더>`로 띄웁니다.
 
 ## 기능 모듈
 
@@ -257,7 +321,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 ### Portfolio
 
-잔고·평가손익·비중·추이·일별 자산 변화과 종합 보고서를 조회합니다. `symbols`로 일부 자산만 묶어 볼 수 있습니다.
+잔고·평가손익·비중·추이·일별 자산 변화와 종합 보고서를 조회합니다. `symbols`로 일부 자산만 묶어 볼 수 있습니다.
 
 | 도구 | 설명 |
 | --- | --- |
@@ -281,7 +345,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 | 도구 | 설명 |
 | --- | --- |
-| `account_get_records` | 주문·입출금 한 종류를 기간 전체 조회(최대 366일, 한국 시간). `kind`: `orders`, `pending`, `deposits`, `withdrawals`, `krw_deposits`, `krw_withdrawals` |
+| `account_get_records` | 기간 내역을 제한된 크기로 조회하고 `pagination.nextCursor`로 이어받기(최대 366일, 한국 시간). `kind`: `orders`, `pending`, `deposits`, `withdrawals`, `krw_deposits`, `krw_withdrawals` |
 | `account_get_orders` | 대기·종료 주문 한 페이지(종료 주문은 최대 7일 구간) |
 | `account_get_transfers` | 원화·코인 입금·출금 한 페이지 |
 
@@ -363,7 +427,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 `dashboard_open`으로 띄운 화면은 MCP 서버가 실행 중일 때만 열립니다. 클라이언트를 닫으면 함께 종료됩니다. 계속 띄워 두려면 이 폴더에서 `npm start`(실제 계좌) 또는 `npm run demo`를 실행합니다.
 
-### 추이나 일별 자산 변화이 비어 있을 때
+### 추이나 일별 자산 변화가 비어 있을 때
 
 평가금액 기록은 자산을 조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 쌓입니다. 과거를 소급해 만들지 않으므로 두 번 이상 기록된 뒤부터 표시됩니다.
 
@@ -374,6 +438,17 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 | `BITHUMB_ACCESS_KEY` | 조회용 Access Key. 설정하면 `config init` 저장 파일보다 우선 | — |
 | `BITHUMB_SECRET_KEY` | 조회용 Secret Key | — |
 | `ASSET_KIT_DATA_DIR` | 평가금액 기록·화면 설정·키 파일 저장 위치(폴더 0700, 파일 0600) | `~/.bithumb-asset-kit` |
+
+## 공식 SDK로 검증하기
+
+일반 테스트는 `npm test`이며 외부 패키지가 필요 없습니다. 공식 MCP SDK 호환성 테스트만 별도 임시 폴더에 SDK를 설치해 실행합니다. 테스트는 합성 데이터와 임시 저장 폴더를 사용합니다.
+
+```bash
+npm install --prefix /tmp/asset-kit-sdk-check --no-save --ignore-scripts @modelcontextprotocol/sdk@1.32.2
+MCP_SDK_ROOT=/tmp/asset-kit-sdk-check/node_modules/@modelcontextprotocol/sdk npm run verify:mcp-sdk
+```
+
+검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 14개 도구의 출력 스키마, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
 
 ## 더 알아보기
 

@@ -118,16 +118,16 @@ export class PortfolioService {
     };
     return data;
   }
-  async getOrders(input = {}) {
+  async getOrders(input = {}, context) {
     const options = normalizeOrders(input);
-    const result = await this.provider.getOrders(options);
+    const result = await this.provider.getOrders(options, context);
     return { mode: this.provider.mode, asOf: new Date().toISOString(), query: options, ...result,
       coverage: { scope: options.kind==='history'?'지정한 최대 7일 기간의 주문 한 페이지':'대기 주문 한 페이지', completePageSet: !result.has_next, allTime: false },
     };
   }
-  async getTransfers(input = {}) {
+  async getTransfers(input = {}, context) {
     const options = normalizeTransfers(input);
-    const data = await this.provider.getTransfers(options);
+    const data = await this.provider.getTransfers(options, context);
     return { mode: this.provider.mode, asOf: new Date().toISOString(), query: options, data,
       pagination: { page: options.page, limit: options.limit, mayHaveMore: data.length === options.limit, nextPage: data.length === options.limit ? options.page+1 : null },
       coverage: { scope: '조회 조건에 해당하는 입출금 한 페이지', allTime: false },
@@ -211,24 +211,27 @@ export class PortfolioService {
       notice: '통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다.',
     };
   }
-  async report() {
-    const portfolio = await this.portfolio();
+  async report({ symbols = [], force = false, sections: selected } = {}, context) {
+    const portfolio = await this.portfolio({ symbols, force });
+    context?.signal?.throwIfAborted();
     // Each section has its own permission boundary. Report unavailable data explicitly.
     const queries = {
-      pendingOrders: () => this.getOrders({kind:'pending',limit:30}),
-      recentOrders: () => this.getOrders({kind:'history',limit:30}),
-      krwDeposits: () => this.getTransfers({direction:'deposit',assetType:'krw',limit:30}),
-      cryptoDeposits: () => this.getTransfers({direction:'deposit',assetType:'crypto',limit:30}),
-      krwWithdrawals: () => this.getTransfers({direction:'withdraw',assetType:'krw',limit:30}),
-      cryptoWithdrawals: () => this.getTransfers({direction:'withdraw',assetType:'crypto',limit:30}),
+      pendingOrders: () => this.getOrders({kind:'pending',limit:30}, context),
+      recentOrders: () => this.getOrders({kind:'history',limit:30}, context),
+      krwDeposits: () => this.getTransfers({direction:'deposit',assetType:'krw',limit:30}, context),
+      cryptoDeposits: () => this.getTransfers({direction:'deposit',assetType:'crypto',limit:30}, context),
+      krwWithdrawals: () => this.getTransfers({direction:'withdraw',assetType:'krw',limit:30}, context),
+      cryptoWithdrawals: () => this.getTransfers({direction:'withdraw',assetType:'crypto',limit:30}, context),
     };
-    const names = Object.keys(queries);
+    const names = selected ?? Object.keys(queries);
+    if (!Array.isArray(names) || names.some(name => !Object.hasOwn(queries, name))) throw new KitError('INVALID_QUERY', '보고서 섹션 이름을 확인하세요.', 400);
     const settled = await Promise.allSettled(names.map(name => queries[name]()));
     const sections = Object.fromEntries(names.map((name, i) => [name, settled[i].status === 'fulfilled'
       ? { available: true, result: settled[i].value } : { available: false, error: publicError(settled[i].reason) }]));
-    return { mode:this.provider.mode, portfolio, sections,
+    context?.signal?.throwIfAborted();
+    return { mode:this.provider.mode, portfolio, sections, scope: portfolio.scope,
       coverage: { allTime:false, realizedProfitAvailable:false, notes:[
-        '주문·입출금은 섹션별 첫 30건입니다. 기간 전체는 records 명령 또는 account_get_records 도구로 조회하세요.',
+        'symbols는 포트폴리오에만 적용됩니다. 주문·입출금 섹션은 계좌 전체의 첫 30건입니다. 자산별 내역은 account_get_records의 symbols로 조회하세요.',
         '종료 주문은 최근 7일 범위입니다. 더 오래된 내역은 기간을 지정해 조회하세요.',
         '평가손익은 현재 보유분 기준입니다. 전체 기간 실현손익·세금·스테이킹/대여 상품은 제공하지 않습니다.',
       ] },
