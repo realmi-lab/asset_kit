@@ -68,7 +68,7 @@ function dashboard() {
   };
   context.window = context;
   const executable = source.replace(/^import .* from '\.\/dashboard-utils\.js';\s*$/m, '')
-    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, load, loadHistory, loadActivity, showExplain, reloadBoards, resetActivity: (...args) => resetActivity(...args) };');
+    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args) };');
   runInNewContext(executable, context, { filename: 'web/app.js' });
   assert.ok(context.app, 'The harness must expose actual app functions instead of initializing a server connection.');
   Object.assign(context.app.state, { status: { mode: 'demo', sample: true, sampleAsOf: '2026-10-06T06:00:00.000Z' },
@@ -283,4 +283,40 @@ test('failed board reload is visible and preserves the last known board and edit
   assert.equal(h.app.state.draft, draft);
   assert.equal(h.elements.get('error').hidden, false);
   assert.match(h.elements.get('error').textContent, /synthetic reload failure/);
+});
+
+test('board changes saved elsewhere (MCP) reach an open dashboard without touching unrelated state', async () => {
+  const h = await ready();
+  await h.app.syncBoards();
+  assert.equal(h.pending.some(item => !item.taken && item.path === '/api/boards'), false, 'Offline samples never poll boards.');
+  h.app.state.status = { mode: 'demo', configured: true };
+  h.app.state.boards = h.app.state.boards.map(b => ({ ...b, revision: 1 }));
+  const [a, b] = h.app.state.boards;
+
+  // A new board only adds a tab; the active board keeps its data.
+  const added = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [a, b, { ...b, id: 'c', name: 'AI가 만든 보드' }] });
+  await added;
+  assert.equal(h.app.state.boards.length, 3);
+  assert.match(h.elements.get('board-tabs').innerHTML, /AI가 만든 보드/);
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+
+  // An edited active board is re-mounted with its new scope.
+  const edited = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [{ ...a, revision: 2, name: 'BTC·ETH', symbols: ['BTC', 'ETH'] }, b] });
+  await edited;
+  assert.equal(h.elements.get('board-name').textContent, 'BTC·ETH');
+  assert.match(h.next('/api/portfolio').path, /symbols=BTC%2CETH/);
+
+  // Open dialogs and unchanged lists are left alone.
+  const same = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: h.app.state.boards });
+  await same;
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+  h.elements.get('board-dialog').open = true;
+  await h.app.syncBoards();
+  assert.equal(h.pending.some(item => !item.taken && item.path === '/api/boards'), false);
 });

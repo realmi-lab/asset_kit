@@ -19,6 +19,8 @@ export const OUTPUTS = {
   account_get_orders: object({ ...base, data: array(object()), has_next: boolean, next_key: nullable(string), coverage: object() }),
   account_get_transfers: object({ ...base, data: array(object()), pagination: object(), coverage: object() }),
   dashboard_list_boards: object({ boards: array(object({ id: string, revision: integer, name: string })) }),
+  dashboard_snapshot: object({ ...base, scope: strings, summary: object({ totalValueKrw: string, valuationComplete: boolean }), holdings: array(object({ symbol: string })),
+    others: object({ count: integer, valueKrw: string, allocationPct: string }), trend: object({ days: integer, at: strings, valueKrw: strings, sampled: boolean }), warnings: strings }),
   dashboard_save_board: object({ id: string, revision: integer, name: string, symbols: strings, widgets: strings }),
   dashboard_open: object({ url: string, mode, boards: array(object()) }),
   dashboard_get_template: object({ name: string, schemaVersion: string, files: object(), binaryAssets: strings, manifest: array(object({ path: string, bytes: integer })) }),
@@ -35,6 +37,7 @@ export function recovery(error, status) {
     CURSOR_EXPIRED: [false, 'cursor를 빼고 같은 날짜·필터로 다시 시작하세요.'],
     CURSOR_QUERY_MISMATCH: [false, '기존 cursor 조건을 유지하거나 cursor를 빼고 새 조건으로 시작하세요.'],
     QUERY_LIMIT: [false, '날짜 구간이나 자산 범위를 나누어 새 조회를 시작하세요.'],
+    BOARD_NOT_FOUND: [false, 'dashboard_list_boards로 보드 id를 확인하거나 boardId 없이 다시 호출하세요.'],
     CONFLICT: [false, 'dashboard_list_boards로 최신 revision을 읽은 뒤 변경을 다시 적용하세요.'],
   };
   const [retryable, action] = codes[error.code] ?? (error.code === 'API_ERROR' && status >= 500 ? [true, '거래소 일시 오류입니다. 잠시 뒤 같은 입력으로 다시 시도하세요.'] : [false, 'tools/list의 입력 규격과 오류 메시지를 확인하세요. 반복 실패하면 system_diagnose로 상태를 확인하세요.']);

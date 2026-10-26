@@ -32,7 +32,7 @@ const call = async (name, args = {}, options) => {
 try {
   await client.connect(transport);
   const tools = (await client.listTools()).tools; // The SDK caches and validates each outputSchema.
-  assert.equal(tools.length, 14);
+  assert.equal(tools.length, 15);
   assert.ok(tools.every(tool => tool.outputSchema?.type === 'object'));
   const progress = [];
   await call('portfolio_get_summary', { force: true }, { onprogress: update => progress.push(update.progress) });
@@ -57,6 +57,16 @@ try {
   assert.ok((await call('dashboard_list_boards')).boards.some(item => item.id === board.id));
   const opened = await call('dashboard_open', { port: 4499 });
   assert.equal((await fetch(`${opened.url}/health`)).status, 200);
+  const shown = await call('dashboard_save_board', { id: board.id, revision: board.revision, days: 7, open: true });
+  assert.equal(shown.url, `${opened.url}/?board=${board.id}`);
+  const snapshot = await call('dashboard_snapshot', { boardId: board.id });
+  assert.deepEqual([snapshot.scope, snapshot.trend.days], [['BTC'], 7]);
+  const view = tools.find(tool => tool.name === 'dashboard_snapshot')._meta.ui.resourceUri;
+  assert.ok((await client.listResources()).resources.some(resource => resource.uri === view));
+  const [html] = (await client.readResource({ uri: view })).contents;
+  assert.equal(html.mimeType, 'text/html;profile=mcp-app');
+  measurements.snapshotBytes = Buffer.byteLength(JSON.stringify(snapshot));
+  measurements.viewHtmlBytes = Buffer.byteLength(html.text);
   const manifest = await call('dashboard_get_template', { manifest: true });
   assert.deepEqual(manifest.files, {});
   const source = await call('dashboard_get_template');
@@ -113,7 +123,7 @@ try {
   await bounded(aborted);
   await delayedClient.ping();
   const report = { sdk: JSON.parse(await readFile(join(sdk, 'package.json'), 'utf8')).version, server: client.getServerVersion(),
-    toolsValidated: [...new Set(checks)].length, checks: ['14 tool output schemas', 'stdio negotiation', 'field selection', 'force refresh', 'progress notifications', 'cursor continuation and replay', 'SDK AbortSignal cancels provider', 'post-cancellation ping', 'validation recovery path'],
+    toolsValidated: [...new Set(checks)].length, checks: ['15 tool output schemas', 'MCP Apps view resource', 'stdio negotiation', 'field selection', 'force refresh', 'progress notifications', 'cursor continuation and replay', 'SDK AbortSignal cancels provider', 'post-cancellation ping', 'validation recovery path'],
     measurements, mode: 'synthetic-only', liveAccountVerified: false };
   if (process.argv[2]) await writeFile(process.argv[2], `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));

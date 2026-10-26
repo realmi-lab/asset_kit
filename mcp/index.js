@@ -14,15 +14,15 @@ import { ORDER_OPTIONS, TRANSFER_OPTIONS, RECORD_KINDS } from '../src/activity.j
 import { BOARD_FIELDS, PERIODS, REFRESH_SECONDS, WIDGETS } from '../src/boards.js';
 import { abortable } from '../src/async.js';
 import { downsample } from '../src/history.js';
-import { FORCE, HOLDING_FIELDS, RECORD_FIELDS, fieldInput, holdingsResult, selectFields } from './query.js';
+import { FORCE, HOLDING_FIELDS, RECORD_FIELDS, dashboardSnapshot, fieldInput, holdingsResult, selectFields } from './query.js';
 import { RecordReader } from './records.js';
 import { OUTPUTS, recovery } from './schemas.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 /** 기능 모듈. --modules로 고르며 system은 항상 켜집니다. */
 export const MODULES = ['portfolio', 'market', 'account', 'dashboard', 'system'];
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-const INSTRUCTIONS = '빗썸 조회 전용 자산 MCP입니다. 금액·수량은 통화 단위가 붙은 십진 문자열, 누락값은 null입니다. mode=demo는 합성 데이터입니다. 우선 portfolio_get_summary로 요약하고, 세부 조회는 symbols·fields·limit로 좁히세요. warnings, valuationComplete, coverage를 숨기지 마세요. account_get_records는 기본 최대 50건·5페이지를 읽습니다. pagination.nextCursor가 있으면 kind와 cursor로 이어받고, 빈 rows를 조회 완료로 해석하지 마세요. totals는 이번 응답 행의 합계일 뿐입니다. 대시보드 템플릿은 manifest=true 후 필요한 paths만 요청하세요. 키를 도구 입력에 넣거나 누락된 가격·수익률을 추정하지 마세요. 주문·취소·출금 실행 도구는 없습니다.';
+const INSTRUCTIONS = '빗썸 조회 전용 자산 MCP입니다. 금액·수량은 통화 단위가 붙은 십진 문자열, 누락값은 null입니다. mode=demo는 합성 데이터입니다. 우선 portfolio_get_summary로 요약하고, 세부 조회는 symbols·fields·limit로 좁히세요. warnings, valuationComplete, coverage를 숨기지 마세요. account_get_records는 기본 최대 50건·5페이지를 읽습니다. pagination.nextCursor가 있으면 kind와 cursor로 이어받고, 빈 rows를 조회 완료로 해석하지 마세요. totals는 이번 응답 행의 합계일 뿐입니다. 대시보드·차트를 그릴 때는 dashboard_snapshot 한 번으로 요약·비중·추이를 받으세요(MCP Apps 클라이언트에서는 대화 안에 화면이 표시됩니다). 로컬 화면은 dashboard_save_board의 open=true로 저장과 열기를 한 번에 하고, 템플릿은 manifest=true 후 필요한 paths만 요청하세요. 키를 도구 입력에 넣거나 누락된 가격·수익률을 추정하지 마세요. 주문·취소·출금 실행 도구는 없습니다.';
 const HELP = `빗썸 자산 MCP ${VERSION} (stdio)
 
 node mcp/index.js [옵션]
@@ -33,11 +33,16 @@ node mcp/index.js [옵션]
   --verbose            도구 호출 기록을 stderr에 출력
   --help, --version`;
 const WEB = fileURLToPath(new URL('../web/', import.meta.url));
+/** MCP Apps(io.modelcontextprotocol/ui): dashboard_snapshot 결과를 대화 안에 그리는 화면. */
+export const VIEW = { uri: 'ui://bithumb-asset-kit/dashboard.html', mimeType: 'text/html;profile=mcp-app', name: 'dashboard', title: '내 자산 대시보드', description: 'dashboard_snapshot 결과(요약·비중·추이·보유 상위)를 그리는 화면' };
+let viewHtml;
+const readView = () => viewHtml ??= readFile(new URL('./view.html', import.meta.url), 'utf8').then(text => text.replaceAll('__VERSION__', VERSION));
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 const LOCAL_READ = { ...READ, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 const input = (properties = {}, required = []) => ({ type: 'object', additionalProperties: false, properties, ...(required.length ? { required } : {}) });
 const DATE = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
+const BOARD_ID = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
 // 수정할 때 생략한 필드는 기존 값을 유지하도록 기본값 없이 받습니다.
 const BOARD_INPUT = Object.fromEntries(Object.entries(BOARD_FIELDS).map(([key, { default: _, ...schema }]) => [key, schema]));
 
@@ -72,12 +77,23 @@ export async function dashboardTemplate({ manifest: manifestOnly = false, paths 
 export function createMcpServer(service, { modules = MODULES, readOnly = false, verbose = false, log = line => process.stderr.write(`${line}\n`) } = {}) {
   const tools = new Map();
   const records = new RecordReader(service);
-  const tool = (module, name, description, inputSchema, annotations, run) => {
+  const tool = (module, name, description, inputSchema, annotations, run, extra = {}) => {
     if (module !== 'system' && !modules.includes(module)) return;
     if (readOnly && annotations.readOnlyHint === false) return;
-    tools.set(name, { module, definition: { name, description, inputSchema, outputSchema: OUTPUTS[name], annotations }, run });
+    tools.set(name, { module, definition: { name, description, inputSchema, outputSchema: OUTPUTS[name], annotations, ...extra }, run });
   };
   let dashboard = null;
+  async function openDashboard(port = 4319) {
+    if (!dashboard) {
+      const { startDashboard } = await import('../src/server.js');
+      dashboard = startDashboard(service, { port }).catch(error => error.code === 'EADDRINUSE' ? startDashboard(service, { port: 0 }) : Promise.reject(error));
+      // 화면 서버와 브라우저 연결이 프로세스를 붙잡지 않게 해, MCP 연결이 끝나면 함께 종료됩니다.
+      dashboard.then(({ server }) => { server.unref(); server.on('connection', socket => socket.unref()); }, () => { dashboard = null; });
+    }
+    return (await dashboard).url;
+  }
+  // ?board=<id>로 열면 화면이 그 보드 탭을 선택합니다.
+  const boardUrl = (url, id) => id ? `${url}/?board=${id}` : url;
 
   // ===== Portfolio: 잔고·손익, 비중·추이, 일별 자산 변화, 종합 보고서 =====
   tool('portfolio', 'portfolio_get_summary', '원화 포함 총 평가금액, 보유분 평가손익, 비중 상위 자산과 데이터 누락 여부를 조회합니다. 첫 조회는 이 요약 도구를 권장합니다. symbols로 자산 범위를 좁히고 force=true로 새로 조회합니다.', input({ symbols: SYMBOLS_INPUT, force: FORCE }), READ, async args => {
@@ -133,29 +149,37 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
   tool('account', 'account_get_orders', '대기 또는 종료 주문 한 페이지를 조회합니다. 종료 주문은 최대 7일 구간, 다음 페이지는 동일 기간과 nextKey를 사용합니다. 주문 생성·취소 기능은 없습니다.', ORDER_OPTIONS, READ, (args, context) => service.getOrders(args, context));
   tool('account', 'account_get_transfers', '원화·가상자산 입금 또는 출금 내역을 페이지별로 조회합니다. 입출금을 실행하지 않습니다.', TRANSFER_OPTIONS, READ, (args, context) => service.getTransfers(args, context));
 
-  // ===== Dashboard: 화면 설정·화면 띄우기 =====
+  // ===== Dashboard: 대시보드 데이터·화면 설정·화면 띄우기 =====
+  tool('dashboard', 'dashboard_snapshot', '대시보드·차트를 그릴 데이터를 한 번에 작게 조회합니다: 요약, 평가금액 상위 자산과 나머지(others), 추이 열 배열(기본 60점, 첫·끝 보존), daily=true이면 일별 자산 변화. boardId를 주면 그 보드의 자산 범위·기간을 기본값으로 씁니다. MCP Apps를 지원하는 클라이언트에서는 대화 안에 대시보드 화면이 그려집니다.', input({
+    boardId: { ...BOARD_ID, description: '선택: dashboard_list_boards의 보드 id' }, symbols: SYMBOLS_INPUT,
+    days: { type: 'integer', minimum: 1, maximum: 365, description: '추이 기간(일). 생략하면 보드 기간 또는 30' },
+    points: { type: 'integer', minimum: 2, maximum: 400, default: 60, description: '추이 점 개수 상한' },
+    top: { type: 'integer', minimum: 1, maximum: 20, default: 5, description: '개별로 반환할 평가금액 상위 자산 수' },
+    daily: { type: 'boolean', default: false, description: 'true이면 일별 자산 변화(달력)도 열 배열로 반환' }, force: FORCE,
+  }), READ, args => dashboardSnapshot(service, args), { _meta: { ui: { resourceUri: VIEW.uri }, 'ui/resourceUri': VIEW.uri } });
   tool('dashboard', 'dashboard_list_boards', '로컬 대시보드 화면 설정(보드) 목록입니다. 각 보드는 이름, 자산 범위, 위젯 순서, 기간, 갱신 간격, revision을 가집니다.', input(), LOCAL_READ, async () => ({ boards: await service.boards.list() }));
-  tool('dashboard', 'dashboard_save_board', `대시보드 화면 설정을 새로 만들거나(id 생략) 수정합니다(dashboard_list_boards의 id·revision 필요, 생략한 필드는 기존 값 유지). 위젯: ${WIDGETS.join('/')}, 배열 순서가 화면 순서. 기간 ${PERIODS.join('/')}일, 갱신 ${REFRESH_SECONDS.join('/')}초. 자금 이동은 없습니다.`, input({
-    id: { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' }, revision: { type: 'integer', minimum: 1 }, ...BOARD_INPUT,
-  }), { ...LOCAL_WRITE, idempotentHint: false }, async ({ id, revision, ...changes }) => {
-    if (!id) return service.boards.create(changes);
-    if (!Number.isInteger(revision)) throw new KitError('INVALID_BOARD', '수정하려면 dashboard_list_boards에서 읽은 revision을 함께 보내세요.', 400);
-    const current = (await service.boards.list()).find(board => board.id === id);
-    if (!current) throw new KitError('BOARD_NOT_FOUND', '대시보드를 찾을 수 없습니다. 목록을 다시 조회하세요.', 404);
-    return service.boards.update(id, { ...current, ...changes }, revision);
-  });
-  tool('dashboard', 'dashboard_open', '이 MCP 프로세스에서 로컬 대시보드(127.0.0.1)를 띄우고 주소를 돌려줍니다. 이미 떠 있으면 같은 주소를 돌려줍니다. 사용자에게 주소를 안내하세요. 외부에 공개되지 않습니다.', input({
-    port: { type: 'integer', minimum: 1024, maximum: 65535, description: '선택: 기본 4319, 사용 중이면 빈 포트를 씁니다' },
-  }), { ...LOCAL_WRITE, idempotentHint: true }, async ({ port = 4319 }) => {
-    if (!dashboard) {
-      const { startDashboard } = await import('../src/server.js');
-      dashboard = startDashboard(service, { port }).catch(error => error.code === 'EADDRINUSE' ? startDashboard(service, { port: 0 }) : Promise.reject(error));
-      // 화면 서버와 브라우저 연결이 프로세스를 붙잡지 않게 해, MCP 연결이 끝나면 함께 종료됩니다.
-      dashboard.then(({ server }) => { server.unref(); server.on('connection', socket => socket.unref()); }, () => { dashboard = null; });
+  tool('dashboard', 'dashboard_save_board', `대시보드 화면 설정을 새로 만들거나(id 생략) 수정합니다(dashboard_list_boards의 id·revision 필요, 생략한 필드는 기존 값 유지). 위젯: ${WIDGETS.join('/')}, 배열 순서가 화면 순서. 기간 ${PERIODS.join('/')}일, 갱신 ${REFRESH_SECONDS.join('/')}초. open=true이면 저장 후 로컬 대시보드를 띄우고 이 보드가 선택된 url을 함께 반환합니다. 자금 이동은 없습니다.`, input({
+    id: BOARD_ID, revision: { type: 'integer', minimum: 1 }, ...BOARD_INPUT,
+    open: { type: 'boolean', default: false, description: 'true이면 저장 후 dashboard_open을 따로 부르지 않아도 됩니다' },
+  }), { ...LOCAL_WRITE, idempotentHint: false }, async ({ id, revision, open, ...changes }) => {
+    let board;
+    if (!id) board = await service.boards.create(changes);
+    else {
+      if (!Number.isInteger(revision)) throw new KitError('INVALID_BOARD', '수정하려면 dashboard_list_boards에서 읽은 revision을 함께 보내세요.', 400);
+      const current = (await service.boards.list()).find(item => item.id === id);
+      if (!current) throw new KitError('BOARD_NOT_FOUND', '대시보드를 찾을 수 없습니다. 목록을 다시 조회하세요.', 404);
+      board = await service.boards.update(id, { ...current, ...changes }, revision);
     }
-    const { url } = await dashboard;
-    return { url, mode: service.status().mode, boards: (await service.boards.list()).map(({ id, name, symbols }) => ({ id, name, symbols })),
-      note: '이 컴퓨터에서만 열리는 주소입니다. 화면 위쪽 탭에서 보드를 고르고, 화면 편집으로 위젯·자산 범위·기간을 바꿀 수 있습니다.' };
+    return open ? { ...board, url: boardUrl(await openDashboard(), board.id) } : board;
+  });
+  tool('dashboard', 'dashboard_open', '이 MCP 프로세스에서 로컬 대시보드(127.0.0.1)를 띄우고 주소를 돌려줍니다. 이미 떠 있으면 같은 주소를 돌려줍니다. boardId를 주면 그 보드 탭이 선택된 주소입니다. 사용자에게 주소를 안내하세요. 외부에 공개되지 않습니다.', input({
+    port: { type: 'integer', minimum: 1024, maximum: 65535, description: '선택: 기본 4319, 사용 중이면 빈 포트를 씁니다' },
+    boardId: { ...BOARD_ID, description: '선택: 처음 선택할 보드 id' },
+  }), { ...LOCAL_WRITE, idempotentHint: true }, async ({ port, boardId }) => {
+    const boards = await service.boards.list();
+    if (boardId && !boards.some(board => board.id === boardId)) throw new KitError('BOARD_NOT_FOUND', '대시보드를 찾을 수 없습니다. 목록을 다시 조회하세요.', 404);
+    return { url: boardUrl(await openDashboard(port), boardId), mode: service.status().mode, boards: boards.map(({ id, name, symbols }) => ({ id, name, symbols })),
+      note: '이 컴퓨터에서만 열리는 주소입니다. 화면 위쪽 탭에서 보드를 고르고, 화면 편집으로 위젯·자산 범위·기간을 바꿀 수 있습니다. 이미 열린 화면도 몇 초 안에 바뀐 보드를 반영합니다.' };
   });
   tool('dashboard', 'dashboard_get_template', '화면을 만들 때만 사용합니다. 먼저 manifest=true로 파일 목록·크기·API 계약을 조회한 뒤 paths로 필요한 파일만 요청하세요. 옵션을 생략하면 기존 호환용 전체 텍스트를 반환합니다.', input({
     manifest: { type: 'boolean', default: false }, paths: { type: 'array', minItems: 1, maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 200 } },
@@ -190,16 +214,25 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
     if (verbose) log(`[asset-kit-mcp] ${new Date().toISOString()} ${name} ${result.isError ? `error ${JSON.parse(result.content[0].text).code}` : 'ok'} ${Date.now() - started}ms fields=${JSON.stringify(Object.keys(args ?? {}))}`);
     return result;
   }
+  // 화면 리소스는 dashboard_snapshot이 켜져 있을 때만 공개합니다.
+  const views = () => tools.has('dashboard_snapshot') ? [VIEW] : [];
   async function handle(method, params = {}, context) {
     switch (method) {
       case 'initialize': return {
         protocolVersion: PROTOCOLS.includes(params.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, ...(views().length ? { resources: { listChanged: false } } : {}) },
         serverInfo: { name: 'bithumb-asset-kit', title: '빗썸 자산 대시보드 킷', version: VERSION }, instructions: INSTRUCTIONS,
       };
       case 'ping': return {};
       case 'tools/list': return { tools: [...tools.values()].map(entry => entry.definition) };
       case 'tools/call': return callTool(params.name, params.arguments, context);
+      case 'resources/list': return { resources: views() };
+      case 'resources/templates/list': return { resourceTemplates: [] };
+      case 'resources/read': {
+        const view = views().find(item => item.uri === params.uri);
+        if (!view) throw rpcError(-32002, '알 수 없는 리소스입니다.');
+        return { contents: [{ uri: view.uri, mimeType: view.mimeType, text: await readView(), _meta: { ui: { prefersBorder: true } } }] };
+      }
       default: throw rpcError(-32601, `지원하지 않는 메서드입니다: ${method}`);
     }
   }

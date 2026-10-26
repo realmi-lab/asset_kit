@@ -30,18 +30,27 @@ function mcpClient(args) {
   return { child, rpc, call, close };
 }
 
-test('stdio MCP: protocol, 14 tools, read-only except local dashboard tools, boards and dashboard end to end', async () => {
+test('stdio MCP: protocol, 15 tools, read-only except local dashboard tools, boards and dashboard end to end', async () => {
   const client = mcpClient(['--demo']);
   try {
     const init = await client.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
     assert.equal(init.result.protocolVersion, '2025-06-18'); assert.equal(init.result.serverInfo.name, 'bithumb-asset-kit');
+    assert.deepEqual(init.result.capabilities.resources, { listChanged: false });
     assert.equal((await client.rpc('initialize', { protocolVersion: '1999-01-01' })).result.protocolVersion, '2025-11-25');
     client.child.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');
     assert.deepEqual((await client.rpc('ping')).result, {});
-    assert.equal((await client.rpc('resources/list')).error.code, -32601);
+    assert.equal((await client.rpc('prompts/list')).error.code, -32601);
+    const [view] = (await client.rpc('resources/list')).result.resources;
+    assert.deepEqual([view.uri, view.mimeType], ['ui://bithumb-asset-kit/dashboard.html', 'text/html;profile=mcp-app']);
+    const html = (await client.rpc('resources/read', { uri: view.uri })).result.contents[0];
+    assert.equal(html.mimeType, view.mimeType);
+    assert.match(html.text, /ui\/initialize/);
+    assert.doesNotMatch(html.text, /__VERSION__|(?:src|href)="(?:https?:)?\/\//);
+    assert.equal((await client.rpc('resources/read', { uri: 'ui://other' })).error.code, -32002);
     assert.equal((await client.rpc('tools/call', { name: 'nope' })).error.code, -32602);
     const { tools } = (await client.rpc('tools/list')).result;
-    assert.equal(tools.length, 14);
+    assert.equal(tools.length, 15);
+    assert.equal(tools.find(tool => tool.name === 'dashboard_snapshot')._meta.ui.resourceUri, view.uri);
     for (const tool of tools) {
       assert.equal(tool.annotations.readOnlyHint, !WRITE_TOOLS.includes(tool.name), tool.name);
       assert.equal(tool.inputSchema.type, 'object');
@@ -66,6 +75,14 @@ test('stdio MCP: protocol, 14 tools, read-only except local dashboard tools, boa
     const opened = await data('dashboard_open', { port: 4399 });
     assert.match(opened.url, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal((await data('dashboard_open')).url, opened.url);
+    // 저장과 열기를 한 번에: 같은 서버 주소에 새 보드가 선택된 링크를 돌려줍니다.
+    const shown = await data('dashboard_save_board', { name: 'BTC만', symbols: ['BTC'], open: true });
+    assert.equal(shown.url, `${opened.url}/?board=${shown.id}`);
+    assert.equal((await data('dashboard_open', { boardId: board.id })).url, `${opened.url}/?board=${board.id}`);
+    const missing = await client.call('dashboard_open', { boardId: '00000000-0000-4000-8000-000000000000' });
+    assert.equal(JSON.parse(missing.content[0].text).code, 'BOARD_NOT_FOUND');
+    const snapshot = await data('dashboard_snapshot', { boardId: shown.id });
+    assert.deepEqual([snapshot.board.name, snapshot.scope, snapshot.holdings.map(h => h.symbol)], ['BTC만', ['BTC'], ['BTC']]);
     assert.equal((await fetch(`${opened.url}/api/boards`)).status, 200);
     assert.equal((await client.call('account_get_orders', { kind: 'history', fromMs: 1, toMs: 10 * 86400000 })).isError, true);
     assert.equal((await client.call('market_get_candles', { symbol: '../../etc/passwd' })).isError, true);
@@ -81,9 +98,10 @@ test('MCP options: --modules and --read-only limit tools like the official serve
   let stderr = '';
   client.child.stderr.on('data', chunk => { stderr += chunk; });
   try {
-    await client.rpc('initialize', { protocolVersion: '2025-06-18' });
+    assert.equal((await client.rpc('initialize', { protocolVersion: '2025-06-18' })).result.capabilities.resources, undefined);
     const names = (await client.rpc('tools/list')).result.tools.map(tool => tool.name).sort();
     assert.deepEqual(names, ['market_get_candles', 'system_diagnose']);
+    assert.deepEqual((await client.rpc('resources/list')).result.resources, []);
     assert.equal((await client.rpc('tools/call', { name: 'portfolio_get_summary', arguments: {} })).error.code, -32602);
     const diagnose = (await client.call('system_diagnose')).structuredContent;
     assert.deepEqual([diagnose.mode, diagnose.readOnly, diagnose.publicApi.ok, diagnose.accountApi.ok], ['demo', true, true, true]);

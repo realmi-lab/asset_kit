@@ -266,38 +266,68 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 `dashboard_get_template({"manifest":true})`는 파일 경로·크기와 API 계약만 반환합니다. 필요한 파일은 `{"paths":["index.html"]}`처럼 요청합니다. 옵션 없는 기존 호출은 호환성을 위해 전체 텍스트를 반환합니다. 계좌 질문에 답할 때 템플릿을 가져올 필요는 없습니다.
 
+## 대화 안에서 대시보드 그리기 (0.5.0)
+
+“내 자산 대시보드 보여줘”처럼 화면을 그려 달라고 하면 AI는 `dashboard_snapshot`을 **한 번** 호출합니다. 요약·비중·추이·보유 상위 자산이 한 응답에 들어 있어, 요약·비중·추이 도구를 따로 부를 필요가 없습니다.
+
+```json
+{ "boardId": "34eb9587-…", "days": 90, "top": 5, "points": 60, "daily": false }
+```
+
+모든 입력은 선택입니다. `boardId`를 주면 그 보드의 자산 범위·기간을 기본값으로 쓰고, `symbols`·`days`를 함께 주면 그 값이 우선합니다.
+
+```json
+{
+  "mode": "demo", "asOf": "2026-10-26T07:52:58.497Z", "scope": [],
+  "summary": { "totalValueKrw": "28074000", "profitKrw": "2594000", "profitRatePct": "11.4374", "valuationComplete": true, "…": "…" },
+  "holdings": [{ "symbol": "BTC", "name": "비트코인", "valueKrw": "13550000", "allocationPct": "48.2653", "profitKrw": "2050000", "…": "…" }],
+  "others": { "count": 2, "valueKrw": "4704000", "allocationPct": "16.7557", "unpriced": 0 },
+  "trend": { "days": 30, "at": ["2026-09-27T…", "…"], "valueKrw": ["24857503", "…"], "firstKrw": "24857503", "lastKrw": "28074000", "changeKrw": "3216497", "omitted": 0, "sampled": false }
+}
+```
+
+- `holdings`는 평가금액 상위 `top`개(기본 5), 나머지는 `others` 한 조각입니다. 상위 자산과 `others`의 금액 합은 `summary.totalValueKrw`와 정확히 같습니다.
+- `trend`는 같은 위치끼리 짝인 열 배열입니다. 기본 60점으로 줄이며 첫·마지막 기록은 보존해 `changeKrw`가 정확합니다. 가격 미확인 시점은 빼고 `omitted`에 개수를 적습니다.
+- `daily: true`이면 일별 자산 변화(`day`·`changeKrw`·`changePct`·`gapDays` 열 배열)를 함께 반환합니다.
+
+데모 계좌 기준 응답 크기는 다음과 같습니다. 실제 계좌의 30일 추이는 5분 기록이 쌓여 최대 400점(약 35KB)까지 커지므로 차이가 더 큽니다.
+
+| 그리는 방법 | 호출 수 | 응답 크기 |
+| --- | --- | --- |
+| summary + allocation + holdings + history(30일) | 4 | 약 6.5KB |
+| `dashboard_snapshot`(30일) | 1 | 약 2.6KB |
+| `portfolio_get_history`(365일) | 1 | 약 32KB |
+| `dashboard_snapshot`(365일) | 1 | 약 3.7KB |
+
+**MCP Apps를 지원하는 클라이언트**(Claude, ChatGPT, VS Code 등)에서는 `dashboard_snapshot` 결과가 대화 안에 대시보드 화면으로 그려집니다. 도구 정의의 `_meta.ui.resourceUri`가 가리키는 `ui://bithumb-asset-kit/dashboard.html` 리소스(`text/html;profile=mcp-app`)를 클라이언트가 읽어 표시합니다. 화면에서 기간(7·30·90일·1년)을 바꾸거나 새로고침하면 같은 도구를 다시 호출하고, ‘로컬 대시보드 열기’는 `dashboard_open`으로 이 보드가 선택된 로컬 주소를 엽니다. 화면은 외부 파일·네트워크를 쓰지 않고 클라이언트와 메시지로만 통신하며, 금액 숨기기를 지원합니다. 지원하지 않는 클라이언트는 같은 데이터를 JSON으로 받습니다.
+
 ## 대시보드 만들기
 
 “BTC·ETH만 묶은 대시보드 만들고 열어줘”라고 요청하면 AI가 아래 순서로 도구를 호출합니다.
 
 **1. 연결 확인** — `system_diagnose`로 모드와 키 설정을 확인합니다.
 
-**2. 화면 저장** — `dashboard_save_board`
+**2. 저장하고 띄우기** — `dashboard_save_board`에 `open: true`를 붙이면 저장과 화면 띄우기를 한 번에 합니다.
 
 ```json
 {
   "name": "BTC·ETH 장기 보유",
   "symbols": ["BTC", "ETH"],
   "widgets": ["summary", "trend", "allocation", "holdings"],
-  "days": 90
+  "days": 90,
+  "open": true
 }
 ```
 
-응답으로 화면의 `id`와 `revision`을 돌려줍니다.
+응답으로 화면의 `id`·`revision`과, 이 보드가 선택된 로컬 주소 `url`을 돌려줍니다.
 
 ```json
-{ "id": "34eb9587-…", "revision": 1, "name": "BTC·ETH 장기 보유", "symbols": ["BTC", "ETH"], "widgets": ["summary", "trend", "allocation", "holdings"], "days": 90, "refreshSeconds": 60 }
+{ "id": "34eb9587-…", "revision": 1, "name": "BTC·ETH 장기 보유", "symbols": ["BTC", "ETH"], "widgets": ["summary", "trend", "allocation", "holdings"], "days": 90, "refreshSeconds": 60, "url": "http://127.0.0.1:4319/?board=34eb9587-…" }
 ```
 
-**3. 화면 띄우기** — `dashboard_open`(인수 없음). MCP 서버 안에서 로컬 대시보드를 띄우고 주소를 돌려줍니다.
+AI가 알려준 주소를 브라우저로 열면 저장한 보드 탭이 선택된 상태로 나타납니다. 기본 ‘내 자산’(원화 포함 전체) 화면은 항상 함께 있습니다. 이미 떠 있는 화면만 다시 열 때는 `dashboard_open`을 쓰고, `boardId`를 주면 그 보드가 선택된 주소를 받습니다.
 
-```json
-{ "url": "http://127.0.0.1:4319", "mode": "demo", "boards": [{ "name": "내 자산" }, { "name": "BTC·ETH 장기 보유", "symbols": ["BTC", "ETH"] }] }
-```
-
-AI가 알려준 주소를 브라우저로 열면 저장한 화면이 위쪽 탭에 나타납니다. 기본 ‘내 자산’(원화 포함 전체) 화면은 항상 함께 있습니다.
-
-**4. 고치기** — `dashboard_list_boards`로 `id`와 `revision`을 확인한 뒤 바꿀 값만 보냅니다. 보내지 않은 값은 그대로 유지됩니다.
+**3. 고치기** — `dashboard_list_boards`로 `id`와 `revision`을 확인한 뒤 바꿀 값만 보냅니다. 보내지 않은 값은 그대로 유지됩니다. 브라우저에 이미 열려 있는 대시보드는 몇 초 안에(다른 탭에서 돌아오면 바로) 바뀐 보드를 반영합니다.
 
 ```json
 { "id": "34eb9587-…", "revision": 1, "days": 365, "widgets": ["summary", "trend", "allocation", "holdings", "activity"] }
@@ -351,13 +381,14 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 ### Dashboard
 
-대시보드 화면 설정을 이 컴퓨터에 저장하고 로컬 대시보드를 띄웁니다.
+대시보드를 그릴 데이터를 한 번에 조회하고, 화면 설정을 이 컴퓨터에 저장하고, 로컬 대시보드를 띄웁니다.
 
 | 도구 | 설명 |
 | --- | --- |
+| `dashboard_snapshot` | 요약·비중 상위·추이(열 배열)·선택 시 일별 변화를 한 번에. MCP Apps 클라이언트에서는 대화 안에 화면 표시 |
 | `dashboard_list_boards` | 화면 설정 목록 |
-| `dashboard_save_board` | 화면 설정 생성·수정 |
-| `dashboard_open` | 로컬 대시보드 실행, 주소 반환 |
+| `dashboard_save_board` | 화면 설정 생성·수정. `open: true`이면 저장 후 화면을 띄우고 보드 주소 반환 |
+| `dashboard_open` | 로컬 대시보드 실행, 주소 반환. `boardId`로 처음 선택할 보드 지정 |
 | `dashboard_get_template` | 화면 HTML·CSS·JS와 API 계약 |
 
 ### System
@@ -448,7 +479,7 @@ npm install --prefix /tmp/asset-kit-sdk-check --no-save --ignore-scripts @modelc
 MCP_SDK_ROOT=/tmp/asset-kit-sdk-check/node_modules/@modelcontextprotocol/sdk npm run verify:mcp-sdk
 ```
 
-검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 14개 도구의 출력 스키마, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
+검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 15개 도구의 출력 스키마, MCP Apps 화면 리소스, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
 
 ## 더 알아보기
 

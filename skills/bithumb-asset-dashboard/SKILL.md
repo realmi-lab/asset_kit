@@ -17,6 +17,7 @@ Use the `bithumb-asset-kit` MCP server's tools. It is separate from the official
 
 | Question | Tool |
 | --- | --- |
+| Show or draw a dashboard / chart of my assets | `dashboard_snapshot` (one call: summary, top holdings + `others`, columnar trend; `boardId`, `days`, `daily`) |
 | Total value, unrealized P&L, top assets | `portfolio_get_summary` (`symbols` narrows the scope) |
 | Per-asset quantity, cost, price, value | `portfolio_get_holdings` (search/filter/sort, `fields`, `limit`, `offset`) |
 | Allocation | `portfolio_get_allocation` |
@@ -36,15 +37,17 @@ Preserve meaning:
 - `account_get_records` returns at most 50 rows/5 upstream pages by default. Continue using the same `kind` and `pagination.nextCursor` as `cursor`, even after empty rows. Keep the original filters; repeat `fields` if needed. Stop when nextCursor is null, and still report incomplete coverage if unknown timestamps were excluded.
 - Record `totals` cover only the returned rows. `coverage.complete` is the exhaustion state of the entire continuation chain, not a claim that the final response contains every row. A retried cursor replays the same page: do not double-count it.
 - Cursors are process-local, last 10 minutes and may be evicted. On `CURSOR_EXPIRED`, restart the period without a cursor; do not append the restarted run to old totals. Split the period on `QUERY_LIMIT`. Changing account pages are not an atomic snapshot.
+- To draw anything (an inline chart, an artifact, a dashboard answer) call `dashboard_snapshot` once instead of summary + allocation + history. `trend.at[i]` pairs with `trend.valueKrw[i]`; `holdings` plus `others` add up exactly to `summary.totalValueKrw`; `trend.omitted` counts unpriced points left out. In MCP Apps clients the result is already drawn in the conversation, so do not redraw it; summarize the numbers instead.
 - For output reduction use `portfolio_get_history.maxPoints` on trends, report `sections`, and template `manifest:true` followed by specific `paths`. Report symbols narrow the portfolio only, not the account-history sections.
 - Use `retryable` and `recovery` in tool errors. Invalid input includes a `path` without echoing its value. MCP progress and cancellation are client protocol features, not extra tools.
 
 ## 3. Build the user's dashboard
 
 1. `dashboard_list_boards` → see existing layouts.
-2. `dashboard_save_board` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values). Widgets: `summary`, `trend`, `allocation`, `holdings`, `activity` (array order = screen order). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
-3. `dashboard_open` → returns a local URL (127.0.0.1). Give it to the user; the board appears as a tab.
-4. For a completely custom screen, call `dashboard_get_template` with `manifest:true`, then request needed `paths`. Save edited files to a folder and run `asset-kit dashboard --web-dir <folder>`. Do not fetch source files for ordinary asset questions.
+2. `dashboard_save_board` with `open: true` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values), start the local dashboard and get `url` (127.0.0.1, `?board=<id>` selects the new board) in one call. Widgets: `summary`, `trend`, `allocation`, `holdings`, `activity` (array order = screen order). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
+3. Give the `url` to the user. Use `dashboard_open` (optionally with `boardId`) only to reopen. A dashboard already open in the browser picks up saved boards within seconds; do not ask the user to reload.
+4. To preview the board in the conversation, call `dashboard_snapshot` with its `boardId`.
+5. For a completely custom screen, call `dashboard_get_template` with `manifest:true`, then request needed `paths`. Save edited files to a folder and run `asset-kit dashboard --web-dir <folder>`. Do not fetch source files for ordinary asset questions.
 
 Without MCP, the CLI equivalents are `asset-kit portfolio|explain|history|market|records|report|boards|dashboard`; data commands print JSON.
 
