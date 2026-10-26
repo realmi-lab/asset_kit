@@ -1,7 +1,7 @@
 /* ===== 디자인 토큰: 아래 CSS는 이 변수만 사용합니다 ===== */
 :root {
   --brand: #F37321;          /* 빗썸 BI 오렌지 (강조에만 사용) */
-  --brand-strong: #DC5F12;
+  --brand-strong: #B84B0C;
   --brand-soft: #FFF2E9;
 
   --bg: #F4F5F7;
@@ -12,7 +12,7 @@
 
   --text: #191F28;
   --text-2: #4E5968;
-  --text-3: #8B95A1;
+  --text-3: #687483;
 
   /* 국내 관례: 상승 빨강, 하락 파랑 */
   --up: #E42939;
@@ -70,7 +70,7 @@ pre { background: var(--surface-muted); border: 1px solid var(--border); border-
   font-size: 13px; font-weight: 600;
 }
 .button:hover:not(:disabled) { background: var(--surface-muted); }
-.button--primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.button--primary { background: var(--brand-strong); border-color: var(--brand-strong); color: #fff; }
 .button--primary:hover:not(:disabled) { background: var(--brand-strong); }
 .button--ghost { border-color: transparent; background: transparent; color: var(--text-2); }
 
@@ -94,7 +94,7 @@ pre { background: var(--surface-muted); border: 1px solid var(--border); border-
 .alert--info { background: var(--down-soft); color: var(--down); }
 .empty, td.empty { padding: 48px 16px; text-align: center; color: var(--text-3); }
 
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 12px 18px; border-radius: var(--radius-md); background: var(--text); color: #fff; font-size: 13px; }
+.toast { position: fixed; z-index: 10; left: 50%; bottom: 24px; width: max-content; max-width: calc(100vw - 32px); transform: translateX(-50%); padding: 12px 18px; border-radius: var(--radius-md); background: var(--text); color: #fff; font-size: 13px; }
 
 /* ===== 레이아웃 ===== */
 .header {
@@ -143,6 +143,16 @@ pre { background: var(--surface-muted); border: 1px solid var(--border); border-
 .chart .line { fill: none; stroke: var(--brand); stroke-width: 2; }
 .chart .area { fill: var(--brand-soft); }
 .chart circle { fill: var(--brand); }
+.trend-stats { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 0 24px 14px; }
+.trend-stats div { display: flex; flex-direction: column; gap: 2px; }
+.trend-stats span { color: var(--text-3); font-size: 11px; }
+.trend-stats strong { font-size: 14px; }
+.chart-readout { display: flex; justify-content: space-between; gap: 8px; padding: 4px 4px 0; color: var(--text-3); font-size: 12px; }
+.chart-readout output { color: var(--text); font-weight: 600; }
+.chart-cursor { stroke: var(--text-3); stroke-dasharray: 3 3; stroke-width: 1; }
+.chart-scrubber { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 11px; color: var(--text-3); }
+.chart-scrubber input { flex: 1; min-width: 0; height: 24px; accent-color: var(--brand-strong); }
+.chart-scrubber small { white-space: nowrap; font-size: 10px; }
 
 /* ===== 일별 손익 달력 ===== */
 .calendar { padding: 0 24px 4px; }
@@ -160,6 +170,10 @@ pre { background: var(--surface-muted); border: 1px solid var(--border); border-
   background: var(--surface-muted); border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 12px;
 }
 .calendar__day strong { white-space: nowrap; }
+.calendar__day { text-align: left; font: inherit; font-size: 12px; }
+.calendar-value-short { display: none; }
+.calendar__day.is-selected { box-shadow: inset 0 0 0 1px var(--brand-strong); }
+.calendar-detail { margin-top: 12px; padding: 10px 12px; background: var(--surface-muted); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; line-height: 1.7; }
 .calendar__day small { font-size: 10px; opacity: .8; }
 .calendar__day.is-blank { background: transparent; }
 .calendar__day.is-positive { background: var(--up-soft); color: var(--up); }
@@ -184,6 +198,13 @@ pre { background: var(--surface-muted); border: 1px solid var(--border); border-
 /* ===== 표 ===== */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 24px 12px; }
 .toolbar #search { flex: 1; min-width: 200px; }
+.filter-summary { padding: 0 24px 12px; }
+.connection-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
+.connection-status { color: var(--text-3); }
+.connection-status.is-error { color: var(--up); }
+.inline-control { border: 0; padding: 2px 0; background: none; font-size: 11px; color: var(--brand-strong); text-decoration: underline; text-underline-offset: 3px; }
+#activity-search { flex: 1; min-width: 180px; }
+.table-scroll:focus-visible { outline: 2px solid var(--brand-strong); outline-offset: -2px; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; }
 th { padding: 10px 24px; background: var(--surface-muted); border-block: 1px solid var(--border); color: var(--text-3); font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }
@@ -285,7 +306,21 @@ dialog > .button { width: 100%; margin-top: 20px; }
   .shell { padding: 16px; }
   .page-head { flex-direction: column; align-items: flex-start; }
   .page-head .actions { justify-content: flex-start; }
-  .page-head .button { height: 32px; padding: 0 10px; font-size: 12px; }
+  .page-head .button { height: 40px; padding: 0 10px; font-size: 12px; }
+  .page-head { width: 100%; }
+  .page-head > div { min-width: 0; max-width: 100%; }
+  #board-name { overflow-wrap: anywhere; }
+  .button, .input, .chip, .icon-button { min-height: 40px; }
+  .header .icon-button { min-height: 32px; }
+  .trend-stats, .filter-summary { padding-inline: 16px; }
+  .trend-stats { gap: 10px 16px; }
+  .trend-stats strong { font-size: 13px; }
+  .chart-scrubber small { display: none; }
+  .card__foot { flex-wrap: wrap; }
+  .footer { flex-direction: column; }
+  .summary__metrics .card { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 16px; }
+  .summary__metrics .sub { grid-column: 2; text-align: right; }
+  .toolbar .input { max-width: 100%; }
   .field-row { grid-template-columns: 1fr; }
   .toolbar input[type="date"] { width: calc(50% - 15px); }
   .coverage { padding-inline: 16px; }
@@ -296,4 +331,13 @@ dialog > .button { width: 100%; margin-top: 20px; }
   .calendar__day { min-height: 52px; padding: 4px; }
   .calendar__day strong { font-size: 10px; }
   .calendar__day small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+@media (max-width: 420px) {
+  .calendar__day { padding-inline: 2px; }
+  .calendar-value-full { display: none; }
+  .calendar-value-short { display: block; }
+  .calendar__day strong { font-size: 9.5px; letter-spacing: -.3px; }
 }

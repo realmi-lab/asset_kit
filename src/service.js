@@ -21,7 +21,7 @@ export function parseSymbols(input = []) {
 }
 
 export class PortfolioService {
-  #pending; #cached; #records = new Map(); #markets = new Map();
+  #pending; #cached; #records = new Map(); #recordCache = new Map(); #markets = new Map(); #marketPending = new Map();
   constructor({ demo = false, provider, history, boards, directory, maxPages = 50, ...options } = {}) {
     this.provider = provider ?? (demo ? new DemoProvider() : new BithumbProvider(options));
     const storage = { directory: directory ?? dataDir(options.env), accountId: this.provider.accountId, mode: this.provider.mode };
@@ -32,16 +32,17 @@ export class PortfolioService {
   }
   status() {
     return { mode: this.provider.mode, provider: 'bithumb', configured: this.provider.configured, credentialSource: this.provider.credentialSource ?? null,
-      readOnly: true, cacheSeconds: 30, historyIntervalSeconds: 300, lastSuccessfulFetch: this.#cached?.asOf ?? null, historyError: this.historyError };
+      readOnly: true, cacheSeconds: 30, marketCacheSeconds: 60, recordsCacheSeconds: 30,
+      historyIntervalSeconds: 300, lastSuccessfulFetch: this.#cached?.asOf ?? null, historyError: this.historyError };
   }
   /** Whole account, or the subset named by `symbols` with its own totals and allocation. */
-  async portfolio({ symbols = [] } = {}) {
+  async portfolio({ symbols = [], force = false } = {}) {
     const scope = parseSymbols(symbols);
-    return projectPortfolio(await this.#portfolio(), scope);
+    return projectPortfolio(await this.#portfolio(force), scope);
   }
-  async #portfolio() {
-    if (this.#cached && Date.now() - Date.parse(this.#cached.asOf) < 30000) return this.#cached;
+  async #portfolio(force = false) {
     if (this.#pending) return this.#pending;
+    if (!force && this.#cached && Date.now() - Date.parse(this.#cached.asOf) < 30000) return this.#cached;
     this.#pending = this.#load();
     try { return await this.#pending; } finally { this.#pending = null; }
   }
@@ -79,20 +80,31 @@ export class PortfolioService {
     if (daily) {
       const first = kstDay(new Date(Date.now() - (days - 1) * DAY).toISOString());
       return { ...base, daily: dailyCloses(points).filter(row => row.day >= first),
-        note: '한국 시간 날짜별 마지막 평가금액과 직전 기록일 대비 변화입니다. 입출금이 포함되어 투자 수익률과 다릅니다.' };
+        note: '한국 시간 날짜별 마지막 평가금액과 직전 기록일 대비 변화입니다. 기록이 없는 날은 건너뛰며 gapDays는 두 기록일 사이의 일수입니다. 입출금이 포함되어 투자 수익률과 다릅니다.' };
     }
     const sampled = downsample(points);
     return { ...base, points: sampled, sampled: sampled.length < points.length,
       note: '평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다.' };
   }
   /** KRW market price and daily closes for one asset. Public market data; works without keys. */
-  async getMarket({ symbol = 'BTC', days = 30 } = {}) {
+  async getMarket({ symbol = 'BTC', days = 30, force = false } = {}) {
     const code = String(symbol).trim().toUpperCase();
     if (!SYMBOL.test(code) || code === 'KRW' || !Number.isInteger(days) || days < 1 || days > 200) {
       throw new KitError('INVALID_MARKET', '자산 심볼과 1~200일 범위를 확인하세요.', 400);
     }
     const market = `KRW-${code}`, key = `${market}:${days}`, cached = this.#markets.get(key);
-    if (cached && Date.now() - cached.at < 60000) return cached.data;
+    if (this.#marketPending.has(key)) return this.#marketPending.get(key);
+    if (!force && cached && Date.now() - cached.at < 60000) return cached.data;
+    const pending = this.#loadMarket(code, market, days).then(data => {
+      this.#markets.delete(key);
+      this.#markets.set(key, { at: Date.now(), data });
+      if (this.#markets.size > 100) this.#markets.delete(this.#markets.keys().next().value);
+      return data;
+    }).finally(() => this.#marketPending.delete(key));
+    this.#marketPending.set(key, pending);
+    return pending;
+  }
+  async #loadMarket(code, market, days) {
     const listing = (await this.provider.getMarkets()).find(m => m.market === market);
     if (!listing) throw new KitError('NO_KRW_MARKET', '빗썸 원화 마켓에 없는 자산입니다.', 404);
     const [tickers, candles] = await Promise.all([this.provider.getTickers([market]), this.provider.getCandles(market, days)]);
@@ -104,8 +116,6 @@ export class PortfolioService {
       candles: candles.map(c => ({ date: (c.candle_date_time_kst ?? c.candle_date_time_utc).slice(0, 10), closeKrw: dec(c.trade_price).toFixed() })),
       note: '빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다.',
     };
-    this.#markets.set(key, { at: Date.now(), data });
-    if (this.#markets.size > 100) this.#markets.delete(this.#markets.keys().next().value);
     return data;
   }
   async getOrders(input = {}) {
@@ -124,12 +134,22 @@ export class PortfolioService {
     };
   }
   /** Every page of one record kind within a period (up to maxPages). Identical concurrent requests share one run. */
-  async getRecords({ kind = 'orders', from, to } = {}) {
-    const spec = RECORD_KINDS[kind];
+  async getRecords({ kind = 'orders', from, to, force = false } = {}) {
+    const spec = Object.hasOwn(RECORD_KINDS, kind) ? RECORD_KINDS[kind] : null;
     if (!spec) throw new KitError('INVALID_KIND', `내역 종류는 ${Object.keys(RECORD_KINDS).join(', ')} 중 하나입니다.`, 400);
     const period = kind === 'pending' ? null : recordRange(from, to);
-    const key = JSON.stringify([kind, period?.start, period?.end]);
-    if (!this.#records.has(key)) this.#records.set(key, this.#collectRecords(kind, spec, period).finally(() => this.#records.delete(key)));
+    // Omitted bounds mean a rolling interval. Reuse its original period and asOf for the short cache lifetime.
+    const key = JSON.stringify([kind, from ? period?.start : null, to ? period?.end : null]);
+    if (this.#records.has(key)) return this.#records.get(key);
+    const cached = this.#recordCache.get(key);
+    if (!force && cached && Date.now() - cached.at < 30000) return cached.data;
+    this.#records.set(key, this.#collectRecords(kind, spec, period).then(data => {
+      this.#recordCache.delete(key);
+      this.#recordCache.set(key, { at: Date.now(), data });
+      // A result may contain thousands of rows: bound retained ranges independently of small price caches.
+      if (this.#recordCache.size > 8) this.#recordCache.delete(this.#recordCache.keys().next().value);
+      return data;
+    }).finally(() => this.#records.delete(key)));
     return this.#records.get(key);
   }
   async #collectRecords(kind, spec, period) {
@@ -163,8 +183,9 @@ export class PortfolioService {
         const result = await page(() => this.provider.getTransfers(normalizeTransfers({ direction: spec.direction, assetType: spec.assetType, page: number, limit: 100 })));
         if (!result) break;
         for (const row of result) rows.set(row.uuid, row);
-        // Newest first: a short page, or one reaching past the period start, is the last one needed.
-        if (result.length < 100 || result.some(row => Date.parse(row.created_at) < period.start)) break;
+        // Results are not guaranteed to be ordered by completion time. An older created_at can still
+        // complete within this period, so only a short page proves exhaustion; maxPages marks truncation.
+        if (result.length < 100) break;
       }
     }
     const isOrder = kind === 'orders' || kind === 'pending';

@@ -22,7 +22,11 @@ async function readJson(req) {
     if (size > MAX_BODY) throw new KitError('BODY_TOO_LARGE', '요청 크기는 64KB 이하여야 합니다.', 413);
     chunks.push(chunk);
   }
-  try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
+  try {
+    const value = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('object required');
+    return value;
+  }
   catch { throw new KitError('INVALID_JSON', 'JSON 요청 형식이 올바르지 않습니다.', 400); }
 }
 
@@ -34,15 +38,15 @@ export async function startDashboard(service, { port = 4319, collect = true, web
   const root = resolve(webDir);
   let timer;
   const read = async url => {
-    const query = url.searchParams, symbols = query.get('symbols') ?? '';
+    const query = url.searchParams, symbols = query.get('symbols') ?? '', force = query.get('force') === '1';
     const number = (name, fallback) => query.has(name) ? Number(query.get(name)) : fallback;
     switch (url.pathname) {
       case '/api/status': return service.status();
-      case '/api/portfolio': return service.portfolio({ symbols });
+      case '/api/portfolio': return service.portfolio({ symbols, force });
       case '/api/history': return service.getHistory({ days: number('days', 30), symbols, daily: query.get('daily') === '1' });
-      case '/api/market': return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30) });
+      case '/api/market': return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30), force });
       case '/api/explain': return service.explain({ symbols });
-      case '/api/records': return service.getRecords({ kind: query.get('kind') ?? 'orders', from: query.get('from') || undefined, to: query.get('to') || undefined });
+      case '/api/records': return service.getRecords({ kind: query.get('kind') ?? 'orders', from: query.get('from') || undefined, to: query.get('to') || undefined, force });
       case '/api/boards': return { boards: await service.boards.list() };
       default: {
         const options = Object.fromEntries(query);

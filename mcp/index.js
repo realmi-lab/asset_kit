@@ -13,7 +13,7 @@ import { explainPortfolio } from '../src/portfolio.js';
 import { ORDER_OPTIONS, TRANSFER_OPTIONS, RECORD_KINDS } from '../src/activity.js';
 import { BOARD_FIELDS, PERIODS, REFRESH_SECONDS, WIDGETS } from '../src/boards.js';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 /** 기능 모듈. --modules로 고르며 system은 항상 켜집니다. */
 export const MODULES = ['portfolio', 'market', 'account', 'dashboard', 'system'];
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
@@ -50,7 +50,7 @@ export async function dashboardTemplate() {
     instructions: '로컬 API만 사용하며 API 키를 브라우저에 전달하지 않습니다. 금액은 서버가 계산한 십진 문자열을 표시용으로만 변환하세요. 고친 화면은 새 폴더에 저장한 뒤 `asset-kit dashboard --web-dir <폴더>`로 실행합니다. 보드 저장은 Content-Type: application/json과 X-Asset-Kit: 1 헤더가 있는 같은 출처 요청만 허용됩니다. 외부 공개 배포에는 사용자별 인증·데이터 격리가 있는 별도 서버가 필요합니다.',
     api: {
       status: 'GET /api/status', portfolio: 'GET /api/portfolio?symbols=BTC,ETH', explain: 'GET /api/explain?symbols=…',
-      history: 'GET /api/history?days=7|30|90|365&symbols=… (&daily=1: 일별 손익)', market: 'GET /api/market?symbol=BTC&days=30',
+      history: 'GET /api/history?days=7|30|90|365&symbols=… (&daily=1: 일별 자산 변화)', market: 'GET /api/market?symbol=BTC&days=30',
       records: 'GET /api/records?kind=orders|pending|deposits|withdrawals|krw_deposits|krw_withdrawals&from=YYYY-MM-DD&to=YYYY-MM-DD',
       orders: 'GET /api/orders', transfers: 'GET /api/transfers',
       boards: 'GET /api/boards · POST /api/boards · PUT|DELETE /api/boards/:id {revision} · POST /api/boards/import {boards}',
@@ -68,7 +68,7 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
   };
   let dashboard = null;
 
-  // ===== Portfolio: 잔고·손익, 비중·추이, 일별 손익, 종합 보고서 =====
+  // ===== Portfolio: 잔고·손익, 비중·추이, 일별 자산 변화, 종합 보고서 =====
   tool('portfolio', 'portfolio_get_summary', '원화 포함 총 평가금액, 보유분 평가손익, 비중 상위 자산과 데이터 누락 여부를 조회합니다. symbols로 일부 자산만 묶어 볼 수 있습니다.', input({ symbols: SYMBOLS_INPUT }), READ, async args => {
     const p = await service.portfolio(args);
     const { summary, largest } = explainPortfolio(p);
@@ -85,7 +85,7 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
     return { mode: p.mode, asOf: p.asOf, scope: p.scope, valuationComplete: p.summary.valuationComplete,
       allocation: p.holdings.map(({ symbol, name, valueKrw, allocationPct }) => ({ symbol, name, valueKrw, allocationPct })), warnings: p.warnings };
   });
-  tool('portfolio', 'portfolio_get_history', '로컬에 기록된 평가금액 추이(최대 400개 지점)입니다. daily=true이면 한국 시간 날짜별 마지막 값과 전일 대비 변화(일별 손익 달력)를 반환합니다. 입출금이 포함되어 수익률이 아니며 과거 기록을 소급 생성하지 않습니다.', input({
+  tool('portfolio', 'portfolio_get_history', '로컬에 기록된 평가금액 추이(최대 400개 지점)입니다. daily=true이면 한국 시간 날짜별 마지막 값과 직전 기록일 대비 변화와 기록 간격(일별 자산 변화 달력)를 반환합니다. 입출금이 포함되어 수익률이 아니며 과거 기록을 소급 생성하지 않습니다.', input({
     days: { type: 'integer', minimum: 1, maximum: 365, default: 30 }, symbols: SYMBOLS_INPUT, daily: { type: 'boolean', default: false },
   }), READ, args => service.getHistory(args));
   tool('portfolio', 'portfolio_get_report', '잔고·평가금액·비중 및 대기/최근 주문·원화/코인 입출금 첫 페이지를 종합 조회합니다. 섹션별 권한 부족과 조회 범위를 표시합니다. 전체 기간 실현손익 보고서가 아닙니다.', input(), READ, () => service.report());

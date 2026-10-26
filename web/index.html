@@ -32,7 +32,7 @@
 
     <div id="dashboard" hidden>
       <section class="page-head">
-        <div><h1 id="board-name">내 자산</h1><p class="muted small" id="board-scope">전체 자산</p></div>
+        <div><h1 id="board-name">내 자산</h1><p class="muted small" id="board-scope">전체 자산</p><div class="connection-row"><p class="connection-status small" id="connection-status" role="status">연결 확인 중</p><button type="button" class="inline-control" id="auto-refresh" data-action="auto-refresh" aria-pressed="false" hidden>자동 갱신 중지</button></div></div>
         <div class="actions">
           <button type="button" class="button" id="privacy" data-action="privacy" aria-pressed="false">금액 숨기기</button>
           <button type="button" class="button" data-action="explain">요약 보기</button>
@@ -47,11 +47,11 @@
       <div class="card__head"><h2 id="toolkit-title">이 데이터로 나만의 대시보드</h2><button type="button" class="button button--ghost" data-action="guide">연결 가이드</button></div>
       <div class="toolkit">
         <div><h3>실행</h3><div class="command"><code>npm run demo</code><button type="button" class="button button--ghost" data-action="copy">복사</button></div><p class="muted small">화면 편집에서 위젯·순서·자산 범위·기간을 바꾸거나, 화면 파일을 고쳐 <code>asset-kit dashboard --web-dir 폴더</code>로 띄울 수 있습니다.</p></div>
-        <div><h3>MCP 도구 13개 · CLI · Skill</h3><div class="tags"><span>잔고·손익</span><span>비중·추이</span><span>일별 손익</span><span>원화 시세</span><span>주문·입출금</span><span>종합 보고서</span><span>화면 설정</span><span>화면 템플릿</span></div></div>
+        <div><h3>MCP 도구 14개 · CLI · Skill</h3><div class="tags"><span>잔고·손익</span><span>비중·추이</span><span>일별 변화</span><span>원화 시세</span><span>주문·입출금</span><span>종합 보고서</span><span>화면 설정</span><span>화면 템플릿</span></div></div>
       </div>
     </section>
 
-    <footer class="footer"><span>Asset Kit 0.2.0 · 개인 제작 · 빗썸 공식 서비스 아님</span><a href="https://apidocs.bithumb.com/docs/mcp" target="_blank" rel="noreferrer">빗썸 API 문서 ↗</a></footer>
+    <footer class="footer"><span>Asset Kit 0.3.0 · 개인 제작 · 빗썸 공식 서비스 아님</span><a href="https://apidocs.bithumb.com/docs/mcp" target="_blank" rel="noreferrer">빗썸 API 문서 ↗</a></footer>
   </main>
 
   <dialog id="guide-dialog" aria-labelledby="guide-title">
