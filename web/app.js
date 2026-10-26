@@ -18,7 +18,7 @@ const saved = {
 const state = {
   status: null, boards: [], boardId: null, portfolio: null, history: null, daily: null, market: null, activity: null, activityShown: 100,
   hidden: saved.get('hidden') === '1', view: saved.get('view') === 'calendar' ? 'calendar' : 'chart', month: null,
-  timer: null, syncTimer: null, draft: null, allSymbols: [], saving: Promise.resolve(),
+  timer: null, syncTimer: null, reloading: false, draft: null, allSymbols: [], saving: Promise.resolve(),
   filters: {}, paused: false, failed: false, loading: false, lastLoaded: null,
 };
 const board = () => state.boards.find(b => b.id === state.boardId);
@@ -108,21 +108,25 @@ function selectBoard(id) {
 // MCP나 다른 창에서 바꾼 화면 설정을 보이는 동안 몇 초마다 확인합니다. 편집 중이거나 저장 중에는 건드리지 않습니다.
 const BOARD_SYNC_MS = 5000;
 const boardKey = boards => boards.map(b => `${b.id}:${b.revision}`).join(',');
+const layoutKey = b => JSON.stringify([b?.symbols, b?.widgets, b?.days, b?.refreshSeconds]);
 async function syncBoards() {
   clearTimeout(state.syncTimer);
-  if (state.status?.sample || !state.status?.configured) return;
-  const saving = state.saving, quiet = () => !document.hidden && !document.querySelector('dialog[open]') && saving === state.saving;
+  // init()이 첫 보드를 고르기 전에는 비교할 화면이 없습니다.
+  if (state.status?.sample || !state.status?.configured || !state.boardId) return;
+  const saving = state.saving, quiet = () => !document.hidden && !document.querySelector('dialog[open]') && !state.reloading && saving === state.saving;
   if (quiet()) {
-    // 화면 설정 다시 불러오기와 같은 요청 채널을 써서 더 나중 요청의 결과만 반영합니다.
-    const request = beginRequest('boards');
+    // 자체 채널을 써서, 저장 실패 뒤 원래 설정을 되돌리는 reloadBoards()를 취소하지 않습니다.
+    const request = beginRequest('boards-sync');
     try {
       await saving;
       const { boards } = await api('/api/boards', { signal: request.signal });
       if (request.current() && quiet() && Array.isArray(boards) && boards.length && boardKey(boards) !== boardKey(state.boards)) {
-        const current = boards.find(b => b.id === state.boardId);
-        const changed = current?.revision !== board()?.revision;
+        const current = boards.find(b => b.id === state.boardId), previous = board();
         state.boards = boards;
-        if (!current) selectBoard(boards[0].id); else if (changed) selectBoard(current.id); else renderTabs();
+        if (!current) selectBoard(boards[0].id);
+        else if (layoutKey(current) !== layoutKey(previous)) selectBoard(current.id);
+        // 이름만 바뀌면 진행 중인 내역 조회와 입력한 기간을 그대로 둡니다.
+        else { renderTabs(); $('#board-name').textContent = current.name; }
         notice('다른 곳에서 바꾼 화면 설정을 반영했어요.');
       }
     } catch { /* 다음 확인에서 다시 시도합니다. */ }
@@ -322,7 +326,7 @@ function renderHoldings() {
   $('#sort-direction').textContent = name ? (asc ? '가나다순 ↑' : '역순 ↓') : (asc ? '낮은 순 ↑' : '높은 순 ↓');
   $('#sort-direction').setAttribute('aria-label', `정렬 방향: ${$('#sort-direction').textContent}. 누르면 반대로 정렬`);
   body.innerHTML = rows.length ? rows.map(h => `<tr>
-    <td><button type="button" class="asset-button" data-action="detail" data-symbol="${esc(h.symbol)}" aria-label="${esc(h.name)} 상세 보기"><span class="asset-symbol">${esc(h.symbol)}</span><span class="asset-name">${esc(h.name)}<small>${esc(h.symbol)}</small></span></button></td>
+    <td><button type="button" class="asset-button" data-action="detail" data-symbol="${esc(h.symbol)}" aria-label="${esc(h.name)} 상세 보기"><span class="asset-symbol">${esc(h.symbol)}</span><span class="asset-name">${esc(h.name)}${h.marketWarning ? '<span class="flag" title="빗썸 거래 유의 지정">유의</span>' : ''}<small>${esc(h.symbol)}</small></span></button></td>
     <td>${state.hidden ? '••••' : esc(number(h.quantity, 8))}<small>${esc(h.symbol)}</small></td>
     <td>${h.symbol === 'KRW' ? '—' : h.currentPriceKrw === null ? '가격 미확인' : `${number(h.currentPriceKrw, 4)}원`}<small class="${sign(h.priceChangePct)}">${h.staleQuote ? '시세 지연 · ' : ''}${h.symbol === 'KRW' ? '원화 잔고' : h.priceSource?.startsWith('BTC-') ? 'BTC 마켓 환산' : missing(h.priceChangePct) ? '전일 대비 미확인' : `${Number(h.priceChangePct) > 0 ? '+' : ''}${number(h.priceChangePct, 2)}%`}</small></td>
     <td><strong>${money(h.valueKrw)}</strong>${h.valueKrw === null ? '<small>합계에서 제외</small>' : ''}</td>
@@ -651,7 +655,9 @@ function moveWidget(index, step) {
 }
 function formError(message) { $('#board-error').textContent = message; $('#board-error').hidden = false; }
 async function reloadBoards() {
+  cancelRequest('boards-sync');
   const request = beginRequest('boards');
+  state.reloading = true;
   try {
     const result = await api('/api/boards', { signal: request.signal });
     if (!request.current()) return false;
@@ -664,6 +670,7 @@ async function reloadBoards() {
     if (request.current()) showError(`화면 설정을 다시 불러오지 못했습니다. ${error.message}`);
     return false;
   }
+  finally { if (request.current()) state.reloading = false; }
 }
 async function submitBoard(event) {
   event.preventDefault();

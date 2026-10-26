@@ -32,7 +32,8 @@ const call = async (name, args = {}, options) => {
 try {
   await client.connect(transport);
   const tools = (await client.listTools()).tools; // The SDK caches and validates each outputSchema.
-  assert.equal(tools.length, 15);
+  assert.equal(tools.length, 17);
+  assert.ok(tools.every(tool => tool.title));
   assert.ok(tools.every(tool => tool.outputSchema?.type === 'object'));
   const progress = [];
   await call('portfolio_get_summary', { force: true }, { onprogress: update => progress.push(update.progress) });
@@ -46,6 +47,9 @@ try {
   await call('portfolio_get_history', { days: 90, maxPoints: 10 });
   await call('portfolio_get_report', { sections: ['krwDeposits'] });
   await call('market_get_candles', { symbol: 'BTC', days: 5, force: true });
+  await call('market_get_candles', { symbol: 'BTC', interval: '1h', count: 3, ohlc: true });
+  await call('market_get_tickers', { scope: 'all', sort: 'change', limit: 3 });
+  await call('market_get_warnings', { scope: 'all' });
   await call('account_get_orders', { kind: 'pending' });
   await call('account_get_transfers', { assetType: 'krw', direction: 'deposit' });
   const recordProgress = [];
@@ -123,7 +127,7 @@ try {
   await bounded(aborted);
   await delayedClient.ping();
   const report = { sdk: JSON.parse(await readFile(join(sdk, 'package.json'), 'utf8')).version, server: client.getServerVersion(),
-    toolsValidated: [...new Set(checks)].length, checks: ['15 tool output schemas', 'MCP Apps view resource', 'stdio negotiation', 'field selection', 'force refresh', 'progress notifications', 'cursor continuation and replay', 'SDK AbortSignal cancels provider', 'post-cancellation ping', 'validation recovery path'],
+    toolsValidated: [...new Set(checks)].length, checks: ['17 tool output schemas', 'MCP Apps view resource', 'stdio negotiation', 'field selection', 'force refresh', 'progress notifications', 'cursor continuation and replay', 'SDK AbortSignal cancels provider', 'post-cancellation ping', 'validation recovery path'],
     measurements, mode: 'synthetic-only', liveAccountVerified: false };
   if (process.argv[2]) await writeFile(process.argv[2], `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));

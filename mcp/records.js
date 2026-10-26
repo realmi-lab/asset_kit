@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { KitError } from '../src/errors.js';
-import { RECORD_KINDS, recordRange, normalizeOrders, normalizeTransfers } from '../src/activity.js';
+import { ORDER_PAGE_SIZE, RECORD_KINDS, recordRange, normalizeOrders, normalizeTransfers } from '../src/activity.js';
 import { parseSymbols } from '../src/service.js';
 import { abortable } from '../src/async.js';
 import { recordTotals } from './query.js';
@@ -95,7 +95,7 @@ export class RecordReader {
         let raw;
         if (order) {
           const start = period ? Math.max(period.start, state.end - WEEK + 1) : undefined;
-          const options = normalizeOrders({ kind: query.kind === 'pending' ? 'pending' : 'history', limit: 100,
+          const options = normalizeOrders({ kind: query.kind === 'pending' ? 'pending' : 'history', limit: ORDER_PAGE_SIZE[query.kind === 'pending' ? 'pending' : 'history'],
             ...(period ? { fromMs: start, toMs: state.end } : {}), ...(state.nextKey ? { nextKey: state.nextKey } : {}) });
           const result = await abortable(this.service.provider.getOrders(options, { signal }), signal);
           raw = result.data;

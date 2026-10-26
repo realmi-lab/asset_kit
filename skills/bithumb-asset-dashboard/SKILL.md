@@ -9,7 +9,7 @@ Use the `bithumb-asset-kit` MCP server's tools. It is separate from the official
 
 ## 1. Establish the data source
 
-1. On first use or after a connection error, call `system_diagnose` (mode, active modules, key status, API connectivity). Do not repeat these probes for every question. `mode=demo` means synthetic data; say so in every answer, chart, or export.
+1. On first use or after a connection error, call `system_diagnose` (mode, active modules, key status and expiry, API connectivity). Relay its `warnings` (for example a key expiring within 14 days). Do not repeat these probes for every question. `mode=demo` means synthetic data; say so in every answer, chart, or export.
 2. If `auth.configured` is false, tell the user to run `asset-kit config init` (or `node <kit>/cli/asset-kit.js config init`) in their own terminal, then `asset-kit doctor`. Never ask for key values in chat and never pass keys as tool input.
 3. Never substitute demo data for a failed live call. Report the error code and message.
 
@@ -22,7 +22,9 @@ Use the `bithumb-asset-kit` MCP server's tools. It is separate from the official
 | Per-asset quantity, cost, price, value | `portfolio_get_holdings` (search/filter/sort, `fields`, `limit`, `offset`) |
 | Allocation | `portfolio_get_allocation` |
 | Value trend / daily asset changes calendar | `portfolio_get_history` (`days` 1–365, `daily: true`) |
-| Price chart of a coin | `market_get_candles` |
+| Price chart of a coin | `market_get_candles` (`interval` 1m…4h/day/week/month, `ohlc: true` for candlesticks, `to` for older ranges) |
+| Top movers, traded value, market vs my coins | `market_get_tickers` (`scope: all` needs no key; `held` marks my assets) |
+| Exchange alerts or caution-designated coins | `market_get_warnings` (`scope: holdings` by default) |
 | Orders or deposits/withdrawals over a period | `account_get_records` (`kind`, `from`, `to` as YYYY-MM-DD, KST, ≤366 days) |
 | One page with cursors | `account_get_orders`, `account_get_transfers` |
 | Selected report sections | `portfolio_get_report` (`sections`; empty array skips account history calls) |

@@ -1,16 +1,20 @@
 import { dec } from './decimal.js';
 import { calculatePortfolio, explainPortfolio, projectPortfolio } from './portfolio.js';
-import { BithumbProvider } from './bithumb.js';
+import { BithumbProvider, CANDLE_PATHS } from './bithumb.js';
 import { DemoProvider, demoHistory } from './demo.js';
 import { HistoryStore, dailyCloses, downsample, kstDay, pointFor } from './history.js';
 import { BoardStore } from './boards.js';
 import { KitError, publicError } from './errors.js';
-import { RECORD_KINDS, normalizeOrders, normalizeTransfers, recordRange } from './activity.js';
+import { ORDER_PAGE_SIZE, RECORD_KINDS, normalizeOrders, normalizeTransfers, recordRange } from './activity.js';
 import { dataDir } from './config.js';
 
 const DAY = 86400000, WEEK = 7 * DAY;
 const SYMBOL = /^[A-Z0-9][A-Z0-9_]{0,29}$/;
 const iso = value => { const time = Date.parse(value); return Number.isNaN(time) ? null : new Date(time).toISOString(); };
+const decimalOrNull = value => value === undefined || value === null ? null : dec(value).toFixed();
+const WARNING_TYPES = { PRICE_SUDDEN_FLUCTUATION: '가격 급등락', PRICE_DIFFERENCE_HIGH: '글로벌 시세 차이', SPECIFIC_ACCOUNT_HIGH_TRANSACTION: '소수 계정 거래 집중',
+  TRADING_VOLUME_SUDDEN_FLUCTUATION: '거래량 급등', DEPOSIT_AMOUNT_SUDDEN_FLUCTUATION: '입금량 급등', MARKET_CAUTION: '거래 유의 종목' };
+const WARNING_STEPS = { CAUTION: '주의', WARNING: '경고', DANGER: '위험' };
 
 /** Accepts `BTC,ETH` or ['BTC','ETH']; an empty list means the whole account. */
 export function parseSymbols(input = []) {
@@ -21,7 +25,7 @@ export function parseSymbols(input = []) {
 }
 
 export class PortfolioService {
-  #pending; #cached; #records = new Map(); #recordCache = new Map(); #markets = new Map(); #marketPending = new Map();
+  #pending; #cached; #records = new Map(); #recordCache = new Map(); #markets = new Map(); #marketPending = new Map(); #shared = new Map();
   constructor({ demo = false, provider, history, boards, directory, maxPages = 50, ...options } = {}) {
     this.provider = provider ?? (demo ? new DemoProvider() : new BithumbProvider(options));
     const storage = { directory: directory ?? dataDir(options.env), accountId: this.provider.accountId, mode: this.provider.mode };
@@ -66,16 +70,18 @@ export class PortfolioService {
   async explain({ symbols = [] } = {}) {
     return explainPortfolio(await this.portfolio({ symbols }));
   }
-  async getHistory({ days = 30, symbols = [], daily = false } = {}) {
+  /** Every recorded point in the period, before any downsampling. Exact endpoints and counts must come from here. */
+  async historyPoints({ days = 30, symbols = [], daily = false } = {}) {
     if (!Number.isInteger(days) || days < 1 || days > 365) throw new KitError('INVALID_RANGE', '조회 기간은 1~365일입니다.', 400);
     const scope = parseSymbols(symbols), span = daily ? days + 1 : days; // one extra day gives the first day's change
-    let points;
     if (this.provider.mode === 'demo') {
       const full = await this.#portfolio(), total = dec(full.summary.totalValueKrw), part = projectPortfolio(full, scope).summary.totalValueKrw;
-      points = demoHistory(span, Date.now(), total.toNumber()).map(p => ({ asOf: p.asOf, totalValueKrw: total.isZero() ? '0' : dec(p.totalValueKrw).times(part).div(total, 0).toFixed(0), valuationComplete: true }));
-    } else {
-      points = (await this.history.read(span)).map(record => pointFor(record, scope));
+      return { scope, points: demoHistory(span, Date.now(), total.toNumber()).map(p => ({ asOf: p.asOf, totalValueKrw: total.isZero() ? '0' : dec(p.totalValueKrw).times(part).div(total, 0).toFixed(0), valuationComplete: true })) };
     }
+    return { scope, points: (await this.history.read(span)).map(record => pointFor(record, scope)) };
+  }
+  async getHistory({ days = 30, symbols = [], daily = false } = {}) {
+    const { scope, points } = await this.historyPoints({ days, symbols, daily });
     const base = { mode: this.provider.mode, days, scope };
     if (daily) {
       const first = kstDay(new Date(Date.now() - (days - 1) * DAY).toISOString());
@@ -86,16 +92,18 @@ export class PortfolioService {
     return { ...base, points: sampled, sampled: sampled.length < points.length,
       note: '평가금액 기록입니다. 입출금 영향을 포함하며 투자 수익률이 아닙니다. 가격 미확인 시점은 차트에서 제외됩니다.' };
   }
-  /** KRW market price and daily closes for one asset. Public market data; works without keys. */
-  async getMarket({ symbol = 'BTC', days = 30, force = false } = {}) {
-    const code = String(symbol).trim().toUpperCase();
-    if (!SYMBOL.test(code) || code === 'KRW' || !Number.isInteger(days) || days < 1 || days > 200) {
-      throw new KitError('INVALID_MARKET', '자산 심볼과 1~200일 범위를 확인하세요.', 400);
+  /** KRW market price and candles of one interval (minutes to months) for one asset. Public market data; works without keys. */
+  async getMarket({ symbol = 'BTC', days = 30, interval = 'day', count, to, force = false } = {}) {
+    const code = String(symbol).trim().toUpperCase(), size = count ?? days;
+    const before = to === undefined ? undefined : /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T00:00:00` : String(to).replace(' ', 'T');
+    if (!SYMBOL.test(code) || code === 'KRW' || !Number.isInteger(size) || size < 1 || size > 200 || !Object.hasOwn(CANDLE_PATHS, interval)
+      || (before !== undefined && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(before))) {
+      throw new KitError('INVALID_MARKET', '자산 심볼, 1~200개 캔들, 지원하는 간격, to(한국 시간 YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm:ss)를 확인하세요.', 400);
     }
-    const market = `KRW-${code}`, key = `${market}:${days}`, cached = this.#markets.get(key);
+    const market = `KRW-${code}`, key = `${market}:${interval}:${size}:${before ?? ''}`, cached = this.#markets.get(key);
     if (this.#marketPending.has(key)) return this.#marketPending.get(key);
     if (!force && cached && Date.now() - cached.at < 60000) return cached.data;
-    const pending = this.#loadMarket(code, market, days).then(data => {
+    const pending = this.#loadMarket(code, market, size, interval, before).then(data => {
       this.#markets.delete(key);
       this.#markets.set(key, { at: Date.now(), data });
       if (this.#markets.size > 100) this.#markets.delete(this.#markets.keys().next().value);
@@ -104,19 +112,82 @@ export class PortfolioService {
     this.#marketPending.set(key, pending);
     return pending;
   }
-  async #loadMarket(code, market, days) {
+  async #loadMarket(code, market, count, interval, to) {
     const listing = (await this.provider.getMarkets()).find(m => m.market === market);
     if (!listing) throw new KitError('NO_KRW_MARKET', '빗썸 원화 마켓에 없는 자산입니다.', 404);
-    const [tickers, candles] = await Promise.all([this.provider.getTickers([market]), this.provider.getCandles(market, days)]);
+    const [tickers, candles] = await Promise.all([this.provider.getTickers([market]), this.provider.getCandles(market, count, { interval, to })]);
     const ticker = tickers.find(t => t.market === market);
     const data = {
-      mode: this.provider.mode, symbol: code, name: listing.korean_name, market, asOf: new Date().toISOString(),
+      mode: this.provider.mode, symbol: code, name: listing.korean_name, market, interval, asOf: new Date().toISOString(),
       priceKrw: ticker ? dec(ticker.trade_price).toFixed() : null,
       changePct: ticker?.signed_change_rate === undefined ? null : dec(ticker.signed_change_rate).times(100).toFixed(4),
-      candles: candles.map(c => ({ date: (c.candle_date_time_kst ?? c.candle_date_time_utc).slice(0, 10), closeKrw: dec(c.trade_price).toFixed() })),
-      note: '빗썸 원화 마켓 일봉 종가입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다.',
+      // date는 한국 시간 날짜, at은 캔들 시작 시각(한국 시간)입니다.
+      candles: candles.map(c => ({ date: (c.candle_date_time_kst ?? c.candle_date_time_utc).slice(0, 10), at: c.candle_date_time_kst ? `${c.candle_date_time_kst}+09:00` : `${c.candle_date_time_utc}Z`,
+        openKrw: decimalOrNull(c.opening_price), highKrw: decimalOrNull(c.high_price), lowKrw: decimalOrNull(c.low_price), closeKrw: dec(c.trade_price).toFixed(), volume: decimalOrNull(c.candle_acc_trade_volume) })),
+      note: `빗썸 원화 마켓 ${interval === 'day' ? '일봉' : `${interval} 캔들`}입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다.`,
     };
     return data;
+  }
+  // Shares one in-flight public read and keeps its result for `ms`.
+  #share(key, ms, load, force = false) {
+    const entry = this.#shared.get(key);
+    if (entry?.pending) return entry.pending;
+    if (!force && entry && Date.now() - entry.at < ms) return entry.data;
+    const pending = load().then(data => { this.#shared.set(key, { at: Date.now(), data }); return data; }, error => { this.#shared.delete(key); throw error; });
+    this.#shared.set(key, { ...entry, pending });
+    return pending;
+  }
+  // Held symbols when an account is connected; null without keys so public tools still work.
+  async #heldSymbols(force) {
+    if (!this.provider.configured) return null;
+    return new Map((await this.#portfolio(force)).holdings.filter(h => h.symbol !== 'KRW').map(h => [h.symbol, h]));
+  }
+  /** Prices, 24h change and traded value for held assets or every KRW market. Public data; works without keys for scope=all. */
+  async marketOverview({ scope = 'holdings', symbols = [], sort = 'value24h', direction = 'desc', limit = 20, force = false } = {}) {
+    const wanted = parseSymbols(symbols), held = await this.#heldSymbols(force);
+    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 시세는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
+    const markets = (await this.provider.getMarkets()).filter(m => m.market.startsWith('KRW-'));
+    const listed = markets.filter(m => {
+      const symbol = m.market.slice(4);
+      return (scope === 'all' || held.has(symbol)) && (!wanted.length || wanted.includes(symbol));
+    });
+    const tickers = scope === 'all' && !wanted.length
+      ? await this.#share('tickers:all', 10000, () => this.provider.getTickers(markets.map(m => m.market)), force)
+      : listed.length ? await this.provider.getTickers(listed.map(m => m.market)) : [];
+    const quotes = new Map(tickers.map(t => [t.market, t]));
+    const rows = listed.filter(m => quotes.has(m.market)).map(m => {
+      const t = quotes.get(m.market), symbol = m.market.slice(4);
+      return { symbol, name: m.korean_name, priceKrw: dec(t.trade_price).toFixed(), changePct: t.signed_change_rate === undefined ? null : dec(t.signed_change_rate).times(100).toFixed(4),
+        value24hKrw: decimalOrNull(t.acc_trade_price_24h), highKrw: decimalOrNull(t.high_price), lowKrw: decimalOrNull(t.low_price),
+        held: held ? held.has(symbol) : null, marketWarning: m.market_warning && m.market_warning !== 'NONE' ? m.market_warning : null };
+    });
+    const field = { change: 'changePct', value24h: 'value24hKrw', price: 'priceKrw' }[sort], factor = direction === 'asc' ? 1 : -1;
+    rows.sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, 'ko') * factor
+      : a[field] === null || b[field] === null ? (a[field] === null) - (b[field] === null) : dec(a[field]).cmp(b[field]) * factor || a.symbol.localeCompare(b.symbol));
+    return { mode: this.provider.mode, asOf: new Date().toISOString(), scope, sort, direction, total: rows.length, rows: rows.slice(0, limit),
+      note: '빗썸 원화 마켓 시세입니다. changePct는 전일 종가 대비, value24hKrw는 최근 24시간 거래대금이며 내 자산 평가가 아닙니다.' };
+  }
+  /** 경보제(가격 급등락 등)와 거래 유의 종목. scope=holdings는 보유 자산만, all은 빗썸 전체. */
+  async getWarnings({ scope = 'holdings', force = false } = {}) {
+    const held = await this.#heldSymbols(force);
+    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 경보는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
+    const [alerts, markets] = await Promise.all([this.#share('warnings', 60000, () => this.provider.getWarnings(), force), this.provider.getMarkets()]);
+    const names = new Map(markets.map(m => [m.market, m.korean_name]));
+    const kst = value => { const time = Date.parse(`${String(value).replace(' ', 'T')}+09:00`); return Number.isFinite(time) ? new Date(time).toISOString() : null; };
+    const rows = [
+      ...alerts.map(a => ({ market: a.market, type: a.warning_type, step: a.warning_step, endsAt: a.end_date ? kst(a.end_date) : null })),
+      ...markets.filter(m => m.market_warning && m.market_warning !== 'NONE').map(m => ({ market: m.market, type: 'MARKET_CAUTION', step: 'CAUTION', endsAt: null })),
+    ].map(row => {
+      const symbol = row.market.split('-')[1];
+      return { ...row, symbol, name: names.get(row.market) ?? symbol, typeLabel: WARNING_TYPES[row.type] ?? row.type, stepLabel: WARNING_STEPS[row.step] ?? row.step, held: held ? held.has(symbol) : null };
+    }).filter(row => scope === 'all' || row.held);
+    return { mode: this.provider.mode, asOf: new Date().toISOString(), scope, total: rows.length, rows,
+      note: rows.length ? '빗썸이 투자 주의가 필요하다고 표시한 거래 페어입니다. 매매 권유나 판단이 아닙니다.' : scope === 'holdings' ? '보유 자산 중 경보나 거래 유의 지정이 없습니다.' : '현재 빗썸 경보·거래 유의 지정이 없습니다.' };
+  }
+  /** This API key's expiry (keys last one year on Bithumb). */
+  async keyInfo() {
+    const { expiresAt } = await this.provider.getKeyExpiry();
+    return { expiresAt, daysLeft: expiresAt ? Math.floor((Date.parse(expiresAt) - Date.now()) / DAY) : null };
   }
   async getOrders(input = {}, context) {
     const options = normalizeOrders(input);
@@ -156,14 +227,15 @@ export class PortfolioService {
     const rows = new Map();
     let pages = 0, complete = true;
     const page = async load => {
-      if (pages >= this.maxPages) { complete = false; return null; }
+      // Larger closed-order pages mean fewer calls, not more retained rows: keep the old 100-rows-per-page ceiling.
+      if (pages >= this.maxPages || rows.size >= this.maxPages * 100) { complete = false; return null; }
       pages++;
       return load();
     };
     const orderPages = async base => {
       const seen = new Set();
       for (let nextKey; ;) {
-        const result = await page(() => this.provider.getOrders(normalizeOrders({ ...base, limit: 100, ...(nextKey ? { nextKey } : {}) })));
+        const result = await page(() => this.provider.getOrders(normalizeOrders({ ...base, limit: ORDER_PAGE_SIZE[base.kind], ...(nextKey ? { nextKey } : {}) })));
         if (!result) return;
         for (const row of result.data) rows.set(row.order_id, row);
         if (!result.has_next) return;

@@ -121,7 +121,7 @@ args = ["/absolute/path/to/asset_kit/mcp/index.js"]
 
 ## 인증 설정
 
-시세 도구(`market_get_candles`)는 인증 없이 사용할 수 있습니다. 잔고·손익·주문·입출금 도구는 API Key가 필요합니다. [빗썸 API 관리](https://www.bithumb.com/react/api-support/management-api) 페이지에서 **조회 권한만** 있는 키를 발급하고 허용 IP를 설정하세요.
+시세 도구(`market_get_candles`, `market_get_tickers`·`market_get_warnings`의 `scope: all`)는 인증 없이 사용할 수 있습니다. 잔고·손익·주문·입출금 도구는 API Key가 필요합니다. [빗썸 API 관리](https://www.bithumb.com/react/api-support/management-api) 페이지에서 **조회 권한만** 있는 키를 발급하고 허용 IP를 설정하세요.
 
 이 폴더에서 아래 명령을 한 번 실행하면 됩니다. 입력한 키는 화면에 보이지 않고 이 컴퓨터의 `~/.bithumb-asset-kit/credentials.json`(본인만 읽기 가능한 0600 권한)에만 저장됩니다. 설정 파일에 키를 넣을 필요가 없습니다.
 
@@ -189,9 +189,12 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 - “이번 달 일별 자산 변화 알려줘”
 - “BTC만 지난 7일 일별 자산 변화 보여줘”
 
-**원화 시세** — 공개 시세를 조회합니다(키 불필요).
+**원화 시세·시장 흐름** — 공개 시세를 조회합니다(키 불필요).
 
 - “ETH 현재가와 30일 일봉 보여줘”
+- “BTC 1시간봉 24개를 시가·고가·저가까지 보여줘”
+- “오늘 원화 마켓에서 많이 오른 코인 10개”
+- “내 코인 중에 경보나 거래 유의 걸린 거 있어?”
 
 **주문·입출금** — 기간을 정해 내역을 조회합니다. 주문·출금 실행은 하지 않습니다.
 
@@ -294,19 +297,19 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 ```
 
 - `holdings`는 평가금액 상위 `top`개(기본 5), 나머지는 `others` 한 조각입니다. 상위 자산과 `others`의 금액 합은 `summary.totalValueKrw`와 정확히 같습니다.
-- `trend`는 같은 위치끼리 짝인 열 배열입니다. 기본 60점으로 줄이며 첫·마지막 기록은 보존해 `changeKrw`가 정확합니다. 가격 미확인 시점은 빼고 `omitted`에 개수를 적습니다.
+- `trend`는 같은 위치끼리 짝인 열 배열입니다. 기간 안의 모든 기록에서 가격 미확인 시점을 먼저 빼고(`omitted`에 개수) 기본 60점으로 줄이므로, 첫·마지막 기록과 `changeKrw`가 정확합니다. 나머지가 모두 가격 미확인이면 `others`의 금액·비중은 `null`입니다.
 - `daily: true`이면 일별 자산 변화(`day`·`changeKrw`·`changePct`·`gapDays` 열 배열)를 함께 반환합니다.
 
-데모 계좌 기준 응답 크기는 다음과 같습니다. 실제 계좌의 30일 추이는 5분 기록이 쌓여 최대 400점(약 35KB)까지 커지므로 차이가 더 큽니다.
+데모 계좌 기준 응답 크기(UTF-8)는 다음과 같습니다. 실제 계좌의 30일 추이는 5분 기록이 쌓여 최대 400점(약 35KB)까지 커지므로 차이가 더 큽니다.
 
 | 그리는 방법 | 호출 수 | 응답 크기 |
 | --- | --- | --- |
-| summary + allocation + holdings + history(30일) | 4 | 약 6.5KB |
-| `dashboard_snapshot`(30일) | 1 | 약 2.6KB |
+| summary + allocation + holdings + history(30일) | 4 | 약 7.2KB |
+| `dashboard_snapshot`(30일) | 1 | 약 2.9KB |
 | `portfolio_get_history`(365일) | 1 | 약 32KB |
-| `dashboard_snapshot`(365일) | 1 | 약 3.7KB |
+| `dashboard_snapshot`(365일) | 1 | 약 4.1KB |
 
-**MCP Apps를 지원하는 클라이언트**(Claude, ChatGPT, VS Code 등)에서는 `dashboard_snapshot` 결과가 대화 안에 대시보드 화면으로 그려집니다. 도구 정의의 `_meta.ui.resourceUri`가 가리키는 `ui://bithumb-asset-kit/dashboard.html` 리소스(`text/html;profile=mcp-app`)를 클라이언트가 읽어 표시합니다. 화면에서 기간(7·30·90일·1년)을 바꾸거나 새로고침하면 같은 도구를 다시 호출하고, ‘로컬 대시보드 열기’는 `dashboard_open`으로 이 보드가 선택된 로컬 주소를 엽니다. 화면은 외부 파일·네트워크를 쓰지 않고 클라이언트와 메시지로만 통신하며, 금액 숨기기를 지원합니다. 지원하지 않는 클라이언트는 같은 데이터를 JSON으로 받습니다.
+**MCP Apps를 지원하는 클라이언트**(Claude, ChatGPT, VS Code 등)에서는 `dashboard_snapshot` 결과가 대화 안에 대시보드 화면으로 그려집니다. 도구 정의의 `_meta.ui.resourceUri`가 가리키는 `ui://bithumb-asset-kit/dashboard.html` 리소스(`text/html;profile=mcp-app`)를 클라이언트가 읽어 표시합니다. 화면에서 기간(7·30·90일·1년)을 바꾸거나 새로고침하면 같은 도구를 다시 호출하고, ‘로컬 대시보드 열기’는 `dashboard_open`으로 이 보드가 선택된 로컬 주소를 엽니다. `--read-only`처럼 `dashboard_open`이 꺼져 있으면 이 버튼은 숨겨지고, 클라이언트가 링크 열기를 거부하면 주소를 대신 보여 줍니다. 화면은 외부 파일·네트워크를 쓰지 않고 클라이언트와 메시지로만 통신하며, 금액 숨기기와 거래 유의 자산 ‘유의’ 표시를 지원합니다. 지원하지 않는 클라이언트는 같은 데이터를 JSON으로 받습니다.
 
 ## 대시보드 만들기
 
@@ -374,7 +377,9 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 | 도구 | 설명 |
 | --- | --- |
-| `market_get_candles` | 원화 마켓 현재가와 일봉 종가(1~200일) |
+| `market_get_candles` | 원화 마켓 현재가와 캔들 1~200개. `interval`: `1m`·`3m`·`5m`·`10m`·`15m`·`30m`·`1h`·`4h`·`day`·`week`·`month`. 기본은 종가만, `ohlc: true`면 시가·고가·저가·거래량, `to`로 더 과거 구간 |
+| `market_get_tickers` | 보유 자산(`scope: holdings`, 키 필요) 또는 원화 마켓 전체(`all`)의 현재가·전일 대비·24시간 거래대금. `sort`: `value24h`·`change`·`price`·`name` |
+| `market_get_warnings` | 빗썸 경보제(가격 급등락·거래량 급등·글로벌 시세 차이 등, 주의·경고·위험)와 거래 유의 종목. 보유 자산만 또는 전체 |
 
 ### Account
 
@@ -404,7 +409,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 | 도구 | 설명 |
 | --- | --- |
-| `system_diagnose` | 설정 진단(모드·모듈·인증·API 연결·저장 위치) |
+| `system_diagnose` | 설정 진단(모드·모듈·인증·API 키 만료일·API 연결·저장 위치). 키 만료 14일 이내면 `warnings`에 안내 |
 
 ## 실행 옵션
 
@@ -486,7 +491,7 @@ npm install --prefix /tmp/asset-kit-sdk-check --no-save --ignore-scripts @modelc
 MCP_SDK_ROOT=/tmp/asset-kit-sdk-check/node_modules/@modelcontextprotocol/sdk npm run verify:mcp-sdk
 ```
 
-검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 15개 도구의 출력 스키마, MCP Apps 화면 리소스, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
+검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 17개 도구의 출력 스키마, MCP Apps 화면 리소스, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
 
 ## 더 알아보기
 

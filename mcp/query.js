@@ -2,7 +2,7 @@ import { dec } from '../src/decimal.js';
 import { KitError } from '../src/errors.js';
 import { downsample } from '../src/history.js';
 
-export const HOLDING_FIELDS = ['symbol', 'name', 'quantity', 'available', 'locked', 'currentPriceKrw', 'valueKrw', 'averagePriceKrw', 'costKrw', 'profitKrw', 'profitRatePct', 'priceChangePct', 'priceSource', 'averagePriceModified', 'quoteAt', 'staleQuote', 'valuationStatus', 'allocationPct'];
+export const HOLDING_FIELDS = ['symbol', 'name', 'quantity', 'available', 'locked', 'currentPriceKrw', 'valueKrw', 'averagePriceKrw', 'costKrw', 'profitKrw', 'profitRatePct', 'priceChangePct', 'priceSource', 'averagePriceModified', 'quoteAt', 'staleQuote', 'valuationStatus', 'allocationPct', 'marketWarning'];
 export const RECORD_FIELDS = ['order_id', 'uuid', 'at', 'created_at', 'done_at', 'market', 'currency', 'side', 'state', 'order_type', 'price', 'volume', 'remaining_volume', 'executed_volume', 'executed_funds', 'locked', 'paid_fee', 'amount', 'fee', 'net_type'];
 export const fieldInput = fields => ({ type: 'array', minItems: 1, maxItems: fields.length, uniqueItems: true, items: { type: 'string', enum: fields }, description: '반환할 행 필드만 선택합니다. 식별자와 데이터 경고는 항상 유지됩니다.' });
 export const FORCE = { type: 'boolean', default: false, description: 'true이면 캐시를 건너뜁니다. 이미 진행 중인 동일 조회는 공유할 수 있습니다.' };
@@ -37,7 +37,7 @@ export function holdingsResult(p, { symbol, search = '', excludeCash = false, pe
 }
 
 const SNAPSHOT_SUMMARY = ['totalValueKrw', 'cashKrw', 'cryptoValueKrw', 'profitKrw', 'profitRatePct', 'assetCount', 'valuationComplete', 'profitComplete'];
-const SNAPSHOT_HOLDING = ['symbol', 'name', 'quantity', 'valueKrw', 'allocationPct', 'profitKrw', 'profitRatePct', 'priceChangePct'];
+const SNAPSHOT_HOLDING = ['symbol', 'name', 'quantity', 'valueKrw', 'allocationPct', 'profitKrw', 'profitRatePct', 'priceChangePct', 'marketWarning'];
 const pick = (row, keys) => Object.fromEntries(keys.map(key => [key, row[key] ?? null]));
 const total = (rows, key) => rows.reduce((sum, row) => row[key] === null ? sum : sum.plus(row[key]), dec(0)).toFixed();
 
@@ -50,19 +50,20 @@ export async function dashboardSnapshot(service, { boardId, symbols, days, point
   }
   const scope = symbols ?? board?.symbols ?? [], period = days ?? board?.days ?? 30;
   const p = await service.portfolio({ symbols: scope, force });
-  const [history, calendar] = await Promise.all([service.getHistory({ days: period, symbols: scope }), daily ? service.getHistory({ days: period, symbols: scope, daily: true }) : null]);
-  // Unpriced points cannot be drawn. Downsampling keeps the first and last recorded values, so the change is exact.
+  const [history, calendar] = await Promise.all([service.historyPoints({ days: period, symbols: scope }), daily ? service.getHistory({ days: period, symbols: scope, daily: true }) : null]);
+  // Filter the full record set before downsampling: the first and last priced records and the omitted count stay exact.
   const drawable = history.points.filter(point => point.valuationComplete && point.totalValueKrw !== null);
   const shown = downsample(drawable, points);
   const first = drawable[0]?.totalValueKrw ?? null, last = drawable.at(-1)?.totalValueKrw ?? null;
-  const rest = p.holdings.slice(top), changed = calendar?.daily.filter(row => row.changeKrw !== null) ?? [];
+  const rest = p.holdings.slice(top), unpriced = rest.filter(h => h.valueKrw === null).length, unknown = rest.length > 0 && unpriced === rest.length, changed = calendar?.daily.filter(row => row.changeKrw !== null) ?? [];
   return {
     mode: p.mode, asOf: p.asOf, scope: p.scope ?? [], board: board && { id: board.id, name: board.name, revision: board.revision, widgets: board.widgets },
     summary: pick(p.summary, SNAPSHOT_SUMMARY),
     holdings: p.holdings.slice(0, top).map(h => pick(h, SNAPSHOT_HOLDING)),
-    others: { count: rest.length, valueKrw: total(rest, 'valueKrw'), allocationPct: total(rest, 'allocationPct'), unpriced: rest.filter(h => h.valueKrw === null).length },
+    // When every remaining holding is unpriced the slice is unknown (null), not zero.
+    others: { count: rest.length, valueKrw: unknown ? null : total(rest, 'valueKrw'), allocationPct: unknown ? null : total(rest, 'allocationPct'), unpriced },
     trend: { days: period, at: shown.map(point => point.asOf), valueKrw: shown.map(point => point.totalValueKrw), firstKrw: first, lastKrw: last,
-      changeKrw: drawable.length > 1 ? dec(last).minus(first).toFixed() : null, omitted: history.points.length - drawable.length, sampled: history.sampled || shown.length < drawable.length },
+      changeKrw: drawable.length > 1 ? dec(last).minus(first).toFixed() : null, omitted: history.points.length - drawable.length, sampled: shown.length < drawable.length },
     ...(calendar ? { daily: { day: changed.map(row => row.day), changeKrw: changed.map(row => row.changeKrw), changePct: changed.map(row => row.changePct), gapDays: changed.map(row => row.gapDays) } } : {}),
     warnings: p.warnings,
     note: '금액은 십진 문자열이고 trend·daily는 같은 위치끼리 짝인 열 배열입니다. 추이와 일별 변화는 입출금이 포함된 평가금액 기록이라 수익률이 아니며, 평가손익은 현재 보유분 평균 매수가 기준입니다. holdings 비중은 scope 전체가 분모입니다.',

@@ -49,7 +49,7 @@ test('MCP exposes force refresh, exact filters/sorts and selected fields without
   const loss = (await call('portfolio_get_holdings', { performance: 'loss', search: '리플' })).structuredContent;
   assert.equal(loss.holdings[0].symbol, 'XRP');
   const tools = (await server.handle('tools/list')).tools;
-  assert.equal(tools.length, 15);
+  assert.equal(tools.length, 17);
   assert.ok(tools.every(tool => tool.outputSchema.type === 'object'));
   for (const args of [{ fields: ['secret'] }, { limit: 0 }, JSON.parse('{"constructor":true}')]) {
     const bad = await call('portfolio_get_holdings', args);
@@ -62,7 +62,7 @@ test('dashboard snapshot draws a board in one compact call with exact decimals a
   const { call, service } = await serverFor(t);
   const result = (await call('dashboard_snapshot', { top: 2 })).structuredContent;
   assert.deepEqual(result.holdings.map(h => h.symbol), ['BTC', 'ETH']);
-  assert.deepEqual(Object.keys(result.holdings[0]).sort(), ['allocationPct', 'name', 'priceChangePct', 'profitKrw', 'profitRatePct', 'quantity', 'symbol', 'valueKrw']);
+  assert.deepEqual(Object.keys(result.holdings[0]).sort(), ['allocationPct', 'marketWarning', 'name', 'priceChangePct', 'profitKrw', 'profitRatePct', 'quantity', 'symbol', 'valueKrw']);
   // The others slice is a decimal sum, so top holdings and others cover the whole scope exactly.
   assert.equal(result.others.count, 3);
   assert.equal(result.others.valueKrw, '7836000');
@@ -100,11 +100,11 @@ test('dashboard snapshot keeps unpriced history out of the series and reports it
   ] };
   const portfolio = { mode: 'live', asOf: '2026-10-03T00:00:00.000Z', scope: [], warnings: [], summary: { totalValueKrw: '0', valuationComplete: true },
     holdings: [{ symbol: 'KRW', name: '원화', valueKrw: null, allocationPct: null }] };
-  const result = await dashboardSnapshot({ portfolio: async () => portfolio, getHistory: async () => history }, {});
+  const result = await dashboardSnapshot({ portfolio: async () => portfolio, historyPoints: async () => history }, {});
   assert.deepEqual(result.trend.valueKrw, ['100', '90.5']);
   assert.deepEqual([result.trend.omitted, result.trend.changeKrw], [1, '-9.5']);
   assert.deepEqual(result.others, { count: 0, valueKrw: '0', allocationPct: '0', unpriced: 0 });
-  const empty = await dashboardSnapshot({ portfolio: async () => portfolio, getHistory: async () => ({ ...history, points: [] }) }, {});
+  const empty = await dashboardSnapshot({ portfolio: async () => portfolio, historyPoints: async () => ({ ...history, points: [] }) }, {});
   assert.deepEqual([empty.trend.at, empty.trend.firstKrw, empty.trend.changeKrw], [[], null, null]);
 });
 

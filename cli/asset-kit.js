@@ -18,7 +18,9 @@ const HELP = `내 자산 킷 ${VERSION} · 빗썸 자산 대시보드 (조회 �
   asset-kit portfolio [--symbols BTC,ETH]              잔고·평가·손익·비중
   asset-kit explain [--symbols BTC,ETH]                숫자 기반 요약
   asset-kit history [--days 30] [--symbols …] [--daily]  기록된 추이 / 일별 손익
-  asset-kit market --symbol BTC [--days 30]            원화 마켓 현재가와 일봉
+  asset-kit market --symbol BTC [--interval day|week|month|1m|5m|1h|4h…] [--count 30] [--to 2026-10-01]   현재가와 캔들
+  asset-kit tickers [--scope holdings|all] [--sort value24h|change|price|name] [--limit 20]   여러 자산 시세·24시간 거래대금
+  asset-kit warnings [--scope holdings|all]            빗썸 경보제·거래 유의 종목
   asset-kit report                                     잔고 + 주문·입출금 첫 페이지 종합
 
 내역
@@ -70,6 +72,7 @@ async function main() {
     name: { type: 'string' }, widgets: { type: 'string' }, refresh: { type: 'string' }, file: { type: 'string' },
     path: { type: 'string' }, target: { type: 'string', default: 'claude' }, force: { type: 'boolean', default: false },
     modules: { type: 'string', default: 'all' }, 'read-only': { type: 'boolean', default: false }, verbose: { type: 'boolean', default: false },
+    interval: { type: 'string' }, count: { type: 'string' }, scope: { type: 'string' }, sort: { type: 'string' },
     help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' },
   } });
   const [command = 'help', sub] = positionals;
@@ -103,6 +106,11 @@ async function main() {
   const { PortfolioService } = await import('../src/service.js');
   const service = new PortfolioService({ demo: o.demo });
   const number = (value, fallback) => value === undefined ? fallback : Number(value);
+  const choice = (value, allowed, fallback) => {
+    if (value === undefined) return fallback;
+    if (!allowed.includes(value)) throw new KitError('USAGE', `${allowed.join('|')} 중 하나를 지정하세요.`, 400);
+    return value;
+  };
   switch (command) {
     case 'dashboard': {
       const port = Number(o.port);
@@ -123,7 +131,9 @@ async function main() {
     case 'explain': return output(await service.explain({ symbols: list(o.symbols) }));
     case 'report': return output(await service.report());
     case 'history': return output(await service.getHistory({ days: number(o.days, 30), symbols: list(o.symbols), daily: o.daily }));
-    case 'market': return output(await service.getMarket({ symbol: o.symbol ?? 'BTC', days: number(o.days, 30) }));
+    case 'market': return output(await service.getMarket({ symbol: o.symbol ?? 'BTC', days: number(o.days, 30), interval: o.interval ?? 'day', count: number(o.count), to: o.to }));
+    case 'tickers': return output(await service.marketOverview({ scope: choice(o.scope, ['holdings', 'all'], 'holdings'), sort: choice(o.sort, ['value24h', 'change', 'price', 'name'], 'value24h'), limit: number(o.limit, 20), symbols: list(o.symbols) }));
+    case 'warnings': return output(await service.getWarnings({ scope: choice(o.scope, ['holdings', 'all'], 'holdings') }));
     case 'records': return output(await service.getRecords({ kind: o.kind ?? 'orders', from: o.from, to: o.to }));
     case 'status': return output(service.status());
     case 'orders': case 'transfers': {

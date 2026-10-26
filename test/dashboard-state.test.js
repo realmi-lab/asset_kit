@@ -320,3 +320,41 @@ test('board changes saved elsewhere (MCP) reach an open dashboard without touchi
   await h.app.syncBoards();
   assert.equal(h.pending.some(item => !item.taken && item.path === '/api/boards'), false);
 });
+
+// A cancelled recovery reload never settles, so a regression would hang without the timeout.
+test('board sync never runs before the first board is chosen, never cancels a recovery reload, and keeps work on a rename', { timeout: 5000 }, async () => {
+  // Before init() picks a board (page loading in a background tab): nothing to compare, no toast.
+  const loading = dashboard();
+  Object.assign(loading.app.state, { status: { mode: 'demo', configured: true }, boardId: null });
+  await loading.app.syncBoards();
+  assert.equal(loading.pending.length, 0);
+
+  const h = await ready();
+  h.app.state.status = { mode: 'demo', configured: true };
+  h.app.state.boards = h.app.state.boards.map(b => ({ ...b, revision: 1 }));
+  const [a, b] = h.app.state.boards;
+
+  // A reload after a failed save restores server settings; a poll must neither cancel nor race it.
+  const reload = h.app.reloadBoards();
+  await h.app.syncBoards();
+  assert.equal(h.pending.filter(item => !item.taken && item.path === '/api/boards').length, 1);
+  h.next('/api/boards').resolve({ boards: [a, b] });
+  assert.equal(await reload, true);
+  h.next('/api/portfolio').resolve(portfolio('BTC'));
+  await flush();
+
+  // A rename made elsewhere keeps an in-flight history query and the dates the user typed.
+  h.elements.get('activity-kind').value = 'orders';
+  h.elements.get('activity-from').value = '2026-01-01';
+  const records = h.app.loadActivity(), recordsRequest = h.next('/api/records');
+  const renamed = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [{ ...h.app.state.boards[0], revision: 2, name: '새 이름' }, h.app.state.boards[1]] });
+  await renamed;
+  assert.equal(h.elements.get('board-name').textContent, '새 이름');
+  assert.equal(h.elements.get('activity-from').value, '2026-01-01');
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+  recordsRequest.resolve(activity);
+  await records;
+  assert.equal(h.app.state.activity, activity);
+});

@@ -101,6 +101,7 @@ td small.positive { color: var(--up); }
 td small.negative { color: var(--down); }
 .table-scroll { overflow-x: auto; }
 .note { color: var(--text-2); font-size: 11px; }
+.flag { display: inline-block; margin-left: 4px; padding: 0 5px; border: 1px solid var(--warning); border-radius: 4px; color: var(--warning); font-size: 10px; font-weight: 600; vertical-align: 1px; }
 @media (max-width: 560px) {
   .summary { grid-template-columns: 1fr 1fr; }
   .metric--total { grid-column: 1 / -1; }
@@ -240,7 +241,10 @@ async function openLocal() {
   try {
     const result = await callTool('dashboard_open', state.data?.board ? { boardId: state.data.board.id } : {});
     const url = result.structuredContent?.url ?? JSON.parse(result.content[0].text).url;
-    try { await request('ui/open-link', { url }); } catch { showError(`이 컴퓨터의 브라우저에서 ${url} 을 여세요.`); }
+    // A host may refuse the link by policy ({ isError: true }) instead of failing the request.
+    let opened = false;
+    try { opened = !(await request('ui/open-link', { url }))?.isError; } catch { /* 아래 안내로 대신합니다. */ }
+    if (!opened) showError(`이 컴퓨터의 브라우저에서 ${url} 을 여세요.`);
   } catch (error) { showError(`로컬 대시보드를 띄우지 못했습니다. ${error.message}`); }
   finally { busy(false); }
 }
@@ -260,6 +264,7 @@ function render() {
   $('title').textContent = d.board?.name ?? (d.scope.length ? d.scope.join(' · ') : '내 자산');
   $('meta').textContent = `${when(d.asOf)} 기준 · ${demo ? '합성 예시 데이터' : '빗썸 계좌 조회'}`;
   $('mode').hidden = false; $('mode').textContent = demo ? 'DEMO' : 'READ ONLY'; $('mode').classList.toggle('is-demo', demo);
+  $('open').hidden = d.canOpenLocal === false;
   $('warnings').textContent = d.warnings.join(' '); $('warnings').hidden = !d.warnings.length;
   $('total-label').textContent = s.valuationComplete ? '총 평가금액' : '확인된 평가금액';
   $('total').textContent = money(s.totalValueKrw);
@@ -323,10 +328,10 @@ function renderAllocation() {
 }
 function renderHoldings() {
   const d = state.data, rows = d.holdings;
-  $('holding-count').textContent = d.others.count ? `상위 ${rows.length}개 · 나머지 ${d.others.count}개 ${money(d.others.valueKrw)}` : `${rows.length}개`;
+  $('holding-count').textContent = d.others.count ? `상위 ${rows.length}개 · 나머지 ${d.others.count}개 ${d.others.valueKrw === null ? '가격 미확인' : money(d.others.valueKrw)}` : `${rows.length}개`;
   $('holdings').innerHTML = rows.length ? rows.map(h => {
     const cash = h.symbol === 'KRW';
-    return `<tr><td><strong>${esc(h.name)}</strong><small>${esc(h.symbol)}${cash || state.hidden ? '' : ` · ${esc(number(h.quantity, 8))}`}</small></td>
+    return `<tr><td><strong>${esc(h.name)}</strong>${h.marketWarning ? '<span class="flag" title="빗썸 거래 유의 지정">유의</span>' : ''}<small>${esc(h.symbol)}${cash || state.hidden ? '' : ` · ${esc(number(h.quantity, 8))}`}</small></td>
       <td>${h.valueKrw === null ? '가격 미확인' : money(h.valueKrw)}</td>
       <td>${state.hidden || missing(h.allocationPct) ? '—' : `${number(h.allocationPct, 1)}%`}</td>
       <td class="${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '현금' : state.hidden ? '••' : percent(h.profitRatePct)}</small></td>

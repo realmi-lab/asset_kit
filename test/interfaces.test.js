@@ -30,7 +30,7 @@ function mcpClient(args) {
   return { child, rpc, call, close };
 }
 
-test('stdio MCP: protocol, 15 tools, read-only except local dashboard tools, boards and dashboard end to end', async () => {
+test('stdio MCP: protocol, 17 tools, read-only except local dashboard tools, boards and dashboard end to end', async () => {
   const client = mcpClient(['--demo']);
   try {
     const init = await client.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
@@ -49,7 +49,8 @@ test('stdio MCP: protocol, 15 tools, read-only except local dashboard tools, boa
     assert.equal((await client.rpc('resources/read', { uri: 'ui://other' })).error.code, -32002);
     assert.equal((await client.rpc('tools/call', { name: 'nope' })).error.code, -32602);
     const { tools } = (await client.rpc('tools/list')).result;
-    assert.equal(tools.length, 15);
+    assert.equal(tools.length, 17);
+    assert.ok(tools.every(tool => tool.title && tool.annotations.title === tool.title), 'every tool has a short title');
     assert.equal(tools.find(tool => tool.name === 'dashboard_snapshot')._meta.ui.resourceUri, view.uri);
     for (const tool of tools) {
       assert.equal(tool.annotations.readOnlyHint, !WRITE_TOOLS.includes(tool.name), tool.name);
@@ -98,9 +99,11 @@ test('MCP options: --modules and --read-only limit tools like the official serve
   let stderr = '';
   client.child.stderr.on('data', chunk => { stderr += chunk; });
   try {
-    assert.equal((await client.rpc('initialize', { protocolVersion: '2025-06-18' })).result.capabilities.resources, undefined);
+    const init = (await client.rpc('initialize', { protocolVersion: '2025-06-18' })).result;
+    assert.equal(init.capabilities.resources, undefined);
+    assert.doesNotMatch(init.instructions, /dashboard_/, 'instructions never point to disabled tools');
     const names = (await client.rpc('tools/list')).result.tools.map(tool => tool.name).sort();
-    assert.deepEqual(names, ['market_get_candles', 'system_diagnose']);
+    assert.deepEqual(names, ['market_get_candles', 'market_get_tickers', 'market_get_warnings', 'system_diagnose']);
     assert.deepEqual((await client.rpc('resources/list')).result.resources, []);
     assert.equal((await client.rpc('tools/call', { name: 'portfolio_get_summary', arguments: {} })).error.code, -32602);
     const diagnose = (await client.call('system_diagnose')).structuredContent;
