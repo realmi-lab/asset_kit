@@ -1,6 +1,6 @@
 English | [한국어](./README.md)
 
-# Bithumb Asset Dashboard Kit
+# Bithumb Asset Toolkit · MCP
 
 An **MCP server** that connects a Bithumb account's balances, valuation, allocation, daily asset changes, orders, and deposit/withdrawal history to AI clients. Ask “build a dashboard from my assets” and the AI saves a layout and opens a local dashboard.
 
@@ -30,7 +30,13 @@ npm run demo   # synthetic data at http://127.0.0.1:4319, no install needed
 
 Append `"--demo"` to `args` for synthetic data. Full guide (Korean): [mcp/README.md](./mcp/README.md) — client configs, modules, `--modules`/`--read-only`/`--verbose` options, and the dashboard workflow. Codex: `command = "node"`, `args = ["/absolute/path/to/asset_kit/mcp/index.js"]` under `[mcp_servers.bithumb_assets]`.
 
-14 tools: `portfolio_get_summary`, `portfolio_get_holdings`, `portfolio_get_allocation`, `portfolio_get_history` (`daily: true` for daily asset changes), `portfolio_get_report`, `market_get_candles`, `account_get_records` (whole period, ≤366 days), `account_get_orders`, `account_get_transfers`, `system_diagnose`, `dashboard_list_boards`, `dashboard_save_board`, `dashboard_open` (starts the local dashboard and returns its URL), `dashboard_get_template`.
+14 tools: `portfolio_get_summary`, `portfolio_get_holdings`, `portfolio_get_allocation`, `portfolio_get_history` (`daily: true` for daily asset changes), `portfolio_get_report`, `market_get_candles`, `account_get_records` (bounded pages and continuation, ≤366 days), `account_get_orders`, `account_get_transfers`, `system_diagnose`, `dashboard_list_boards`, `dashboard_save_board`, `dashboard_open` (starts the local dashboard and returns its URL), `dashboard_get_template`.
+
+In 0.4.0, holdings support search, gain/loss filters, exact sorting, fields, limits and offsets. Summary/holdings/allocation/market/report accept `force:true`; reports can select `sections`; history accepts `maxPoints`. Every tool publishes an output schema and actionable tool errors.
+
+**Migration:** `account_get_records` now defaults to at most 50 returned rows and 5 upstream pages per call. Continue with the same `kind` and `pagination.nextCursor` as `cursor`, even if `rows` is empty. Filters stay fixed; fields may be selected on each call. Totals cover only that response's rows; `coverage.complete` describes the entire cursor chain, not just the last page. Tokens are process-local, expire 10 minutes after the query starts, and have a 32-token storage bound. Each chain permits at most 1,000 upstream pages/10,000 matching IDs; narrow the query on `QUERY_LIMIT`. Account changes during paging are not an atomic snapshot. HTTP/CLI collection behavior is unchanged.
+
+Progress uses `_meta.progressToken` and `notifications/progress`; cancellation uses `notifications/cancelled`. Cancelling a private order/transfer request stops its HTTP request and retries. Shared reads continue if another subscriber still needs them. Get dashboard source only when needed: `dashboard_get_template` with `manifest:true`, then selected `paths`.
 
 ## Keys
 
@@ -57,7 +63,7 @@ Multiple dashboards (tabs) retain widgets, asset scope, periods (7/30/90 days, 1
 
 ## Scope
 
-Quantities include locked balances; amounts use exact BigInt decimals and are returned as decimal strings; unknown values are `null`. Unrealized P&L uses the API average cost of current holdings and excludes fees and realized P&L. Recorded history includes deposits/withdrawals and is never back-filled. Compatibility with the official MCP SDK client (1.32.1) was verified; **live account access with real API keys has not been verified yet.**
+Quantities include locked balances; amounts use exact BigInt decimals and are returned as decimal strings; unknown values are `null`. Unrealized P&L uses the API average cost of current holdings and excludes fees and realized P&L. Recorded history includes deposits/withdrawals and is never back-filled. Compatibility with official MCP SDK 1.32.2 was verified using a real stdio client, all 14 output schemas, progress, cancellation and cursor replay. Run `npm run verify:mcp-sdk` with `MCP_SDK_ROOT` pointing to an external SDK installation; normal `npm test` remains dependency-free. **Live account access with real API keys has not been verified yet.**
 
 ## License
 

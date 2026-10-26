@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 빗썸 자산 MCP 서버. 외부 패키지 없이 Node.js 내장 기능만으로 stdio JSON-RPC 2.0을 처리합니다. 사용법: node mcp/index.js --help
 import { realpathSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { extname, relative } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,12 +12,17 @@ import { dataDir } from '../src/config.js';
 import { explainPortfolio } from '../src/portfolio.js';
 import { ORDER_OPTIONS, TRANSFER_OPTIONS, RECORD_KINDS } from '../src/activity.js';
 import { BOARD_FIELDS, PERIODS, REFRESH_SECONDS, WIDGETS } from '../src/boards.js';
+import { abortable } from '../src/async.js';
+import { downsample } from '../src/history.js';
+import { FORCE, HOLDING_FIELDS, RECORD_FIELDS, fieldInput, holdingsResult, selectFields } from './query.js';
+import { RecordReader } from './records.js';
+import { OUTPUTS, recovery } from './schemas.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 /** 기능 모듈. --modules로 고르며 system은 항상 켜집니다. */
 export const MODULES = ['portfolio', 'market', 'account', 'dashboard', 'system'];
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-const INSTRUCTIONS = '빗썸 자산 대시보드 툴킷입니다. 금액·수량은 원화 기준 십진 문자열이며 누락값은 null입니다. mode=demo는 합성 데이터입니다. warnings, valuationComplete, coverage를 함께 전달하고 누락된 가격이나 과거 수익률을 만들어내지 마세요. 키는 도구 입력으로 받지 않습니다. 주문·출금 실행 도구는 없습니다. 대시보드는 dashboard_save_board로 화면 설정을 만들고 dashboard_open으로 띄웁니다.';
+const INSTRUCTIONS = '빗썸 조회 전용 자산 MCP입니다. 금액·수량은 통화 단위가 붙은 십진 문자열, 누락값은 null입니다. mode=demo는 합성 데이터입니다. 우선 portfolio_get_summary로 요약하고, 세부 조회는 symbols·fields·limit로 좁히세요. warnings, valuationComplete, coverage를 숨기지 마세요. account_get_records는 기본 최대 50건·5페이지를 읽습니다. pagination.nextCursor가 있으면 kind와 cursor로 이어받고, 빈 rows를 조회 완료로 해석하지 마세요. totals는 이번 응답 행의 합계일 뿐입니다. 대시보드 템플릿은 manifest=true 후 필요한 paths만 요청하세요. 키를 도구 입력에 넣거나 누락된 가격·수익률을 추정하지 마세요. 주문·취소·출금 실행 도구는 없습니다.';
 const HELP = `빗썸 자산 MCP ${VERSION} (stdio)
 
 node mcp/index.js [옵션]
@@ -37,16 +42,21 @@ const DATE = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
 const BOARD_INPUT = Object.fromEntries(Object.entries(BOARD_FIELDS).map(([key, { default: _, ...schema }]) => [key, schema]));
 
 /** 편집 가능한 대시보드 파일(텍스트)과 로컬 API 계약. */
-export async function dashboardTemplate() {
-  const files = {}, binaryAssets = [];
+export async function dashboardTemplate({ manifest: manifestOnly = false, paths } = {}) {
+  const files = {}, binaryAssets = [], manifest = [], available = new Map();
   for (const entry of await readdir(WEB, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile() || entry.name.startsWith('.')) continue;
     const path = relative(WEB, `${entry.parentPath ?? entry.path}/${entry.name}`).split('\\').join('/');
-    if (['.html', '.css', '.js', '.svg', '.json'].includes(extname(entry.name))) files[path] = await readFile(`${WEB}${path}`, 'utf8');
+    if (['.html', '.css', '.js', '.svg', '.json'].includes(extname(entry.name))) {
+      available.set(path, `${WEB}${path}`);
+      manifest.push({ path, bytes: (await stat(`${WEB}${path}`)).size });
+    }
     else binaryAssets.push(path);
   }
+  if (paths?.some(path => !available.has(path))) throw new KitError('INVALID_ARGUMENTS', 'manifest에 있는 텍스트 파일 경로만 요청할 수 있습니다.', 400);
+  if (!manifestOnly) for (const path of paths ?? available.keys()) files[path] = await readFile(available.get(path), 'utf8');
   return {
-    name: '내 자산 대시보드', schemaVersion: '1.1', files, binaryAssets,
+    name: '내 자산 대시보드', schemaVersion: '1.2', files, binaryAssets, manifest: manifest.sort((a, b) => a.path.localeCompare(b.path)),
     instructions: '로컬 API만 사용하며 API 키를 브라우저에 전달하지 않습니다. 금액은 서버가 계산한 십진 문자열을 표시용으로만 변환하세요. 고친 화면은 새 폴더에 저장한 뒤 `asset-kit dashboard --web-dir <폴더>`로 실행합니다. 보드 저장은 Content-Type: application/json과 X-Asset-Kit: 1 헤더가 있는 같은 출처 요청만 허용됩니다. 외부 공개 배포에는 사용자별 인증·데이터 격리가 있는 별도 서버가 필요합니다.',
     api: {
       status: 'GET /api/status', portfolio: 'GET /api/portfolio?symbols=BTC,ETH', explain: 'GET /api/explain?symbols=…',
@@ -61,47 +71,67 @@ export async function dashboardTemplate() {
 /** 도구 정의와 실행. 전송 방식과 분리되어 있어 stdio 외의 연결에도 그대로 쓸 수 있습니다. */
 export function createMcpServer(service, { modules = MODULES, readOnly = false, verbose = false, log = line => process.stderr.write(`${line}\n`) } = {}) {
   const tools = new Map();
+  const records = new RecordReader(service);
   const tool = (module, name, description, inputSchema, annotations, run) => {
     if (module !== 'system' && !modules.includes(module)) return;
     if (readOnly && annotations.readOnlyHint === false) return;
-    tools.set(name, { module, definition: { name, description, inputSchema, annotations }, run });
+    tools.set(name, { module, definition: { name, description, inputSchema, outputSchema: OUTPUTS[name], annotations }, run });
   };
   let dashboard = null;
 
   // ===== Portfolio: 잔고·손익, 비중·추이, 일별 자산 변화, 종합 보고서 =====
-  tool('portfolio', 'portfolio_get_summary', '원화 포함 총 평가금액, 보유분 평가손익, 비중 상위 자산과 데이터 누락 여부를 조회합니다. symbols로 일부 자산만 묶어 볼 수 있습니다.', input({ symbols: SYMBOLS_INPUT }), READ, async args => {
+  tool('portfolio', 'portfolio_get_summary', '원화 포함 총 평가금액, 보유분 평가손익, 비중 상위 자산과 데이터 누락 여부를 조회합니다. 첫 조회는 이 요약 도구를 권장합니다. symbols로 자산 범위를 좁히고 force=true로 새로 조회합니다.', input({ symbols: SYMBOLS_INPUT, force: FORCE }), READ, async args => {
     const p = await service.portfolio(args);
     const { summary, largest } = explainPortfolio(p);
     return { mode: p.mode, asOf: p.asOf, scope: p.scope, ...p.summary, largest, explanation: summary, warnings: p.warnings, calculation: p.calculation };
   });
   tool('portfolio', 'portfolio_get_holdings', '자산별 가용·주문중 수량, 평균 매수가, 현재가, 평가금액과 손익을 조회합니다.', input({
     symbol: { type: 'string', pattern: '^[A-Za-z0-9_]+$', description: '선택: BTC, ETH, KRW 같은 자산 하나' }, symbols: SYMBOLS_INPUT,
-  }), READ, async ({ symbol, symbols }) => {
-    const p = await service.portfolio({ symbols });
-    return { mode: p.mode, asOf: p.asOf, scope: p.scope, holdings: symbol ? p.holdings.filter(h => h.symbol === symbol.toUpperCase()) : p.holdings, warnings: p.warnings };
+    force: FORCE, search: { type: 'string', maxLength: 80, description: '자산명 또는 심볼 검색' }, excludeCash: { type: 'boolean', default: false },
+    performance: { type: 'string', enum: ['all', 'gain', 'loss', 'unknown'], default: 'all' },
+    sort: { type: 'string', enum: ['value', 'profit', 'pnl', 'change', 'quantity', 'name'], default: 'value' }, direction: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+    offset: { type: 'integer', minimum: 0, maximum: 100000, default: 0 }, limit: { type: 'integer', minimum: 1, maximum: 1000, description: '필요한 개수만 반환합니다. 생략하면 전체 검색 결과' }, fields: fieldInput(HOLDING_FIELDS),
+  }), READ, async args => {
+    return holdingsResult(await service.portfolio({ symbols: args.symbols, force: args.force }), args);
   });
-  tool('portfolio', 'portfolio_get_allocation', '원화를 포함한 자산 비중을 조회합니다. 가격 미확인 자산의 비중은 null입니다.', input({ symbols: SYMBOLS_INPUT }), READ, async args => {
+  tool('portfolio', 'portfolio_get_allocation', '원화를 포함한 자산 비중을 조회합니다. 가격 미확인 자산의 비중은 null입니다.', input({ symbols: SYMBOLS_INPUT, force: FORCE }), READ, async args => {
     const p = await service.portfolio(args);
     return { mode: p.mode, asOf: p.asOf, scope: p.scope, valuationComplete: p.summary.valuationComplete,
       allocation: p.holdings.map(({ symbol, name, valueKrw, allocationPct }) => ({ symbol, name, valueKrw, allocationPct })), warnings: p.warnings };
   });
   tool('portfolio', 'portfolio_get_history', '로컬에 기록된 평가금액 추이(최대 400개 지점)입니다. daily=true이면 한국 시간 날짜별 마지막 값과 직전 기록일 대비 변화와 기록 간격(일별 자산 변화 달력)를 반환합니다. 입출금이 포함되어 수익률이 아니며 과거 기록을 소급 생성하지 않습니다.', input({
     days: { type: 'integer', minimum: 1, maximum: 365, default: 30 }, symbols: SYMBOLS_INPUT, daily: { type: 'boolean', default: false },
-  }), READ, args => service.getHistory(args));
-  tool('portfolio', 'portfolio_get_report', '잔고·평가금액·비중 및 대기/최근 주문·원화/코인 입출금 첫 페이지를 종합 조회합니다. 섹션별 권한 부족과 조회 범위를 표시합니다. 전체 기간 실현손익 보고서가 아닙니다.', input(), READ, () => service.report());
+    maxPoints: { type: 'integer', minimum: 2, maximum: 400, description: '추이 점 개수 상한(첫·끝 보존). daily=true에는 적용되지 않습니다.' },
+  }), READ, async args => {
+    if (args.daily && args.maxPoints !== undefined) throw new KitError('INVALID_ARGUMENTS', 'maxPoints는 일별 달력이 아닌 추이 조회에서만 사용할 수 있습니다.', 400);
+    const result = await service.getHistory(args);
+    if (args.maxPoints && result.points) { const points = downsample(result.points, args.maxPoints); return { ...result, points, sampled: result.sampled || points.length < result.points.length }; }
+    return result;
+  });
+  tool('portfolio', 'portfolio_get_report', '잔고와 선택한 주문·입출금 섹션을 조회합니다. sections=[]이면 계좌 내역 API를 호출하지 않습니다. symbols는 포트폴리오에만 적용되며 내역은 계좌 전체 첫 페이지입니다. 전체 기간 실현손익이 아닙니다.', input({
+    symbols: SYMBOLS_INPUT, force: FORCE, sections: { type: 'array', maxItems: 6, uniqueItems: true, items: { type: 'string', enum: ['pendingOrders', 'recentOrders', 'krwDeposits', 'cryptoDeposits', 'krwWithdrawals', 'cryptoWithdrawals'] } },
+  }), READ, (args, context) => service.report(args, context));
 
   // ===== Market: 원화 시세(인증 불필요) =====
   tool('market', 'market_get_candles', '빗썸 원화 마켓의 현재가와 일봉 종가를 조회합니다. 공개 시세이며 키가 필요 없습니다.', input({
-    symbol: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_]{0,29}$', description: 'BTC 같은 자산 심볼' }, days: { type: 'integer', minimum: 1, maximum: 200, default: 30 },
+    symbol: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_]{0,29}$', description: 'BTC 같은 자산 심볼' }, days: { type: 'integer', minimum: 1, maximum: 200, default: 30 }, force: FORCE,
   }, ['symbol']), READ, args => service.getMarket(args));
 
   // ===== Account: 주문·입출금 내역(조회만) =====
-  tool('account', 'account_get_records', '한 종류의 주문·입출금 내역을 기간 전체(최대 366일, 날짜는 한국 시간)에 걸쳐 페이지를 이어 조회합니다. coverage.complete가 false이면 일부 페이지만 확보한 것입니다.', input({
+  tool('account', 'account_get_records', '주문·입출금을 작은 묶음으로 조회합니다(한국 시간, 최대 366일). 기본 50건·거래소 5페이지. 다음 호출은 같은 kind와 pagination.nextCursor를 cursor로 전달합니다. 빈 rows라도 nextCursor가 있으면 계속 조회하세요. 합계는 이번 응답만의 합계이고 실현손익이 아닙니다.', input({
     kind: { type: 'string', enum: Object.keys(RECORD_KINDS), description: Object.entries(RECORD_KINDS).map(([key, value]) => `${key}=${value.label}`).join(', ') },
     from: { ...DATE, description: 'YYYY-MM-DD, 생략 시 최근 7일' }, to: { ...DATE, description: 'YYYY-MM-DD' },
-  }, ['kind']), READ, args => service.getRecords(args));
-  tool('account', 'account_get_orders', '대기 또는 종료 주문 한 페이지를 조회합니다. 종료 주문은 최대 7일 구간, 다음 페이지는 동일 기간과 nextKey를 사용합니다. 주문 생성·취소 기능은 없습니다.', ORDER_OPTIONS, READ, args => service.getOrders(args));
-  tool('account', 'account_get_transfers', '원화·가상자산 입금 또는 출금 내역을 페이지별로 조회합니다. 입출금을 실행하지 않습니다.', TRANSFER_OPTIONS, READ, args => service.getTransfers(args));
+    symbols: SYMBOLS_INPUT, states: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } }, side: { type: 'string', enum: ['bid', 'ask'] },
+    pageSize: { type: 'integer', minimum: 1, maximum: 200, description: '응답 행 상한, 첫 조회 기본 50. 이어받기는 생략하면 원래 값 유지' },
+    scanPages: { type: 'integer', minimum: 1, maximum: 20, description: '이번 호출에서 읽을 거래소 페이지 상한, 첫 조회 기본 5' },
+    cursor: { type: 'string', minLength: 1, maxLength: 100, description: '이 MCP 연결의 nextCursor. 10분 유효하며 조건을 바꿀 수 없습니다.' },
+    force: FORCE, fields: fieldInput(RECORD_FIELDS),
+  }, ['kind']), READ, async (args, context) => {
+    const result = await records.read(args, context);
+    return { ...result, rows: selectFields(result.rows, args.fields, ['order_id', 'uuid', 'at', 'market', 'currency', 'state']) };
+  });
+  tool('account', 'account_get_orders', '대기 또는 종료 주문 한 페이지를 조회합니다. 종료 주문은 최대 7일 구간, 다음 페이지는 동일 기간과 nextKey를 사용합니다. 주문 생성·취소 기능은 없습니다.', ORDER_OPTIONS, READ, (args, context) => service.getOrders(args, context));
+  tool('account', 'account_get_transfers', '원화·가상자산 입금 또는 출금 내역을 페이지별로 조회합니다. 입출금을 실행하지 않습니다.', TRANSFER_OPTIONS, READ, (args, context) => service.getTransfers(args, context));
 
   // ===== Dashboard: 화면 설정·화면 띄우기 =====
   tool('dashboard', 'dashboard_list_boards', '로컬 대시보드 화면 설정(보드) 목록입니다. 각 보드는 이름, 자산 범위, 위젯 순서, 기간, 갱신 간격, revision을 가집니다.', input(), LOCAL_READ, async () => ({ boards: await service.boards.list() }));
@@ -127,7 +157,9 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
     return { url, mode: service.status().mode, boards: (await service.boards.list()).map(({ id, name, symbols }) => ({ id, name, symbols })),
       note: '이 컴퓨터에서만 열리는 주소입니다. 화면 위쪽 탭에서 보드를 고르고, 화면 편집으로 위젯·자산 범위·기간을 바꿀 수 있습니다.' };
   });
-  tool('dashboard', 'dashboard_get_template', '편집 가능한 대시보드 HTML·CSS·JS와 로컬 API 계약을 반환합니다. 사용자가 화면 자체를 새로 만들 때 사용하고 `asset-kit dashboard --web-dir <폴더>`로 실행합니다.', input(), LOCAL_READ, dashboardTemplate);
+  tool('dashboard', 'dashboard_get_template', '화면을 만들 때만 사용합니다. 먼저 manifest=true로 파일 목록·크기·API 계약을 조회한 뒤 paths로 필요한 파일만 요청하세요. 옵션을 생략하면 기존 호환용 전체 텍스트를 반환합니다.', input({
+    manifest: { type: 'boolean', default: false }, paths: { type: 'array', minItems: 1, maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 200 } },
+  }), LOCAL_READ, dashboardTemplate);
 
   // ===== System: 설정 진단 =====
   tool('system', 'system_diagnose', '설정 진단: 버전, 데모/실제 모드, 활성 모듈, 인증 설정 여부와 출처(키 값 제외), 공개 시세·계좌 API 연결, 로컬 저장 위치를 확인합니다.', input(), READ, async () => {
@@ -141,19 +173,24 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
   });
 
   const rpcError = (code, message) => Object.assign(new Error(message), { rpc: code });
-  async function callTool(name, args) {
+  async function callTool(name, args, context = {}) {
     const entry = tools.get(name);
     if (!entry) throw rpcError(-32602, `알 수 없거나 꺼진 도구입니다: ${name}`);
     const started = Date.now();
     let result;
     try {
-      const data = await entry.run(check(entry.definition.inputSchema, args ?? {}, { code: 'INVALID_ARGUMENTS', message: '도구 입력값을 확인하세요. 허용 값은 tools/list의 inputSchema를 따릅니다.' }));
+      context.signal?.throwIfAborted();
+      const data = await abortable(entry.run(check(entry.definition.inputSchema, args === undefined ? {} : args, { code: 'INVALID_ARGUMENTS', message: '도구 입력값을 확인하세요. 허용 값은 tools/list의 inputSchema를 따릅니다.' }), context), context.signal);
       result = { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data };
-    } catch (error) { result = { content: [{ type: 'text', text: JSON.stringify(publicError(error)) }], isError: true }; }
-    if (verbose) log(`[asset-kit-mcp] ${new Date().toISOString()} ${name} ${result.isError ? `error ${JSON.parse(result.content[0].text).code}` : 'ok'} ${Date.now() - started}ms ${JSON.stringify(args ?? {})}`);
+    } catch (error) {
+      const safe = recovery(publicError(error), error.status);
+      if (error.code === 'INVALID_ARGUMENTS' && error.path) safe.path = error.path;
+      result = { content: [{ type: 'text', text: JSON.stringify(safe) }], isError: true };
+    }
+    if (verbose) log(`[asset-kit-mcp] ${new Date().toISOString()} ${name} ${result.isError ? `error ${JSON.parse(result.content[0].text).code}` : 'ok'} ${Date.now() - started}ms fields=${JSON.stringify(Object.keys(args ?? {}))}`);
     return result;
   }
-  async function handle(method, params = {}) {
+  async function handle(method, params = {}, context) {
     switch (method) {
       case 'initialize': return {
         protocolVersion: PROTOCOLS.includes(params.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
@@ -162,11 +199,12 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
       };
       case 'ping': return {};
       case 'tools/list': return { tools: [...tools.values()].map(entry => entry.definition) };
-      case 'tools/call': return callTool(params.name, params.arguments);
+      case 'tools/call': return callTool(params.name, params.arguments, context);
       default: throw rpcError(-32601, `지원하지 않는 메서드입니다: ${method}`);
     }
   }
   async function close() {
+    records.clear();
     const opened = await dashboard?.catch(() => null);
     opened?.server.closeAllConnections();
     opened?.server.close();
@@ -185,20 +223,55 @@ export function parseModules(value = 'all') {
 /** 줄 단위 JSON-RPC 2.0 over stdio. stdout에는 프로토콜 메시지만 씁니다. */
 export function startMcp(service, { input: stream = process.stdin, output = process.stdout, ...options } = {}) {
   const server = createMcpServer(service, options);
-  const send = message => output.write(`${JSON.stringify(message)}\n`);
+  const active = new Map(), progressTokens = new Set();
+  let closed = false;
+  const send = message => { if (!closed && !output.destroyed) output.write(`${JSON.stringify(message)}\n`); };
   output.on?.('error', () => {}); // 클라이언트가 먼저 끊어도 종료 처리만 합니다.
   const reply = async message => {
     if (!message || typeof message !== 'object' || message.jsonrpc !== '2.0') return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
-    if (typeof message.method !== 'string' || !('id' in message)) return null; // 알림과 응답에는 답하지 않습니다.
-    try { return { jsonrpc: '2.0', id: message.id, result: await server.handle(message.method, message.params ?? {}) }; }
-    catch (error) { return { jsonrpc: '2.0', id: message.id, error: { code: error.rpc ?? -32603, message: error.rpc ? error.message : '처리하지 못했습니다.' } }; }
+    if (!Object.hasOwn(message, 'id')) {
+      if (message.method === 'notifications/cancelled') {
+        const request = active.get(message.params?.requestId);
+        if (request && request.method !== 'initialize') request.controller.abort();
+      }
+      return null; // notifications are fire-and-forget; never echo client-supplied cancellation reasons.
+    }
+    const invalid = (code, text) => ({ jsonrpc: '2.0', id: message.id ?? null, error: { code, message: text } });
+    if (typeof message.method !== 'string' || !(typeof message.id === 'string' || Number.isInteger(message.id)) || active.has(message.id)) return invalid(-32600, 'Invalid or duplicate request id');
+    if (message.params !== undefined && (!message.params || typeof message.params !== 'object' || Array.isArray(message.params))) return invalid(-32602, 'params must be an object');
+    if (active.size >= 32) return invalid(-32000, 'Too many active requests; wait for pending requests to finish');
+    const token = message.params?._meta?.progressToken;
+    if (token !== undefined && (!(typeof token === 'string' || Number.isInteger(token)) || progressTokens.has(token))) return invalid(-32602, 'progressToken must be a unique string or integer');
+    const controller = new AbortController();
+    const request = { controller, method: message.method };
+    active.set(message.id, request);
+    if (token !== undefined) progressTokens.add(token);
+    let progress = 0;
+    const onProgress = ({ message: text } = {}) => {
+      if (token !== undefined && !controller.signal.aborted && active.get(message.id) === request) {
+        send({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: progress++, ...(text ? { message: text } : {}) } });
+      }
+    };
+    try {
+      if (message.method === 'tools/call') onProgress({ message: '조회 시작' });
+      const result = await server.handle(message.method, message.params ?? {}, { signal: controller.signal, onProgress });
+      if (controller.signal.aborted) return null;
+      if (message.method === 'tools/call') onProgress({ message: result.isError ? '조회 오류 · 복구 안내 확인' : '이번 요청 완료' });
+      return { jsonrpc: '2.0', id: message.id, result };
+    } catch (error) {
+      if (controller.signal.aborted) return null;
+      return invalid(error.rpc ?? -32603, error.rpc ? error.message : '처리하지 못했습니다.');
+    } finally {
+      active.delete(message.id);
+      if (token !== undefined) progressTokens.delete(token);
+    }
   };
   const lines = createInterface({ input: stream, crlfDelay: Infinity });
   lines.on('line', async line => {
     if (!line.trim()) return;
     let message;
     try { message = JSON.parse(line); } catch { send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }); return; }
-    if (Array.isArray(message)) {
+    if (Array.isArray(message) && message.length) {
       const replies = (await Promise.all(message.map(reply))).filter(Boolean);
       if (replies.length) send(replies);
     } else {
@@ -206,7 +279,11 @@ export function startMcp(service, { input: stream = process.stdin, output = proc
       if (response) send(response);
     }
   });
-  lines.on('close', () => { void server.close(); });
+  lines.on('close', () => {
+    closed = true;
+    for (const request of active.values()) request.controller.abort();
+    void server.close();
+  });
   return server;
 }
 

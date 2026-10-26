@@ -5,12 +5,14 @@ import { KitError } from './errors.js';
  * 같은 스키마를 MCP 도구 입력 스키마로 공개하고 CLI·HTTP·MCP 입력과 빗썸 응답 검사에 함께 씁니다. 선언하지 않은 응답 필드는 버립니다.
  */
 export function check(schema, value, { code = 'INVALID_QUERY', message = '입력값을 확인하세요.', status = 400 } = {}) {
-  const fail = () => { throw new KitError(code, message, status); };
-  const walk = (s, v) => {
+  let location = '$';
+  const fail = () => { const error = new KitError(code, message, status); error.path = location; throw error; };
+  const walk = (s, v, path = '$') => {
+    location = path;
     if (v === undefined) return 'default' in s ? structuredClone(s.default) : undefined;
     if (v === null && s.nullable) return null;
     if (s.anyOf) {
-      for (const option of s.anyOf) { try { return walk(option, v); } catch { /* 다음 후보 */ } }
+      for (const option of s.anyOf) { try { return walk(option, v, path); } catch { /* 다음 후보 */ } }
       return fail();
     }
     if (s.enum && !s.enum.includes(v)) fail();
@@ -29,16 +31,18 @@ export function check(schema, value, { code = 'INVALID_QUERY', message = '입력
         return v;
       case 'array': {
         if (!Array.isArray(v) || v.length < (s.minItems ?? 0) || v.length > (s.maxItems ?? Infinity)) fail();
-        const items = v.map(item => walk(s.items ?? {}, item));
+        const items = v.map((item, index) => walk(s.items ?? {}, item, `${path}[${index}]`));
         if (s.uniqueItems && new Set(items).size !== items.length) fail();
         return items;
       }
       case 'object': {
         if (!v || typeof v !== 'object' || Array.isArray(v)) fail();
         const properties = s.properties ?? {}, out = {};
-        if (s.additionalProperties === false && Object.keys(v).some(key => !(key in properties))) fail();
-        for (const [key, sub] of Object.entries(properties)) { const item = walk(sub, v[key]); if (item !== undefined) out[key] = item; }
-        if ((s.required ?? []).some(key => out[key] === undefined)) fail();
+        const unknown = Object.keys(v).find(key => !Object.hasOwn(properties, key));
+        if (s.additionalProperties === false && unknown !== undefined) { location = `${path}.${unknown.slice(0, 80)}`; fail(); }
+        for (const [key, sub] of Object.entries(properties)) { const item = walk(sub, Object.hasOwn(v, key) ? v[key] : undefined, `${path}.${key}`); if (item !== undefined) out[key] = item; }
+        const absent = (s.required ?? []).find(key => out[key] === undefined);
+        if (absent !== undefined) { location = `${path}.${absent}`; fail(); }
         return out;
       }
       default:

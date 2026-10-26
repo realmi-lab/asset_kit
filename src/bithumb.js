@@ -4,6 +4,7 @@ import { KitError } from './errors.js';
 import { resolveCredentials } from './config.js';
 import { check, DECIMAL, MARKET, SYMBOL } from './schema.js';
 import { ORDER_PAGE, TRANSFER_PAGE, ordersQuery, transfersQuery } from './activity.js';
+import { abortable } from './async.js';
 
 const PRICE = { anyOf: [{ type: 'number', minimum: 0 }, DECIMAL] };
 const TIMESTAMP = { anyOf: [{ type: 'integer', minimum: 1 }, { type: 'string', pattern: '^\\d+$' }] };
@@ -59,7 +60,8 @@ export class BithumbProvider {
     await previous;
   }
 
-  async #request(path, schema) {
+  async #request(path, schema, { signal } = {}) {
+    signal?.throwIfAborted();
     const [pathname, query = ''] = path.split('?');
     if (!PATHS.has(pathname)) throw new KitError('UNSUPPORTED_ENDPOINT', '지원하지 않는 조회 경로입니다.', 400);
     const authenticated = !PUBLIC.has(pathname);
@@ -68,37 +70,40 @@ export class BithumbProvider {
     }
     for (let attempt = 0; ; attempt++) {
       const last = attempt >= this.retries;
-      await this.#turn();
+      await abortable(this.#turn(), signal);
+      signal?.throwIfAborted();
       // Each attempt gets a fresh nonce and timestamp.
       const headers = { Accept: 'application/json' };
       if (authenticated) headers.Authorization = `Bearer ${accountJwt(this.#accessKey, this.#secretKey, Date.now(), query)}`;
       let response;
       try {
         response = await this.#fetch(`https://api.bithumb.com${path}`, {
-          method: 'GET', headers, redirect: 'error', signal: AbortSignal.timeout(8000),
+          method: 'GET', headers, redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000),
         });
       } catch {
-        if (!last) { await pause(this.retryDelayMs * 2 ** attempt); continue; }
+        signal?.throwIfAborted();
+        if (!last) { await pause(this.retryDelayMs * 2 ** attempt, undefined, { signal }); continue; }
         throw new KitError('API_UNREACHABLE', '빗썸 API에 연결하지 못했습니다. 네트워크 상태를 확인해주세요.');
       }
       if (!response.ok) {
         // Release failed response streams even on the final attempt so repeated refreshes do not retain sockets.
         try { await response.body?.cancel(); } catch { /* The original HTTP error remains authoritative. */ }
-        if (retryable(response.status) && !last) { await pause(this.retryDelayMs * 2 ** attempt); continue; }
+        if (retryable(response.status) && !last) { await pause(this.retryDelayMs * 2 ** attempt, undefined, { signal }); continue; }
         if (response.status === 401 || response.status === 403) {
           throw new KitError('AUTH_FAILED', 'API 키의 해당 조회 권한, 만료일, 허용 IP를 확인해주세요.', 401);
         }
         if (response.status === 429) throw new KitError('RATE_LIMITED', '조회가 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.', 429);
-        throw new KitError('API_ERROR', `빗썸 API에서 조회하지 못했습니다. (HTTP ${response.status})`);
+        throw new KitError('API_ERROR', `빗썸 API에서 조회하지 못했습니다. (HTTP ${response.status})`, response.status >= 500 ? 502 : 400);
       }
       let body;
-      try { body = await response.json(); } catch { throw new KitError('INVALID_RESPONSE', '빗썸 API 응답 형식이 올바르지 않습니다.'); }
+      try { body = await response.json(); } catch { signal?.throwIfAborted(); throw new KitError('INVALID_RESPONSE', '빗썸 API 응답 형식이 올바르지 않습니다.'); }
+      signal?.throwIfAborted();
       return validResponse(schema, body);
     }
   }
   async getAccounts() { return this.#request('/v1/accounts', ACCOUNTS); }
-  async getOrders(options) { return this.#request(ordersQuery(options), ORDER_PAGE); }
-  async getTransfers(options) { return this.#request(transfersQuery(options), TRANSFER_PAGE); }
+  async getOrders(options, context) { return this.#request(ordersQuery(options), ORDER_PAGE, context); }
+  async getTransfers(options, context) { return this.#request(transfersQuery(options), TRANSFER_PAGE, context); }
   async getMarkets() {
     if (this.#marketCache && Date.now() - this.#marketCache.at < 3600000) return this.#marketCache.data;
     if (!this.#marketPending) this.#marketPending = this.#request('/v1/market/all', MARKETS).then(data => {
