@@ -3,9 +3,12 @@ window.AssetKitFixture = (() => {
   const DATA = /*DATA*/null;
   const clone = value => JSON.parse(JSON.stringify(value));
   let boards = clone(DATA.boards);
-  const fail = (message, status = 400) => Promise.reject(Object.assign(new Error(message), { status }));
+  const fail = (message, status = 400, code = 'INVALID_BOARD') => Promise.reject(Object.assign(new Error(message), { status, code }));
   const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `sample-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const won = value => `${Math.round(Number(value)).toLocaleString('ko-KR')}원`;
+  const WIDGETS = ['summary', 'trend', 'allocation', 'holdings', 'activity'];
+  const MAX_BOARDS = 50;
+  const invalidBoard = () => Object.assign(new Error('대시보드 설정을 확인하세요. 이름 1~48자, 위젯 1개 이상(중복 없음), 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.'), { status: 400, code: 'INVALID_BOARD' });
 
   // 원화 포함 전체 응답을 일부 자산으로 좁힙니다. 샘플 표시용 단순 계산입니다.
   function project(symbols) {
@@ -54,15 +57,20 @@ window.AssetKitFixture = (() => {
     return result;
   }
   function saveBoard(input, base = {}) {
-    if (!String(input?.name ?? '').trim() || !Array.isArray(input.widgets) || !input.widgets.length) return null;
-    const { name, symbols = [], widgets, days = 30, refreshSeconds = 0 } = input;
-    return { ...base, name: name.trim(), symbols, widgets, days, refreshSeconds, updatedAt: new Date().toISOString() };
+    // 서버 없이도 src/boards.js의 BOARD_FIELDS와 같은 입력 규칙을 적용합니다.
+    const { name, symbols = [], widgets = [...WIDGETS], days = 30, refreshSeconds = 60 } = input ?? {};
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 48 || !Array.isArray(symbols) || symbols.length > 100
+      || symbols.some(symbol => typeof symbol !== 'string' || !/^[A-Z0-9][A-Z0-9_]{0,29}$/.test(symbol.trim().toUpperCase()))
+      || !Array.isArray(widgets) || !widgets.length || widgets.length > WIDGETS.length || new Set(widgets).size !== widgets.length
+      || widgets.some(widget => !WIDGETS.includes(widget)) || ![7, 30, 90, 365].includes(days) || ![0, 30, 60, 300].includes(refreshSeconds)) throw invalidBoard();
+    return { ...base, name: name.trim(), symbols: [...new Set(symbols.map(symbol => symbol.trim().toUpperCase()))],
+      widgets: [...widgets], days, refreshSeconds, updatedAt: new Date().toISOString() };
   }
   async function request(method, path, body) {
     const url = new URL(path, 'http://sample.local'), params = url.searchParams, id = url.pathname.split('/')[3];
     if (method === 'GET') {
       switch (url.pathname) {
-        case '/api/status': return clone(DATA.status);
+        case '/api/status': return clone({ ...DATA.status, sampleAsOf: DATA.portfolio.asOf });
         case '/api/boards': return { boards: clone(boards) };
         case '/api/portfolio': return clone(project((params.get('symbols') || '').split(',').filter(Boolean)));
         case '/api/history': return history(params);
@@ -72,28 +80,29 @@ window.AssetKitFixture = (() => {
       }
     }
     if (method === 'POST' && url.pathname === '/api/boards') {
+      if (boards.length >= MAX_BOARDS) return fail(`대시보드는 최대 ${MAX_BOARDS}개까지 저장할 수 있습니다.`, 400, 'BOARD_LIMIT');
       const board = saveBoard(body, { id: newId(), revision: 1 });
-      if (!board) return fail('이름과 위젯을 확인하세요.');
       boards.push(board);
       return clone(board);
     }
     if (method === 'POST' && url.pathname === '/api/boards/import') {
-      const created = (body.boards ?? []).map(item => saveBoard(item, { id: newId(), revision: 1 }));
-      if (!created.length || created.some(item => !item)) return fail('대시보드 설정을 확인하세요.');
+      const list = body?.boards;
+      if (!Array.isArray(list) || !list.length || list.length > MAX_BOARDS) return fail(`1~${MAX_BOARDS}개의 대시보드 설정 배열이 필요합니다.`);
+      const created = list.map(item => saveBoard(item, { id: newId(), revision: 1 }));
+      if (boards.length + created.length > MAX_BOARDS) return fail(`대시보드는 최대 ${MAX_BOARDS}개까지 저장할 수 있습니다.`, 400, 'BOARD_LIMIT');
       boards.push(...created);
       return { boards: clone(created) };
     }
     const index = boards.findIndex(item => item.id === id);
-    if (index < 0) return fail('대시보드를 찾을 수 없습니다.', 404);
-    if (boards[index].revision !== body?.revision) return fail('다른 창에서 설정이 바뀌었습니다. 다시 불러온 뒤 저장하세요.', 409);
+    if (index < 0) return fail('대시보드를 찾을 수 없습니다.', 404, 'BOARD_NOT_FOUND');
+    if (boards[index].revision !== body?.revision) return fail('다른 창에서 설정이 바뀌었습니다. 다시 불러온 뒤 저장하세요.', 409, 'CONFLICT');
     if (method === 'PUT') {
       const board = saveBoard(body, { ...boards[index], revision: boards[index].revision + 1 });
-      if (!board) return fail('이름과 위젯을 확인하세요.');
       boards[index] = board;
       return clone(board);
     }
     if (method === 'DELETE') {
-      if (boards.length <= 1) return fail('대시보드는 최소 한 개가 필요합니다.');
+      if (boards.length <= 1) return fail('대시보드는 최소 한 개가 필요합니다.', 400, 'LAST_BOARD');
       boards.splice(index, 1);
       return { deleted: id };
     }

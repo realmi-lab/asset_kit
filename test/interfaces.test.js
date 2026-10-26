@@ -148,7 +148,7 @@ test('served dashboard: consistent JSON, guarded board writes, foreign origins a
 });
 
 test('web and sample scripts parse; every file is plain JavaScript without a build step', () => {
-  for (const file of ['../web/app.js', '../examples/fixture.js', '../examples/build.js']) {
+  for (const file of ['../web/app.js', '../web/dashboard-utils.js', '../examples/fixture.js', '../examples/build.js']) {
     const result = spawnSync(process.execPath, ['--check', fileURLToPath(new URL(file, import.meta.url))], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }

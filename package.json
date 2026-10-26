@@ -1,6 +1,6 @@
 {
   "name": "bithumb-asset-dashboard-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "description": "빗썸 보유자산을 AI에 연결하는 MCP 서버 · CLI · Skill · 로컬 대시보드 (외부 의존성 없음)",

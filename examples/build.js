@@ -27,11 +27,12 @@ try {
     ],
     portfolio, histories, daily: await service.getHistory({ days: 365, daily: true }), markets, records, explain: await service.explain(),
   };
-  const [html, css, app, fixture, logo] = await Promise.all([read('web/index.html'), read('web/styles.css'), read('web/app.js'), read('examples/fixture.js'), read('web/assets/bithumb-logo.png', null)]);
+  const [html, css, app, fixture, logo, utils] = await Promise.all([read('web/index.html'), read('web/styles.css'), read('web/app.js'), read('examples/fixture.js'), read('web/assets/bithumb-logo.png', null), read('web/dashboard-utils.js')]);
+  const standaloneApp = `${utils.replace(/^export /gm, '')}\n${app.replace(/^import .* from '\.\/dashboard-utils\.js';\n/m, '')}`;
   const page = html
     .replace('<title>내 자산 · Asset Kit</title>', () => '<title>샘플 · 내 자산 · Asset Kit</title>')
     .replace('<link rel="stylesheet" href="/styles.css">', () => `<style>\n${css}</style>`)
-    .replace('<script src="/app.js" type="module"></script>', () => `<script>\n${inline(fixture.replace('/*DATA*/null', () => JSON.stringify(data)))}</script>\n<script type="module">\n${inline(app)}</script>`)
+    .replace('<script src="/app.js" type="module"></script>', () => `<script>\n${inline(fixture.replace('/*DATA*/null', () => JSON.stringify(data)))}</script>\n<script type="module">\n${inline(standaloneApp)}</script>`)
     .replace('src="/assets/bithumb-logo.png"', () => `src="data:image/png;base64,${logo.toString('base64')}"`)
     .replace('href="/"', () => 'href="#"');
   if (page.includes('src="/') || page.includes('href="/styles.css"')) throw new Error('외부 파일 참조가 남아 있습니다.');

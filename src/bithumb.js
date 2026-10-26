@@ -36,7 +36,7 @@ export function accountJwt(accessKey, secretKey, now = Date.now(), query = '') {
 }
 
 export class BithumbProvider {
-  #accessKey; #secretKey; #fetch; #marketCache; #gate = Promise.resolve();
+  #accessKey; #secretKey; #fetch; #marketCache; #marketPending; #gate = Promise.resolve();
   constructor({ accessKey, secretKey, fetchImpl = fetch, env = process.env, retries = 2, retryDelayMs = 250, minIntervalMs = 40 } = {}) {
     const credentials = resolveCredentials({ accessKey, secretKey, env });
     this.#accessKey = credentials.accessKey;
@@ -82,7 +82,9 @@ export class BithumbProvider {
         throw new KitError('API_UNREACHABLE', '빗썸 API에 연결하지 못했습니다. 네트워크 상태를 확인해주세요.');
       }
       if (!response.ok) {
-        if (retryable(response.status) && !last) { await response.body?.cancel(); await pause(this.retryDelayMs * 2 ** attempt); continue; }
+        // Release failed response streams even on the final attempt so repeated refreshes do not retain sockets.
+        try { await response.body?.cancel(); } catch { /* The original HTTP error remains authoritative. */ }
+        if (retryable(response.status) && !last) { await pause(this.retryDelayMs * 2 ** attempt); continue; }
         if (response.status === 401 || response.status === 403) {
           throw new KitError('AUTH_FAILED', 'API 키의 해당 조회 권한, 만료일, 허용 IP를 확인해주세요.', 401);
         }
@@ -99,9 +101,11 @@ export class BithumbProvider {
   async getTransfers(options) { return this.#request(transfersQuery(options), TRANSFER_PAGE); }
   async getMarkets() {
     if (this.#marketCache && Date.now() - this.#marketCache.at < 3600000) return this.#marketCache.data;
-    const data = await this.#request('/v1/market/all', MARKETS);
-    this.#marketCache = { at: Date.now(), data };
-    return data;
+    if (!this.#marketPending) this.#marketPending = this.#request('/v1/market/all', MARKETS).then(data => {
+      this.#marketCache = { at: Date.now(), data };
+      return data;
+    }).finally(() => { this.#marketPending = null; });
+    return this.#marketPending;
   }
   async getTickers(markets) {
     const unique = [...new Set(markets)];
