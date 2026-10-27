@@ -17,7 +17,15 @@ try {
   const service = new PortfolioService({ demo: true, directory });
   const portfolio = await service.portfolio();
   const histories = Object.fromEntries(await Promise.all([7, 30, 90, 365].map(async days => [days, await service.getHistory({ days })])));
-  const markets = Object.fromEntries(await Promise.all(portfolio.holdings.filter(h => h.symbol !== 'KRW').map(async h => [h.symbol, await service.getMarket({ symbol: h.symbol, days: 30 })])));
+  // 차트 캔들은 [분 단위 시각, 시가, 고가, 저가, 종가, 거래량] 배열로 줄여 담습니다. 일봉은 전체 원화 마켓, 다른 간격은 보유 코인만 담습니다.
+  const pack = market => { const { candles, ...rest } = market; return { ...rest, rows: candles.map(c => [Date.parse(c.at) / 60000, ...['openKrw', 'highKrw', 'lowKrw', 'closeKrw', 'volume'].map(key => Number(c[key]))]) }; };
+  const marketList = await service.marketList(), held = portfolio.holdings.filter(h => h.symbol !== 'KRW').map(h => h.symbol);
+  const candles = {};
+  for (const { symbol } of marketList) {
+    candles[symbol] = {};
+    for (const interval of held.includes(symbol) ? ['15m', '1h', '4h', 'day', 'week'] : ['day']) candles[symbol][interval] = pack(await service.getMarket({ symbol, interval, count: 120 }));
+  }
+  const returns = Object.fromEntries(await Promise.all([3, 6, 12].map(async months => [months, await service.returns({ months })])));
   const records = Object.fromEntries(await Promise.all(Object.keys(RECORD_KINDS).map(async kind => [kind, await service.getRecords({ kind })])));
   const data = {
     status: { ...service.status(), sample: true },
@@ -25,7 +33,7 @@ try {
       { id: randomUUID(), revision: 1, name: '내 자산', symbols: [], widgets: ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity'], days: 30, refreshSeconds: 0 },
       { id: randomUUID(), revision: 1, name: 'BTC·ETH 장기 보유', symbols: ['BTC', 'ETH'], widgets: ['summary', 'trend', 'allocation', 'holdings'], days: 90, refreshSeconds: 0 },
     ],
-    portfolio, histories, daily: await service.getHistory({ days: 365, daily: true }), markets, records, explain: await service.explain(),
+    portfolio, histories, daily: await service.getHistory({ days: 365, daily: true }), marketList, candles, returns, records, explain: await service.explain(),
     tickers: await service.marketOverview({ scope: 'all', limit: 50 }), warnings: await service.getWarnings({ scope: 'all' }),
   };
   const [html, css, app, fixture, logo, utils, theme] = await Promise.all([read('web/index.html'), read('web/styles.css'), read('web/app.js'), read('examples/fixture.js'), read('web/assets/bithumb-logo.png', null), read('web/dashboard-utils.js'), read('web/theme.js')]);

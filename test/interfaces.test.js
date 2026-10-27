@@ -65,7 +65,7 @@ test('stdio MCP: protocol, 17 tools, read-only except local dashboard tools, boa
     assert.equal((await data('portfolio_get_history', { days: 7 })).points.length, 7);
     assert.equal((await data('portfolio_get_history', { days: 7, daily: true })).daily.length, 7);
     assert.equal((await data('market_get_candles', { symbol: 'BTC', days: 3 })).candles.length, 3);
-    assert.equal((await data('account_get_records', { kind: 'krw_deposits' })).rows.length, 1);
+    assert.ok((await data('account_get_records', { kind: 'krw_deposits' })).rows.length >= 1);
     assert.ok((await data('dashboard_get_template')).files['index.html'].includes('Asset Kit'));
     assert.equal((await data('portfolio_get_report')).coverage.allTime, false);
     const board = await data('dashboard_save_board', { name: 'AI 장기 보유', symbols: ['eth'], widgets: ['summary', 'holdings'] });

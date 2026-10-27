@@ -116,7 +116,8 @@ test('activity pagination preserves scope and does not claim all-time completene
   const orders=await s.getOrders({kind:'history',fromMs:1000,toMs:7201000});
   assert.equal(orders.query.fromMs,1000);assert.equal(orders.query.toMs,7201000);assert.equal(orders.coverage.allTime,false);
   const transfers=await s.getTransfers({limit:1});assert.equal(transfers.pagination.mayHaveMore,true);
-  const next=await s.getTransfers({limit:1,page:2});assert.equal(next.pagination.mayHaveMore,false);assert.equal(next.data.length,0);
+  // The demo keeps a year of synthetic transfers; a page past the end is empty and claims nothing more.
+  const next=await s.getTransfers({limit:1,page:999});assert.equal(next.pagination.mayHaveMore,false);assert.equal(next.data.length,0);
 });
 test('report retains successful balances and labels denied activity sections',async()=>{
   const provider=new DemoProvider();provider.getTransfers=async()=>{throw new KitError('AUTH_FAILED','조회 권한 부족',401);};

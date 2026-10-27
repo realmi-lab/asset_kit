@@ -113,3 +113,48 @@ test('maximum date range counts both endpoints and matches leap/non-leap year bo
   assert.equal(dateRangeError('2025-01-01', '2026-01-01'), '');
   assert.match(dateRangeError('2025-01-01', '2026-01-02'), /366일/);
 });
+
+test('moving averages start once a full window is available', async () => {
+  const { movingAverage } = await import('../web/dashboard-utils.js');
+  assert.deepEqual(movingAverage([1, 2, 3, 4, 5], 3), [null, null, 2, 3, 4]);
+});
+
+test('averaging down: new average, and the quantity a target average needs', async () => {
+  const { averageAfterBuy, quantityForTarget } = await import('../web/dashboard-utils.js');
+  // 10 at 100 plus 10 at 50 → 20 at 75.
+  assert.deepEqual(averageAfterBuy({ quantity: 10, average: 100, buyQuantity: 10, buyPrice: 50 }), { quantity: 20, cost: 1500, average: 75 });
+  assert.equal(quantityForTarget({ quantity: 10, average: 100, price: 50, target: 75 }), 10);
+  assert.equal(quantityForTarget({ quantity: 10, average: 100, price: 50, target: 40 }), null, 'cannot average below the buy price');
+  // (10×100 + x×150) / (10 + x) = 120 → x = 200/30.
+  assert.ok(Math.abs(quantityForTarget({ quantity: 10, average: 100, price: 150, target: 120 }) - 200 / 30) < 1e-9, 'averaging up works the same way');
+});
+
+test('rebalancing trades reach each target share including new cash', async () => {
+  const { rebalance } = await import('../web/dashboard-utils.js');
+  const result = rebalance([{ symbol: 'BTC', value: 600, price: 100, target: 50 }, { symbol: 'KRW', value: 400, price: 1, target: 50 }], 200);
+  assert.equal(result.total, 1200);
+  assert.deepEqual(result.rows.map(r => [r.symbol, r.targetValue, r.diff, r.quantity]), [['BTC', 600, 0, 0], ['KRW', 600, 200, 200]]);
+  assert.equal(rebalance([{ symbol: 'A', value: 1, price: 1, target: 30 }]).targetSum, 30);
+});
+
+test('scenarios move each coin by its own change, cash stays, and P&L uses cost', async () => {
+  const { scenario } = await import('../web/dashboard-utils.js');
+  const holdings = [{ symbol: 'BTC', valueKrw: '1000', costKrw: '800', currentPriceKrw: '100' }, { symbol: 'ETH', valueKrw: '500', costKrw: '600', currentPriceKrw: '10' }, { symbol: 'KRW', valueKrw: '500', costKrw: null }];
+  const result = scenario(holdings, { BTC: 10 }, -20);
+  assert.equal(result.total, 1100 + 400 + 500);
+  assert.equal(result.change, 0);
+  assert.equal(result.profit, 1100 + 400 - 1400);
+  assert.ok(Math.abs(result.rows[0].price - 110) < 1e-9);
+});
+
+test('alert conditions cover price, daily change, return and total', async () => {
+  const { alertMet } = await import('../web/dashboard-utils.js');
+  const metrics = { price: 105, changePct: -6, profitPct: 12, total: 1000 };
+  assert.equal(alertMet({ type: 'above', value: 100 }, metrics), true);
+  assert.equal(alertMet({ type: 'below', value: 100 }, metrics), false);
+  assert.equal(alertMet({ type: 'fall', value: 5 }, metrics), true);
+  assert.equal(alertMet({ type: 'rise', value: 5 }, metrics), false);
+  assert.equal(alertMet({ type: 'profit', value: 10 }, metrics), true);
+  assert.equal(alertMet({ type: 'total_below', value: 999 }, metrics), false);
+  assert.equal(alertMet({ type: 'above', value: 100 }, { price: null }), null, 'an unknown value neither fires nor re-arms');
+});

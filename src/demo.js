@@ -61,7 +61,7 @@ export class DemoProvider {
       const start = interval === 'day' ? Date.parse(`${new Date(now - offset * DAY).toISOString().slice(0, 10)}T00:00:00Z`) : Math.floor((now - offset * step) / step) * step;
       return { market, candle_date_time_utc: new Date(start).toISOString().slice(0, 19), candle_date_time_kst: kst(start),
         opening_price: round(open), high_price: round(Math.max(open, close) * 1.01), low_price: round(Math.min(open, close) * 0.99), trade_price: round(close),
-        candle_acc_trade_volume: Number((VOLUMES[quote[0]] / quote[1] * step / DAY).toFixed(4)) };
+        candle_acc_trade_volume: Number((VOLUMES[quote[0]] / quote[1] * step / DAY * (0.55 + Math.abs(jitter(quote[0], offset)) * 0.9 + Math.min(2, Math.abs(close - open) / open * 40))).toFixed(4)) };
     });
   }
   async getWarnings() {
@@ -69,23 +69,65 @@ export class DemoProvider {
   }
   async getKeyExpiry() { return { expiresAt: null }; }
   async getOrders(options) {
-    if (options.nextKey) return { data: [], has_next: false, next_key: null };
-    const historical = options.kind === 'history';
-    const row = { order_id: `demo-${historical ? 'done' : 'pending'}`, side: historical ? 'bid' : 'ask', order_type: 'limit',
-      state: historical ? 'done' : 'wait', market: 'KRW-BTC', created_at: new Date(historical ? options.toMs - 3600000 : Date.now()-7200000).toISOString(),
-      price: historical ? '92000000' : '115000000', volume: historical ? '0.01' : '0.005', remaining_volume: historical ? '0' : '0.005',
-      paid_fee: historical ? '368' : '0', locked: historical ? '0' : '0.005', executed_volume: historical ? '0.01' : '0', executed_funds: historical ? '920000' : '0' };
-    return { data: (!options.market || options.market === row.market) && (!options.state || options.state === row.state) && (!historical || Date.parse(row.created_at)>=options.fromMs) ? [row] : [], has_next: false, next_key: null };
+    if (options.kind !== 'history') {
+      if (options.nextKey) return { data: [], has_next: false, next_key: null };
+      const row = { order_id: 'demo-pending', side: 'ask', order_type: 'limit', state: 'wait', market: 'KRW-BTC', created_at: new Date(Date.now() - 7200000).toISOString(),
+        price: '115000000', volume: '0.005', remaining_volume: '0.005', paid_fee: '0', locked: '0.005', executed_volume: '0', executed_funds: '0' };
+      return { data: (!options.market || options.market === row.market) && (!options.state || options.state === row.state) ? [row] : [], has_next: false, next_key: null };
+    }
+    const rows = demoRecords().orders.filter(row => { const at = Date.parse(row.created_at); return at >= options.fromMs && at <= options.toMs; })
+      .filter(row => (!options.market || options.market === row.market) && (!options.state || options.state === row.state));
+    // Newest first like the API; the cursor is the index of the next row.
+    const offset = options.nextKey ? Number(options.nextKey) : 0, page = rows.slice(offset, offset + options.limit), next = offset + page.length;
+    return { data: page, has_next: next < rows.length, next_key: next < rows.length ? String(next) : null };
   }
   async getTransfers(options) {
-    if (options.page > 1) return [];
-    const deposit = options.direction === 'deposit';
-    const currency = options.assetType === 'krw' ? 'KRW' : options.currency || 'BTC';
-    return [{ uuid: `demo-${options.direction}-${currency}`, currency,
-      state: deposit ? (currency==='KRW'?'ACCEPTED':'DEPOSIT_ACCEPTED') : 'DONE',
-      created_at: new Date(Date.now()-86400000).toISOString(), done_at: new Date(Date.now()-86340000).toISOString(),
-      amount: currency==='KRW' ? (deposit?'1000000':'100000') : '0.01', fee: deposit ? '0' : currency==='KRW'?'1000':'0.0002' }];
+    const rows = demoRecords().transfers.filter(row => row.direction === options.direction && (options.assetType === 'krw') === (row.currency === 'KRW') && (!options.currency || options.currency === row.currency));
+    return rows.slice((options.page - 1) * options.limit, options.page * options.limit).map(({ direction, ...row }) => row);
   }
+}
+
+/**
+ * Synthetic orders and transfers for the last twelve months, relative to today and the same price paths as the candles.
+ * They are consistent with the demo balances when replayed backwards (no quantity ever goes negative).
+ */
+export function demoRecords(now = Date.now()) {
+  const kstDay = (monthsAgo, day, hour = 10) => {
+    const local = new Date(now + 9 * 3600000);
+    return Date.UTC(local.getUTCFullYear(), local.getUTCMonth() - monthsAgo, day, hour - 9);
+  };
+  const price = (symbol, at) => { const [, base] = PRICES.find(([code]) => code === symbol); const value = base * priceFactor(symbol, Math.max(0, (now - at) / DAY)); return value >= 100 ? Math.round(value) : Number(value.toFixed(2)); };
+  const orders = [], transfers = [];
+  const order = (symbol, side, volume, at) => {
+    if (at > now - 3600000) return;
+    const unit = price(symbol, at), funds = Math.round(unit * volume), fee = Math.round(funds * 0.0004);
+    orders.push({ order_id: `demo-${symbol}-${side}-${at}`, side, order_type: 'limit', state: 'done', market: `KRW-${symbol}`, created_at: new Date(at).toISOString(), done_at: new Date(at + 60000).toISOString(),
+      price: String(unit), volume: String(volume), remaining_volume: '0', paid_fee: String(fee), locked: '0', executed_volume: String(volume), executed_funds: String(funds) });
+  };
+  const transfer = (direction, currency, amount, fee, at) => {
+    if (at > now - 3600000) return;
+    transfers.push({ direction, uuid: `demo-${direction}-${currency}-${at}`, currency, net_type: currency === 'KRW' ? undefined : currency, state: direction === 'deposit' ? (currency === 'KRW' ? 'ACCEPTED' : 'DEPOSIT_ACCEPTED') : 'DONE',
+      created_at: new Date(at).toISOString(), done_at: new Date(at + 60000).toISOString(), amount: String(amount), fee: String(fee) });
+  };
+  for (let m = 0; m < 12; m++) {
+    transfer('deposit', 'KRW', 300000, 0, kstDay(m, 3));            // 매달 적립식 입금
+    order('BTC', 'bid', 0.004, kstDay(m, 5, 11));                    // 매달 BTC 분할 매수
+    if (m % 2 === 0) order('ETH', 'bid', 0.1, kstDay(m, 8, 14));     // 격월 ETH 매수
+  }
+  transfer('deposit', 'KRW', 2000000, 0, kstDay(7, 11));
+  transfer('withdraw', 'KRW', 1000000, 1000, kstDay(4, 20));
+  transfer('withdraw', 'KRW', 300000, 1000, kstDay(1, 20));
+  transfer('deposit', 'BTC', 0.01, 0, kstDay(5, 10, 15));
+  transfer('withdraw', 'XRP', 100, 1, kstDay(2, 18));
+  transfer('deposit', 'KRW', 1000000, 0, now - 86400000);            // 어제 입금(최근 7일 화면용)
+  order('XRP', 'bid', 300, kstDay(9, 12));
+  order('SOL', 'bid', 2, kstDay(6, 15));
+  order('BTC', 'ask', 0.006, kstDay(3, 25));
+  order('ETH', 'ask', 0.2, kstDay(6, 26));
+  order('SOL', 'ask', 3, kstDay(4, 27));
+  orders.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  transfers.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return { orders, transfers };
 }
 
 /**

@@ -6,6 +6,8 @@ import { HistoryStore, dailyCloses, downsample, kstDay, pointFor } from './histo
 import { BoardStore } from './boards.js';
 import { KitError, publicError } from './errors.js';
 import { ORDER_PAGE_SIZE, RECORD_KINDS, normalizeOrders, normalizeTransfers, recordRange } from './activity.js';
+import { LiveFeed } from './live.js';
+import { computeReturns, kstDate, returnsWindow } from './returns.js';
 import { dataDir } from './config.js';
 
 const DAY = 86400000, WEEK = 7 * DAY;
@@ -25,7 +27,7 @@ export function parseSymbols(input = []) {
 }
 
 export class PortfolioService {
-  #pending; #cached; #records = new Map(); #recordCache = new Map(); #markets = new Map(); #marketPending = new Map(); #shared = new Map();
+  #pending; #cached; #source; #live; #records = new Map(); #recordCache = new Map(); #markets = new Map(); #marketPending = new Map(); #shared = new Map();
   constructor({ demo = false, provider, history, boards, directory, maxPages = 50, ...options } = {}) {
     this.provider = provider ?? (demo ? new DemoProvider() : new BithumbProvider(options));
     const storage = { directory: directory ?? dataDir(options.env), accountId: this.provider.accountId, mode: this.provider.mode };
@@ -61,11 +63,89 @@ export class PortfolioService {
     const tickers = needed.size ? await this.provider.getTickers([...needed]) : [];
     const portfolio = calculatePortfolio({ accounts, markets, tickers, mode: this.provider.mode });
     this.#cached = portfolio;
+    // Live prices revalue these balances without another account request.
+    this.#source = { accounts, markets, tickers, needed: [...needed] };
     // Every live read (dashboard, CLI, MCP) adds at most one local history point per five minutes.
     if (this.provider.mode !== 'demo') {
       try { await this.history.record(portfolio); this.historyError = null; } catch (error) { this.historyError = publicError(error); }
     }
     return portfolio;
+  }
+  /** Public live ticker feed (Bithumb WebSocket, REST fallback; synthetic ticks in demo mode). Created on first use. */
+  get live() {
+    this.#live ??= new LiveFeed({ demo: this.provider.mode === 'demo', poll: markets => this.provider.getTickers(markets) });
+    return this.#live;
+  }
+  /** Markets whose prices value the current balances (KRW-BTC is added for coins quoted only in BTC). */
+  async liveMarkets({ symbols = [] } = {}) {
+    await this.#portfolio();
+    const scope = new Set(parseSymbols(symbols));
+    return this.#source.needed.filter(market => !scope.size || scope.has(market.split('-')[1]) || (market === 'KRW-BTC' && this.#source.needed.some(m => m.startsWith('BTC-'))));
+  }
+  /**
+   * The last account snapshot revalued with live quotes (exact decimals, same contract as portfolio()).
+   * Balances come from the last account read; nothing is recorded to history.
+   */
+  livePortfolio({ symbols = [], quotes = this.live.quotes } = {}) {
+    if (!this.#source) return null;
+    const merged = new Map(this.#source.tickers.map(ticker => [ticker.market, ticker]));
+    // A live stream keeps its quotes current. Otherwise (reconnecting, polling) a quote older than the last account read's
+    // ticker must not undo the fresher price.
+    const streaming = quotes === this.live.quotes && this.live.status === 'live';
+    for (const market of this.#source.needed) {
+      const quote = quotes.get(market), rest = merged.get(market);
+      if (quote && (streaming || !(Number(rest?.timestamp) > Number(quote.timestamp)))) merged.set(market, { ...rest, ...quote });
+    }
+    const portfolio = calculatePortfolio({ accounts: this.#source.accounts, markets: this.#source.markets, tickers: [...merged.values()], mode: this.provider.mode, asOf: new Date().toISOString() });
+    return projectPortfolio(portfolio, parseSymbols(symbols));
+  }
+  /** Every KRW market's symbol, Korean name and caution flag, for search boxes. Public data. */
+  async marketList() {
+    return (await this.provider.getMarkets()).filter(m => m.market.startsWith('KRW-'))
+      .map(m => ({ symbol: m.market.slice(4), name: m.korean_name, marketWarning: m.market_warning && m.market_warning !== 'NONE' ? m.market_warning : null }));
+  }
+  /**
+   * Flow-adjusted returns, realized P&L and a monthly report over the last 3, 6 or 12 calendar months.
+   * Reads up to a year of orders and transfers, so the result is kept for a minute.
+   */
+  async returns({ months = 12, force = false } = {}) {
+    if (![3, 6, 12].includes(months)) throw new KitError('INVALID_RANGE', '수익률 기간은 3, 6, 12개월 중 하나입니다.', 400);
+    return this.#share(`returns:${months}`, 60000, async () => {
+      const now = Date.now(), window = returnsWindow(months, now), from = kstDate(window.start), to = kstDate(now);
+      const portfolio = await this.portfolio({ force });
+      // A year of closed orders is 53 seven-day windows; allow enough pages for them.
+      const read = kind => this.getRecords({ kind, from, to, force, pages: 200 });
+      // Transfers in the week before the window carry an earlier valuation up to the window start (records allow at most 366 days per read).
+      const before = kind => this.getRecords({ kind, from: kstDate(window.start - 7 * DAY), to: kstDate(window.start - DAY), force });
+      const transferKinds = ['krw_deposits', 'krw_withdrawals', 'deposits', 'withdrawals'];
+      const [orders, ...inside] = await Promise.all(['orders', ...transferKinds].map(read)), earlier = await Promise.all(transferKinds.map(before));
+      const [krwDeposits, krwWithdrawals, coinDeposits, coinWithdrawals] = inside.map((value, i) => ({ rows: [...earlier[i].rows, ...value.rows], coverage: { complete: value.coverage.complete && earlier[i].coverage.complete } }));
+      // History from a week before the window start, so a 12-month window can read past the 365-day limit of getHistory.
+      const points = await this.#points(Math.ceil((now - window.start) / DAY) + 8);
+      // Coin transfers are valued at that day's KRW close.
+      const closes = new Map(), symbols = [...new Set([...coinDeposits.rows, ...coinWithdrawals.rows].map(row => row.currency).filter(symbol => symbol && symbol !== 'KRW'))];
+      await Promise.all(symbols.map(async symbol => {
+        const byDay = new Map();
+        try {
+          const recent = await this.getMarket({ symbol, interval: 'day', count: 200 });
+          for (const candle of recent.candles) byDay.set(candle.date, candle.closeKrw);
+          if (recent.candles.length && recent.candles[0].date > kstDate(window.start - 7 * DAY)) {
+            const older = await this.getMarket({ symbol, interval: 'day', count: 200, to: recent.candles[0].date });
+            for (const candle of older.candles) byDay.set(candle.date, candle.closeKrw);
+          }
+        } catch { /* left unpriced and reported */ }
+        closes.set(symbol, byDay);
+      }));
+      const result = computeReturns({
+        months, now, holdings: portfolio.holdings, currentValueKrw: portfolio.summary.valuationComplete ? portfolio.summary.totalValueKrw : null,
+        orders: orders.rows, krwDeposits: krwDeposits.rows, krwWithdrawals: krwWithdrawals.rows, coinDeposits: coinDeposits.rows, coinWithdrawals: coinWithdrawals.rows,
+        history: points, closeOn: (symbol, day) => closes.get(symbol)?.get(day) ?? null,
+      });
+      const records = Object.fromEntries([['orders', orders], ['krwDeposits', krwDeposits], ['krwWithdrawals', krwWithdrawals], ['coinDeposits', coinDeposits], ['coinWithdrawals', coinWithdrawals]]
+        .map(([name, value]) => [name, { rows: value.rows.length, complete: value.coverage.complete }]));
+      return { mode: this.provider.mode, asOf: new Date(now).toISOString(), ...result, coverage: { records, complete: Object.values(records).every(r => r.complete) },
+        note: '실제 수익 = 기간 말 평가금액 − 기간 초 평가금액 − 순입금(코인 입출금은 그날 종가로 환산). 수익률은 입출금 시점을 반영한 근사(Modified Dietz)입니다. 실현손익은 평균 매수가 방식으로 다시 계산한 추정치이며, 세금·확정 손익 계산에 쓰지 마세요.' };
+    }, force);
   }
   async explain({ symbols = [] } = {}) {
     return explainPortfolio(await this.portfolio({ symbols }));
@@ -73,12 +153,15 @@ export class PortfolioService {
   /** Every recorded point in the period, before any downsampling. Exact endpoints and counts must come from here. */
   async historyPoints({ days = 30, symbols = [], daily = false } = {}) {
     if (!Number.isInteger(days) || days < 1 || days > 365) throw new KitError('INVALID_RANGE', '조회 기간은 1~365일입니다.', 400);
-    const scope = parseSymbols(symbols), span = daily ? days + 1 : days; // one extra day gives the first day's change
+    const scope = parseSymbols(symbols);
+    return { scope, points: await this.#points(daily ? days + 1 : days, scope) }; // one extra day gives the first day's change
+  }
+  async #points(span, scope = []) {
     if (this.provider.mode === 'demo') {
       const part = projectPortfolio(await this.#portfolio(), scope).summary.totalValueKrw;
-      return { scope, points: demoHistory(span, Date.now(), Number(part), scope).map(p => ({ asOf: p.asOf, totalValueKrw: p.totalValueKrw, valuationComplete: true })) };
+      return demoHistory(span, Date.now(), Number(part), scope).map(p => ({ asOf: p.asOf, totalValueKrw: p.totalValueKrw, valuationComplete: true }));
     }
-    return { scope, points: (await this.history.read(span)).map(record => pointFor(record, scope)) };
+    return (await this.history.read(span)).map(record => pointFor(record, scope));
   }
   async getHistory({ days = 30, symbols = [], daily = false } = {}) {
     const { scope, points } = await this.historyPoints({ days, symbols, daily });
@@ -211,16 +294,16 @@ export class PortfolioService {
     };
   }
   /** Every page of one record kind within a period (up to maxPages). Identical concurrent requests share one run. */
-  async getRecords({ kind = 'orders', from, to, force = false } = {}) {
+  async getRecords({ kind = 'orders', from, to, force = false, pages } = {}) {
     const spec = Object.hasOwn(RECORD_KINDS, kind) ? RECORD_KINDS[kind] : null;
     if (!spec) throw new KitError('INVALID_KIND', `내역 종류는 ${Object.keys(RECORD_KINDS).join(', ')} 중 하나입니다.`, 400);
     const period = kind === 'pending' ? null : recordRange(from, to);
     // Omitted bounds mean a rolling interval. Reuse its original period and asOf for the short cache lifetime.
-    const key = JSON.stringify([kind, from ? period?.start : null, to ? period?.end : null]);
+    const key = JSON.stringify([kind, from ? period?.start : null, to ? period?.end : null, pages ?? null]);
     if (this.#records.has(key)) return this.#records.get(key);
     const cached = this.#recordCache.get(key);
     if (!force && cached && Date.now() - cached.at < 30000) return cached.data;
-    this.#records.set(key, this.#collectRecords(kind, spec, period).then(data => {
+    this.#records.set(key, this.#collectRecords(kind, spec, period, pages ?? this.maxPages).then(data => {
       this.#recordCache.delete(key);
       this.#recordCache.set(key, { at: Date.now(), data });
       // A result may contain thousands of rows: bound retained ranges independently of small price caches.
@@ -229,12 +312,12 @@ export class PortfolioService {
     }).finally(() => this.#records.delete(key)));
     return this.#records.get(key);
   }
-  async #collectRecords(kind, spec, period) {
+  async #collectRecords(kind, spec, period, maxPages) {
     const rows = new Map();
     let pages = 0, complete = true;
     const page = async load => {
       // Larger closed-order pages mean fewer calls, not more retained rows: keep the old 100-rows-per-page ceiling.
-      if (pages >= this.maxPages || rows.size >= this.maxPages * 100) { complete = false; return null; }
+      if (pages >= maxPages || rows.size >= maxPages * 100) { complete = false; return null; }
       pages++;
       return load();
     };
@@ -283,7 +366,7 @@ export class PortfolioService {
       mode: this.provider.mode, kind, label: spec.label, asOf: new Date().toISOString(),
       period: period && { from: period.from, to: period.to }, rows: list, totals,
       coverage: {
-        complete, pages, maxPages: this.maxPages,
+        complete, pages, maxPages,
         note: kind === 'pending' ? '현재 대기 주문 전체입니다.' : kind === 'orders' ? '주문 생성 시각 기준 기간입니다. 체결 기준 투자 성과가 아닙니다.' : '완료 시각(없으면 생성 시각) 기준 기간입니다.',
       },
       notice: '통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다.',

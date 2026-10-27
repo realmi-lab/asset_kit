@@ -118,7 +118,8 @@ async function main() {
       const { startDashboard, startFailure } = await import('../src/server.js');
       const { server, url } = await startDashboard(service, { port, ...(o['web-dir'] ? { webDir: resolve(o['web-dir']) } : {}) }).catch(error => Promise.reject(startFailure(error, port)));
       console.log(`내 자산 대시보드: ${url}\n모드: ${o.demo ? '데모 · 합성 데이터' : '빗썸 계좌 조회'}${o['web-dir'] ? `\n화면 폴더: ${resolve(o['web-dir'])}` : ''}\n종료: Ctrl+C`);
-      const stop = () => server.close(() => process.exit(0));
+      // An open dashboard tab keeps a live stream that never ends by itself, so close connections instead of waiting for them.
+      const stop = () => { server.close(() => process.exit(0)); server.closeAllConnections(); };
       process.once('SIGINT', stop); process.once('SIGTERM', stop);
       return;
     }

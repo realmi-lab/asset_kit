@@ -105,3 +105,53 @@ test('sample market data follows the server sorting, scope and limit rules', asy
   assert.deepEqual(plain(await request('GET', '/api/warnings?scope=holdings')).rows.map(row => row.symbol), ['C']);
   assert.equal((await request('GET', '/api/warnings')).total, 2);
 });
+
+test('sample answers chart, returns and market-list calls and simulates live prices like the demo server', async () => {
+  const minute = Date.parse('2026-10-27T00:00:00Z') / 60000;
+  const portfolio = { asOf: snapshot, mode: 'demo', scope: [],
+    summary: { totalValueKrw: '1100', cashKrw: '100', cryptoValueKrw: '1000', profitKrw: '100', profitRatePct: '11.1111', comparableCostKrw: '900', assetCount: 1, valuationComplete: true },
+    holdings: [
+      { symbol: 'BTC', name: '비트코인', quantity: '0.00001', currentPriceKrw: '100000000', valueKrw: '1000', costKrw: '900', profitKrw: '100', profitRatePct: '11.1111', priceChangePct: '1.0000', allocationPct: '90.9091' },
+      { symbol: 'KRW', name: '원화', quantity: '100', currentPriceKrw: '1', valueKrw: '100', costKrw: null, profitKrw: null, profitRatePct: null, priceChangePct: null, allocationPct: '9.0909' }] };
+  const data = { status: { mode: 'demo', configured: true, sample: true }, boards: [baseBoard(0)], portfolio,
+    marketList: [{ symbol: 'BTC', name: '비트코인', marketWarning: null }],
+    candles: { BTC: { day: { mode: 'demo', symbol: 'BTC', name: '비트코인', market: 'KRW-BTC', interval: 'day', priceKrw: '100000000', changePct: '1.0000', rows: [[minute - 1440, 1, 3, 0.5, 2, 10], [minute, 2, 4, 1, 3, 20]] } } },
+    returns: { 3: { months: 3 }, 6: { months: 6 }, 12: { months: 12 } },
+    tickers: { mode: 'demo', rows: [
+      { symbol: 'BTC', name: '비트코인', priceKrw: '100000000', changePct: '1.0000', highKrw: '101000000', lowKrw: '99000000', value24hKrw: '5', held: true },
+      { symbol: 'ETH', name: '이더리움', priceKrw: '4000000', changePct: null, highKrw: null, lowKrw: null, value24hKrw: '3', held: false }] } };
+  const context = { window: {}, URL, crypto: { randomUUID }, setTimeout, setInterval, clearTimeout, clearInterval };
+  runInNewContext(source.replace('/*DATA*/null', () => JSON.stringify(data)), context);
+  const { request, stream } = context.window.AssetKitFixture;
+  assert.deepEqual(plain(await request('GET', '/api/markets')), { markets: data.marketList });
+  const daily = plain(await request('GET', '/api/market?symbol=BTC&interval=day&count=1'));
+  assert.deepEqual([daily.interval, daily.candles], ['day', [{ date: '2026-10-27', at: '2026-10-27T09:00:00+09:00', openKrw: '2', highKrw: '4', lowKrw: '1', closeKrw: '3', volume: '20' }]]);
+  assert.equal(daily.rows, undefined);
+  assert.equal((await request('GET', '/api/market?symbol=BTC&days=30')).candles.length, 2, 'the old daily path still works');
+  await assert.rejects(request('GET', '/api/market?symbol=BTC&interval=15m'), { status: 404 });
+  await assert.rejects(request('GET', '/api/market?symbol=XRP&interval=day'), { status: 404, code: 'NO_KRW_MARKET' });
+  assert.equal((await request('GET', '/api/returns?months=6')).months, 6);
+  await assert.rejects(request('GET', '/api/returns?months=5'), { status: 400, code: 'INVALID_RANGE' });
+  assert.deepEqual(plain(await request('GET', '/api/tickers?scope=all&symbols=ETH')).rows.map(row => row.symbol), ['ETH']);
+
+  const seen = { status: [], tick: [], portfolio: [] };
+  const live = stream({ symbols: '', watch: 'ETH,DOGE' }, { status: value => seen.status.push(plain(value)), tick: value => seen.tick.push(plain(value)), portfolio: value => seen.portfolio.push(plain(value)) });
+  await new Promise(resolve => setTimeout(resolve, 2100));
+  live.close();
+  const count = seen.tick.length;
+  await new Promise(resolve => setTimeout(resolve, 1600));
+  assert.equal(seen.tick.length, count, 'close stops the simulated feed');
+  assert.deepEqual(seen.status, [{ live: 'live', mode: 'demo' }]);
+  assert.ok(count >= 2);
+  const last = seen.tick.at(-1).tickers, btc = last.find(tick => tick.symbol === 'BTC');
+  assert.deepEqual(last.map(tick => tick.symbol), ['BTC', 'ETH'], 'held coins plus watched coins the sample knows');
+  assert.ok(Number(btc.priceKrw) >= 97000000 && Number(btc.priceKrw) <= 103000000);
+  // Simulated time runs on from the sample's snapshot, so the chart's last candle keeps moving instead of jumping to today.
+  const offset = Date.parse(btc.at) - Date.parse(data.portfolio.asOf);
+  assert.ok(offset >= 1000 && offset < 10000, String(offset));
+  const revalued = seen.portfolio.at(-1), holding = revalued.holdings.find(h => h.symbol === 'BTC');
+  assert.equal(holding.currentPriceKrw, btc.priceKrw);
+  assert.equal(holding.valueKrw, String(Math.round(0.00001 * Number(btc.priceKrw))));
+  assert.equal(revalued.summary.totalValueKrw, String(Number(holding.valueKrw) + 100));
+  assert.equal(seen.portfolio.length, count);
+});

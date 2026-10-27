@@ -10,7 +10,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 // Model only DOM state touched by these asynchronous workflows; layout is tested in a browser.
 // Replacing widget markup removes its old IDs, so accesses to detached widgets fail as in the browser.
 function dashboard() {
-  const elements = new Map(), pending = [], storage = new Map(), intervals = new Map();
+  const elements = new Map(), pending = [], storage = new Map(), intervals = new Map(), timeouts = [], sources = [];
   let timerId = 0;
   class Element {
     constructor(id, tag = 'div') {
@@ -58,7 +58,8 @@ function dashboard() {
   const context = { ...dashboardUtils, document, AbortController, AbortSignal, URLSearchParams, URL, Intl,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
     ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
-    setTimeout: () => 1, clearTimeout() {},
+    setTimeout: (callback, delay) => timeouts.push({ callback, delay }), clearTimeout() {},
+    EventSource: class { constructor(url) { Object.assign(this, { url, readyState: 0, closed: false }); sources.push(this); } addEventListener() {} close() { this.closed = true; this.readyState = 2; } },
     setInterval: (callback, delay) => { const id = ++timerId; intervals.set(id, { callback, delay }); return id; },
     clearInterval: id => intervals.delete(id),
     requestAnimationFrame: () => 1, cancelAnimationFrame() {},
@@ -68,7 +69,7 @@ function dashboard() {
   };
   context.window = context;
   const executable = source.replace(/^import .* from '\.\/dashboard-utils\.js';\s*$/m, '')
-    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, selectPage, togglePrivacy, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args) };');
+    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, selectPage, togglePrivacy, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args), connectLive, evaluateAlerts, liveCandle };');
   runInNewContext(executable, context, { filename: 'web/app.js' });
   assert.ok(context.app, 'The harness must expose actual app functions instead of initializing a server connection.');
   Object.assign(context.app.state, { status: { mode: 'demo', sample: true, sampleAsOf: '2026-10-06T06:00:00.000Z' },
@@ -76,7 +77,7 @@ function dashboard() {
       { id: 'a', name: 'BTC', symbols: ['BTC'], widgets: ['trend', 'activity'], days: 30, refreshSeconds: 0 },
       { id: 'b', name: 'ETH', symbols: ['ETH'], widgets: ['trend'], days: 7, refreshSeconds: 0 },
     ] });
-  return { app: context.app, elements, pending, intervals, next(prefix) {
+  return { app: context.app, elements, pending, intervals, storage, timeouts, sources, next(prefix) {
     const request = pending.find(item => !item.taken && item.path.startsWith(prefix));
     assert.ok(request, `Expected pending request for ${prefix}`);
     request.taken = true;
@@ -408,4 +409,81 @@ test('board settings changed elsewhere while another menu is open update the ref
   await sync;
   assert.equal(h.elements.get('board-name').textContent, '시장');
   assert.deepEqual([...h.intervals.values()].map(timer => timer.delay), [60000]);
+});
+
+test('the period change follows the live total instead of the last recorded point', async () => {
+  const h = dashboard();
+  h.app.state.boards[0].widgets = ['summary', 'trend'];
+  h.app.selectBoard('a');
+  const summary = { totalValueKrw: '1200', valuationComplete: true, cashKrw: '0', cryptoValueKrw: '1200', profitKrw: null, profitRatePct: null, dayChangeKrw: null, dayChangePct: null, assetCount: 1 };
+  h.next('/api/portfolio').resolve({ ...portfolio('BTC'), summary });
+  await flush();
+  h.next('/api/history').resolve({ ...history('BTC'), points: [{ asOf: '2026-09-06T06:00:00.000Z', totalValueKrw: '1000', valuationComplete: true }, { asOf: '2026-10-06T06:00:00.000Z', totalValueKrw: '1100', valuationComplete: true }] });
+  await flush();
+  assert.match(h.elements.get('hero-delta').innerHTML, /200원/, 'live total 1,200 minus the first point 1,000');
+  h.app.state.portfolio = { ...h.app.state.portfolio, summary: { ...summary, totalValueKrw: null, valuationComplete: false } };
+  h.app.togglePrivacy(); h.app.togglePrivacy();
+  assert.match(h.elements.get('hero-delta').innerHTML, /100원/, 'without a complete total the last record is used');
+});
+
+test('alerts judge only values they know: no account total from a filtered board, no re-arming while data is missing', () => {
+  const h = dashboard(), stored = () => JSON.parse(h.storage.get('asset-kit:alerts'));
+  h.storage.set('asset-kit:alerts', JSON.stringify([
+    { id: 't', symbol: 'TOTAL', type: 'total_below', value: 5000, enabled: true, armed: true },
+    { id: 'e', symbol: 'ETH', type: 'profit', value: 10, enabled: true, armed: false, firedAt: '2026-10-06T00:00:00.000Z' },
+  ]));
+  const summary = total => ({ totalValueKrw: String(total), valuationComplete: true });
+  // A BTC-only board worth 3,000 is not the account total, and ETH is simply not on it.
+  h.app.state.portfolio = { mode: 'demo', scope: ['BTC'], summary: summary(3000), holdings: [{ symbol: 'BTC', profitRatePct: '1' }] };
+  h.app.evaluateAlerts();
+  assert.deepEqual(stored().map(rule => rule.armed), [true, false]);
+  // Reloading a board leaves no portfolio for a moment: still nothing fires or re-arms.
+  h.app.state.portfolio = null;
+  h.app.evaluateAlerts();
+  assert.deepEqual(stored().map(rule => rule.armed), [true, false]);
+  // The whole account below 5,000 fires once; ETH above 10% is still the same alert and does not fire again.
+  h.app.state.portfolio = { mode: 'demo', scope: [], summary: summary(4000), holdings: [{ symbol: 'ETH', profitRatePct: '12' }] };
+  h.app.evaluateAlerts();
+  assert.deepEqual(stored().map(rule => rule.armed), [false, false]);
+  assert.equal(JSON.parse(h.storage.get('asset-kit:alert-log')).length, 1);
+});
+
+test('a live stream the server refused is opened again after a pause; a network drop is left to the browser', () => {
+  const h = dashboard();
+  Object.assign(h.app.state, { boardId: 'a', status: { ...h.app.state.status, configured: true } });
+  h.app.connectLive();
+  const [first] = h.sources;
+  assert.match(first.url, /^\/api\/stream\?symbols=BTC&watch=BTC%2CETH%2CXRP$/);
+  first.readyState = 0;
+  first.onerror();
+  assert.deepEqual([h.app.state.live.status, first.closed, h.timeouts.length], ['reconnecting', false, 0], 'EventSource reconnects by itself here');
+  first.readyState = 2;
+  first.onerror();
+  assert.equal(first.closed, true);
+  assert.equal(h.timeouts.at(-1).delay, 3000);
+  h.timeouts.at(-1).callback();
+  assert.equal(h.sources.length, 2, 'a fresh stream replaces the one the server closed');
+  h.app.connectLive();
+  assert.equal(h.sources.length, 2, 'an open stream for the same coins is kept');
+});
+
+test('live candles: a tick inside the period moves the last candle, a later one starts a new candle, an old one is ignored', () => {
+  const h = dashboard(), minute = 60000, start = Date.parse('2026-10-27T09:00:00+09:00');
+  const candle = (at, close) => ({ at: new Date(at).toISOString(), date: '2026-10-27', openKrw: '100', highKrw: '110', lowKrw: '90', closeKrw: String(close), volume: '5' });
+  const data = { symbol: 'BTC', interval: '15m', asOf: new Date(start + 5 * minute).toISOString(), candles: [candle(start - 15 * minute, 100), candle(start, 100)] };
+  Object.assign(h.app.state.chart, { symbol: 'BTC', interval: '15m', data });
+  const tick = (price, at) => h.app.state.ticks.set('BTC', { symbol: 'BTC', priceKrw: String(price), at: new Date(at).toISOString() });
+  tick(120, start + 4 * minute);
+  assert.equal(h.app.liveCandle(), false, 'a price older than the loaded candles is ignored');
+  tick(120, start + 6 * minute);
+  assert.equal(h.app.liveCandle(), true);
+  assert.deepEqual([data.candles.length, data.candles[1].closeKrw, data.candles[1].highKrw, data.candles[1].lowKrw], [2, '120', '120', '90']);
+  // 16 minutes past 09:00 belongs to the 09:15 candle, not the 09:00 one.
+  tick(80, start + 16 * minute);
+  assert.equal(h.app.liveCandle(), true);
+  assert.deepEqual([data.candles.length, data.candles[1].closeKrw, data.candles[2].at, data.candles[2].openKrw, data.candles[2].volume], [3, '120', new Date(start + 15 * minute).toISOString(), '80', '0']);
+  assert.equal(h.timeouts.filter(t => t.delay === 5000).length, 1, 'the finished candle is fetched again once');
+  tick(81, start + 17 * minute);
+  h.app.liveCandle();
+  assert.deepEqual([data.candles.length, data.candles[2].closeKrw, data.candles[2].highKrw], [3, '81', '81']);
 });
