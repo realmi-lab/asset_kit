@@ -68,7 +68,7 @@ function dashboard() {
   };
   context.window = context;
   const executable = source.replace(/^import .* from '\.\/dashboard-utils\.js';\s*$/m, '')
-    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args) };');
+    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, selectPage, togglePrivacy, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args) };');
   runInNewContext(executable, context, { filename: 'web/app.js' });
   assert.ok(context.app, 'The harness must expose actual app functions instead of initializing a server connection.');
   Object.assign(context.app.state, { status: { mode: 'demo', sample: true, sampleAsOf: '2026-10-06T06:00:00.000Z' },
@@ -357,4 +357,55 @@ test('board sync never runs before the first board is chosen, never cancels a re
   recordsRequest.resolve(activity);
   await records;
   assert.equal(h.app.state.activity, activity);
+});
+
+test('the 거래내역 menu reads the whole account even when the active board is scoped', async () => {
+  const h = dashboard();
+  h.app.state.boardId = 'a';
+  h.app.selectPage('activity');
+  h.next('/api/portfolio').resolve(portfolio(''));
+  await flush();
+  assert.equal(h.elements.get('board-name').textContent, '거래내역');
+  h.elements.get('activity-kind').value = 'krw_deposits';
+  h.elements.get('activity-from').value = '2026-10-01';
+  h.elements.get('activity-to').value = '2026-10-06';
+  // The fake DOM does not pick the first <option> when options are replaced; a browser selects 상태 전체.
+  h.elements.get('activity-status').value = 'all';
+  const done = h.app.loadActivity();
+  h.next('/api/records').resolve({ ...activity, kind: 'krw_deposits', label: '원화 입금', rows: [{ currency: 'KRW', state: 'ACCEPTED', amount: '1000', fee: '0', at: '2026-10-05T00:00:00.000Z' }] });
+  await done;
+  assert.match(h.elements.get('activity-body').innerHTML, /입금/);
+  assert.match(h.elements.get('activity-coverage').textContent, /1건 중 1건/);
+  assert.doesNotMatch(h.elements.get('activity-coverage').textContent, /범위\)/);
+});
+
+test('privacy mode also hides the allocation subtitle shares', async () => {
+  const h = dashboard();
+  h.app.state.boards = [{ id: 'a', name: '비중', symbols: [], widgets: ['allocation'], days: 30, refreshSeconds: 0 }];
+  h.app.selectBoard('a');
+  h.next('/api/portfolio').resolve({ ...portfolio(''), holdings: [
+    { symbol: 'BTC', name: '비트코인', valueKrw: '900', allocationPct: '90', priceChangePct: null, profitKrw: null },
+    { symbol: 'KRW', name: '원화', valueKrw: '100', allocationPct: '10', priceChangePct: null, profitKrw: null }] });
+  await flush();
+  assert.match(h.elements.get('allocation-sub').textContent, /90%/);
+  h.app.togglePrivacy();
+  assert.doesNotMatch(h.elements.get('allocation-sub').textContent, /%/);
+  assert.match(h.elements.get('allocation').innerHTML, /숨겼습니다/);
+});
+
+test('board settings changed elsewhere while another menu is open update the refresh schedule without leaving the menu', async () => {
+  const h = dashboard();
+  h.app.state.status = { mode: 'demo', configured: true };
+  h.app.state.boards = h.app.state.boards.map(b => ({ ...b, revision: 1 }));
+  h.app.state.boardId = 'a';
+  h.app.selectPage('market');
+  h.next('/api/portfolio').resolve(portfolio(''));
+  await flush();
+  assert.equal([...h.intervals.values()].length, 0);
+  const sync = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [{ ...h.app.state.boards[0], revision: 2, refreshSeconds: 60 }, h.app.state.boards[1]] });
+  await sync;
+  assert.equal(h.elements.get('board-name').textContent, '시장');
+  assert.deepEqual([...h.intervals.values()].map(timer => timer.delay), [60000]);
 });

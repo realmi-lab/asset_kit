@@ -36,7 +36,7 @@ export function holdingsResult(p, { symbol, search = '', excludeCash = false, pe
     note: '비중은 symbols 범위 전체를 분모로 사용합니다. 검색·손익 필터·페이지 제한으로 다시 계산하지 않습니다. nextOffset은 같은 asOf 안에서 사용하세요.' };
 }
 
-const SNAPSHOT_SUMMARY = ['totalValueKrw', 'cashKrw', 'cryptoValueKrw', 'profitKrw', 'profitRatePct', 'assetCount', 'valuationComplete', 'profitComplete'];
+const SNAPSHOT_SUMMARY = ['totalValueKrw', 'cashKrw', 'cryptoValueKrw', 'profitKrw', 'profitRatePct', 'dayChangeKrw', 'dayChangePct', 'assetCount', 'valuationComplete', 'profitComplete', 'dayChangeComplete'];
 const SNAPSHOT_HOLDING = ['symbol', 'name', 'quantity', 'valueKrw', 'allocationPct', 'profitKrw', 'profitRatePct', 'priceChangePct', 'marketWarning'];
 const pick = (row, keys) => Object.fromEntries(keys.map(key => [key, row[key] ?? null]));
 const total = (rows, key) => rows.reduce((sum, row) => row[key] === null ? sum : sum.plus(row[key]), dec(0)).toFixed();

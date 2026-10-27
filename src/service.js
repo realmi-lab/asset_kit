@@ -75,8 +75,8 @@ export class PortfolioService {
     if (!Number.isInteger(days) || days < 1 || days > 365) throw new KitError('INVALID_RANGE', '조회 기간은 1~365일입니다.', 400);
     const scope = parseSymbols(symbols), span = daily ? days + 1 : days; // one extra day gives the first day's change
     if (this.provider.mode === 'demo') {
-      const full = await this.#portfolio(), total = dec(full.summary.totalValueKrw), part = projectPortfolio(full, scope).summary.totalValueKrw;
-      return { scope, points: demoHistory(span, Date.now(), total.toNumber()).map(p => ({ asOf: p.asOf, totalValueKrw: total.isZero() ? '0' : dec(p.totalValueKrw).times(part).div(total, 0).toFixed(0), valuationComplete: true })) };
+      const part = projectPortfolio(await this.#portfolio(), scope).summary.totalValueKrw;
+      return { scope, points: demoHistory(span, Date.now(), Number(part), scope).map(p => ({ asOf: p.asOf, totalValueKrw: p.totalValueKrw, valuationComplete: true })) };
     }
     return { scope, points: (await this.history.read(span)).map(record => pointFor(record, scope)) };
   }
@@ -138,13 +138,19 @@ export class PortfolioService {
     return pending;
   }
   // Held symbols when an account is connected; null without keys so public tools still work.
-  async #heldSymbols(force) {
+  // With `optional` (scope=all) an account failure only drops the "held" marks instead of failing public market data.
+  async #heldSymbols(force, optional = false) {
     if (!this.provider.configured) return null;
-    return new Map((await this.#portfolio(force)).holdings.filter(h => h.symbol !== 'KRW').map(h => [h.symbol, h]));
+    try {
+      return new Map((await this.#portfolio(force)).holdings.filter(h => h.symbol !== 'KRW').map(h => [h.symbol, h]));
+    } catch (error) {
+      if (optional) return null;
+      throw error;
+    }
   }
   /** Prices, 24h change and traded value for held assets or every KRW market. Public data; works without keys for scope=all. */
   async marketOverview({ scope = 'holdings', symbols = [], sort = 'value24h', direction = 'desc', limit = 20, force = false } = {}) {
-    const wanted = parseSymbols(symbols), held = await this.#heldSymbols(force);
+    const wanted = parseSymbols(symbols), held = await this.#heldSymbols(force, scope === 'all');
     if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 시세는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
     const markets = (await this.provider.getMarkets()).filter(m => m.market.startsWith('KRW-'));
     const listed = markets.filter(m => {
@@ -169,7 +175,7 @@ export class PortfolioService {
   }
   /** 경보제(가격 급등락 등)와 거래 유의 종목. scope=holdings는 보유 자산만, all은 빗썸 전체. */
   async getWarnings({ scope = 'holdings', force = false } = {}) {
-    const held = await this.#heldSymbols(force);
+    const held = await this.#heldSymbols(force, scope === 'all');
     if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 경보는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
     const [alerts, markets] = await Promise.all([this.#share('warnings', 60000, () => this.provider.getWarnings(), force), this.provider.getMarkets()]);
     const names = new Map(markets.map(m => [m.market, m.korean_name]));

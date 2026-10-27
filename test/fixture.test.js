@@ -9,9 +9,9 @@ const source = await readFile(new URL('../examples/fixture.js', import.meta.url)
 const snapshot = '2026-10-06T06:21:16.020Z';
 const baseBoard = index => ({ id: `board-${index}`, revision: 1, ...validateBoard({ name: `Board ${index}` }) });
 const plain = value => JSON.parse(JSON.stringify(value));
-function fixture(count = 1) {
+function fixture(count = 1, extra = {}) {
   const data = { status: { mode: 'demo', configured: true, sample: true }, portfolio: { asOf: snapshot },
-    boards: Array.from({ length: count }, (_, index) => baseBoard(index)) };
+    boards: Array.from({ length: count }, (_, index) => baseBoard(index)), ...extra };
   const context = { window: {}, URL, crypto: { randomUUID } };
   runInNewContext(source.replace('/*DATA*/null', () => JSON.stringify(data)), context);
   return context.window.AssetKitFixture.request;
@@ -86,4 +86,22 @@ test('sample updates preserve revision and contents on validation failure or con
   await assert.rejects(request('PUT', '/api/boards/board-0', { name: 'Stale', revision: 1 }), { code: 'CONFLICT', status: 409 });
   assert.equal((await request('GET', '/api/boards')).boards[0].name, 'Changed');
   await assert.rejects(request('DELETE', '/api/boards/board-0', { revision: 2 }), { code: 'LAST_BOARD', status: 400 });
+});
+
+test('sample market data follows the server sorting, scope and limit rules', async () => {
+  const rows = [
+    { symbol: 'A', name: '가', priceKrw: '10', changePct: '1', value24hKrw: '5', held: true },
+    { symbol: 'B', name: '나', priceKrw: '20', changePct: '-3', value24hKrw: '9', held: false },
+    { symbol: 'C', name: '다', priceKrw: '30', changePct: '7', value24hKrw: '1', held: true },
+  ];
+  const request = fixture(1, { tickers: { mode: 'demo', asOf: snapshot, scope: 'all', total: 3, rows },
+    warnings: { mode: 'demo', asOf: snapshot, scope: 'all', total: 2, rows: [{ symbol: 'B', held: false }, { symbol: 'C', held: true }], note: '경보' } });
+  const movers = plain(await request('GET', '/api/tickers?scope=all&sort=change&direction=desc&limit=2'));
+  assert.deepEqual([movers.rows.map(row => row.symbol), movers.total, movers.sort], [['C', 'A'], 3, 'change']);
+  assert.deepEqual(plain(await request('GET', '/api/tickers?scope=all&sort=change&direction=asc&limit=1')).rows.map(row => row.symbol), ['B']);
+  assert.deepEqual(plain(await request('GET', '/api/tickers?scope=holdings')).rows.map(row => row.symbol), ['A', 'C']);
+  const fallback = plain(await request('GET', '/api/tickers?scope=evil&sort=evil&limit=999'));
+  assert.deepEqual([fallback.scope, fallback.sort, fallback.rows.map(row => row.symbol)], ['all', 'value24h', ['B', 'A', 'C']]);
+  assert.deepEqual(plain(await request('GET', '/api/warnings?scope=holdings')).rows.map(row => row.symbol), ['C']);
+  assert.equal((await request('GET', '/api/warnings')).total, 2);
 });

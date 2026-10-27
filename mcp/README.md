@@ -296,6 +296,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 }
 ```
 
+- `summary`의 `dayChangeKrw`·`dayChangePct`는 오늘 시세 변동입니다. 지금 수량을 전일 종가로 평가한 값과의 차이이며, 오늘의 입출금·매매는 반영하지 않습니다. 등락률을 모르는 자산이 있으면 `dayChangeComplete`가 `false`입니다.
 - `holdings`는 평가금액 상위 `top`개(기본 5), 나머지는 `others` 한 조각입니다. 상위 자산과 `others`의 금액 합은 `summary.totalValueKrw`와 정확히 같습니다.
 - `trend`는 같은 위치끼리 짝인 열 배열입니다. 기간 안의 모든 기록에서 가격 미확인 시점을 먼저 빼고(`omitted`에 개수) 기본 60점으로 줄이므로, 첫·마지막 기록과 `changeKrw`가 정확합니다. 나머지가 모두 가격 미확인이면 `others`의 금액·비중은 `null`입니다.
 - `daily: true`이면 일별 자산 변화(`day`·`changeKrw`·`changePct`·`gapDays` 열 배열)를 함께 반환합니다.
@@ -349,7 +350,7 @@ AI가 알려준 주소를 브라우저로 열면 저장한 보드 탭이 선택�
 | --- | --- | --- |
 | `name` | 화면 이름(1~48자) | 필수 |
 | `symbols` | 표시할 자산. 빈 배열이면 원화 포함 전체 | `[]` |
-| `widgets` | `summary`(자산 요약), `trend`(자산 추이·일별 자산 변화), `allocation`(자산 비중), `holdings`(보유 내역·자산별 30일 시세), `activity`(거래·입출금). 배열 순서가 화면 순서 | 5개 모두 |
+| `widgets` | `summary`(자산 요약), `trend`(자산 추이·일별 자산 변화), `insights`(오늘의 인사이트), `allocation`(자산 비중), `heatmap`(자산 히트맵), `performance`(자산별 손익), `holdings`(보유 내역·자산별 30일 시세), `market`(시장 개요), `warnings`(시장 경보), `activity`(거래·입출금). 배열 순서가 화면 순서 | `summary`·`trend`·`insights`·`allocation`·`holdings`·`activity` |
 | `days` | 추이 기간 7, 30, 90, 365 | 30 |
 | `refreshSeconds` | 자동 갱신 0(수동), 30, 60, 300 | 60 |
 

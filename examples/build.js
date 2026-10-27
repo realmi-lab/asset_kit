@@ -22,19 +22,21 @@ try {
   const data = {
     status: { ...service.status(), sample: true },
     boards: [
-      { id: randomUUID(), revision: 1, name: '내 자산', symbols: [], widgets: ['summary', 'trend', 'allocation', 'holdings', 'activity'], days: 30, refreshSeconds: 0 },
+      { id: randomUUID(), revision: 1, name: '내 자산', symbols: [], widgets: ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity'], days: 30, refreshSeconds: 0 },
       { id: randomUUID(), revision: 1, name: 'BTC·ETH 장기 보유', symbols: ['BTC', 'ETH'], widgets: ['summary', 'trend', 'allocation', 'holdings'], days: 90, refreshSeconds: 0 },
     ],
     portfolio, histories, daily: await service.getHistory({ days: 365, daily: true }), markets, records, explain: await service.explain(),
+    tickers: await service.marketOverview({ scope: 'all', limit: 50 }), warnings: await service.getWarnings({ scope: 'all' }),
   };
-  const [html, css, app, fixture, logo, utils] = await Promise.all([read('web/index.html'), read('web/styles.css'), read('web/app.js'), read('examples/fixture.js'), read('web/assets/bithumb-logo.png', null), read('web/dashboard-utils.js')]);
+  const [html, css, app, fixture, logo, utils, theme] = await Promise.all([read('web/index.html'), read('web/styles.css'), read('web/app.js'), read('examples/fixture.js'), read('web/assets/bithumb-logo.png', null), read('web/dashboard-utils.js'), read('web/theme.js')]);
   const standaloneApp = `${utils.replace(/^export /gm, '')}\n${app.replace(/^import .* from '\.\/dashboard-utils\.js';\n/m, '')}`;
   const page = html
     .replace('<title>내 자산 · Asset Kit</title>', () => '<title>샘플 · 내 자산 · Asset Kit</title>')
+    .replace('<script src="/theme.js"></script>', () => `<script>\n${inline(theme)}</script>`)
     .replace('<link rel="stylesheet" href="/styles.css">', () => `<style>\n${css}</style>`)
     .replace('<script src="/app.js" type="module"></script>', () => `<script>\n${inline(fixture.replace('/*DATA*/null', () => JSON.stringify(data)))}</script>\n<script type="module">\n${inline(standaloneApp)}</script>`)
-    .replace('src="/assets/bithumb-logo.png"', () => `src="data:image/png;base64,${logo.toString('base64')}"`)
-    .replace('href="/"', () => 'href="#"');
+    .replaceAll('src="/assets/bithumb-logo.png"', () => `src="data:image/png;base64,${logo.toString('base64')}"`)
+    .replaceAll('href="/"', () => 'href="#"');
   if (page.includes('src="/') || page.includes('href="/styles.css"')) throw new Error('외부 파일 참조가 남아 있습니다.');
   await mkdir(new URL('examples/', root), { recursive: true });
   await writeFile(new URL('examples/sample-dashboard.html', root), page);

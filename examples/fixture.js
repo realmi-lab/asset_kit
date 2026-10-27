@@ -6,7 +6,8 @@ window.AssetKitFixture = (() => {
   const fail = (message, status = 400, code = 'INVALID_BOARD') => Promise.reject(Object.assign(new Error(message), { status, code }));
   const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `sample-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const won = value => `${Math.round(Number(value)).toLocaleString('ko-KR')}원`;
-  const WIDGETS = ['summary', 'trend', 'allocation', 'holdings', 'activity'];
+  const WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'heatmap', 'performance', 'holdings', 'market', 'warnings', 'activity'];
+  const DEFAULT_WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity'];
   const MAX_BOARDS = 50;
   const invalidBoard = () => Object.assign(new Error('대시보드 설정을 확인하세요. 이름 1~48자, 위젯 1개 이상(중복 없음), 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.'), { status: 400, code: 'INVALID_BOARD' });
 
@@ -19,11 +20,15 @@ window.AssetKitFixture = (() => {
     const comparable = holdings.filter(h => h.profitKrw !== null);
     const cost = comparable.reduce((sum, h) => sum + Number(h.costKrw), 0), profit = comparable.reduce((sum, h) => sum + Number(h.profitKrw), 0);
     const cash = Number(holdings.find(h => h.symbol === 'KRW')?.valueKrw ?? 0);
+    const moved = holdings.filter(h => h.symbol !== 'KRW' && h.valueKrw !== null && h.priceChangePct !== null);
+    const day = moved.reduce((sum, h) => sum + Number(h.valueKrw) - Number(h.valueKrw) / (1 + Number(h.priceChangePct) / 100), 0);
     return { ...full, scope: symbols,
       holdings: holdings.map(h => ({ ...h, allocationPct: total ? (Number(h.valueKrw) / total * 100).toFixed(4) : null })),
       summary: { ...full.summary, totalValueKrw: String(total), cashKrw: String(cash), cryptoValueKrw: String(total - cash),
         profitKrw: comparable.length ? String(profit) : null, profitRatePct: cost ? (profit / cost * 100).toFixed(4) : null,
-        comparableCostKrw: String(cost), assetCount: holdings.filter(h => h.symbol !== 'KRW').length } };
+        comparableCostKrw: String(cost), assetCount: holdings.filter(h => h.symbol !== 'KRW').length,
+        dayChangeKrw: moved.length ? String(Math.round(day)) : null, dayChangePct: moved.length && total - day > 0 ? (day / (total - day) * 100).toFixed(4) : null,
+        dayChangeComplete: moved.length === holdings.filter(h => h.symbol !== 'KRW').length } };
   }
   const ratio = symbols => symbols.length ? Number(project(symbols).summary.totalValueKrw) / Number(DATA.portfolio.summary.totalValueKrw) : 1;
   function history(params) {
@@ -47,6 +52,19 @@ window.AssetKitFixture = (() => {
     if (largest.length) lines.push(`비중이 큰 자산은 ${largest.map(h => `${h.name} ${Number(h.allocationPct).toFixed(1)}%`).join(', ')}입니다.`);
     return { ...DATA.explain, scope: symbols, summary: lines.join(' '), largest };
   }
+  // 시장 개요: 빌드 때 만든 전체 시세를 서버와 같은 조건으로 정렬·제한합니다.
+  function tickers(params) {
+    const scope = params.get('scope') === 'holdings' ? 'holdings' : 'all', sort = ['change', 'price', 'name'].includes(params.get('sort')) ? params.get('sort') : 'value24h';
+    const factor = params.get('direction') === 'asc' ? 1 : -1, limit = Math.min(Math.max(Math.trunc(Number(params.get('limit'))) || 10, 1), 50);
+    const field = { change: 'changePct', value24h: 'value24hKrw', price: 'priceKrw' }[sort];
+    const rows = DATA.tickers.rows.filter(row => scope === 'all' || row.held)
+      .sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, 'ko') * factor : (Number(a[field]) - Number(b[field])) * factor || a.symbol.localeCompare(b.symbol));
+    return { ...clone(DATA.tickers), scope, sort, direction: factor > 0 ? 'asc' : 'desc', total: rows.length, rows: clone(rows.slice(0, limit)) };
+  }
+  function warnings(params) {
+    const scope = params.get('scope') === 'holdings' ? 'holdings' : 'all', rows = DATA.warnings.rows.filter(row => scope === 'all' || row.held);
+    return { ...clone(DATA.warnings), scope, total: rows.length, rows: clone(rows) };
+  }
   function records(params) {
     const result = clone(DATA.records[params.get('kind')] ?? DATA.records.orders);
     if (result.kind === 'pending') return result;
@@ -58,7 +76,7 @@ window.AssetKitFixture = (() => {
   }
   function saveBoard(input, base = {}) {
     // 서버 없이도 src/boards.js의 BOARD_FIELDS와 같은 입력 규칙을 적용합니다.
-    const { name, symbols = [], widgets = [...WIDGETS], days = 30, refreshSeconds = 60 } = input ?? {};
+    const { name, symbols = [], widgets = [...DEFAULT_WIDGETS], days = 30, refreshSeconds = 60 } = input ?? {};
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 48 || !Array.isArray(symbols) || symbols.length > 100
       || symbols.some(symbol => typeof symbol !== 'string' || !/^[A-Z0-9][A-Z0-9_]{0,29}$/.test(symbol.trim().toUpperCase()))
       || !Array.isArray(widgets) || !widgets.length || widgets.length > WIDGETS.length || new Set(widgets).size !== widgets.length
@@ -75,6 +93,8 @@ window.AssetKitFixture = (() => {
         case '/api/portfolio': return clone(project((params.get('symbols') || '').split(',').filter(Boolean)));
         case '/api/history': return history(params);
         case '/api/explain': return explain(params);
+        case '/api/tickers': return tickers(params);
+        case '/api/warnings': return warnings(params);
         case '/api/records': return records(params);
         case '/api/market': return DATA.markets[params.get('symbol')] ? clone(DATA.markets[params.get('symbol')]) : fail('샘플 데이터에 없는 원화 마켓입니다.', 404);
       }

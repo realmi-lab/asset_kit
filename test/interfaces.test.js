@@ -173,13 +173,24 @@ test('served dashboard: consistent JSON, guarded board writes, foreign origins a
     assert.equal((await json('/api/boards/import', 'POST', { boards: [{ name: 'valid' }, { name: 'bad', widgets: ['execute'] }] })).status, 400);
     assert.ok(!(await service.boards.list()).some(b => b.name === 'valid'));
     assert.equal((await json(`/api/boards/${board.id}`, 'DELETE', { revision: 2 })).status, 200);
+    // Market data for the market page: public prices, read-only, unknown options fall back to defaults.
+    const movers = await (await fetch(`${url}/api/tickers?scope=all&sort=change&direction=desc&limit=3`)).json();
+    assert.deepEqual(movers.rows.map(row => row.symbol), ['DOGE', 'BTC', 'ETH']);
+    assert.deepEqual((await (await fetch(`${url}/api/tickers?scope=holdings`)).json()).rows.map(row => row.symbol), ['BTC', 'ETH', 'XRP', 'SOL']);
+    const fallback = await (await fetch(`${url}/api/tickers?scope=evil&sort=evil&direction=up&limit=999`)).json();
+    assert.deepEqual([fallback.scope, fallback.sort, fallback.direction, fallback.rows.length], ['all', 'value24h', 'desc', 7]);
+    assert.deepEqual((await (await fetch(`${url}/api/warnings?scope=all`)).json()).rows.map(row => [row.symbol, row.held]), [['DOGE', false]]);
+    assert.equal((await (await fetch(`${url}/api/warnings?scope=holdings`)).json()).total, 0);
+    assert.equal((await json('/api/tickers', 'POST', {})).status, 405);
+    const market = await json('/api/boards', 'POST', { name: '시장', widgets: ['market', 'warnings', 'heatmap'] });
+    assert.equal(market.status, 201);
     assert.equal((await fetch(`${url}/%2e%2e/package.json`)).status, 404);
     assert.equal((await fetch(`${url}/../src/config.js`)).status, 404);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
 test('web and sample scripts parse; every file is plain JavaScript without a build step', () => {
-  for (const file of ['../web/app.js', '../web/dashboard-utils.js', '../examples/fixture.js', '../examples/build.js']) {
+  for (const file of ['../web/app.js', '../web/dashboard-utils.js', '../web/theme.js', '../examples/fixture.js', '../examples/build.js']) {
     const result = spawnSync(process.execPath, ['--check', fileURLToPath(new URL(file, import.meta.url))], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }

@@ -35,6 +35,7 @@ Preserve meaning:
 - Quantity = available + locked. Missing values are `null`, not zero. Pass on `warnings`, `valuationComplete`, `profitComplete`, `mode`, and `asOf`.
 - Unrealized P&L uses the API average cost of current holdings; it excludes fees and realized P&L.
 - History and daily asset changes are recorded portfolio values and include deposits/withdrawals. Never call them investment returns or back-fill history from today's holdings.
+- `summary.dayChangeKrw`/`dayChangePct` is today's price-driven move at current quantities versus the previous close. It ignores today's deposits and trades; say so when quoting it.
 - Start with the summary. Select only needed `symbols`, `fields`, and `limit`; use `force:true` when the user asks for fresh data. Identity, warnings and quality flags survive field selection.
 - `account_get_records` returns at most 50 rows/5 upstream pages by default. Continue using the same `kind` and `pagination.nextCursor` as `cursor`, even after empty rows. Keep the original filters; repeat `fields` if needed. Stop when nextCursor is null, and still report incomplete coverage if unknown timestamps were excluded.
 - Record `totals` cover only the returned rows. `coverage.complete` is the exhaustion state of the entire continuation chain, not a claim that the final response contains every row. A retried cursor replays the same page: do not double-count it.
@@ -46,7 +47,7 @@ Preserve meaning:
 ## 3. Build the user's dashboard
 
 1. `dashboard_list_boards` → see existing layouts.
-2. `dashboard_save_board` with `open: true` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values), start the local dashboard and get `url` (127.0.0.1, `?board=<id>` selects the new board) in one call. Widgets: `summary`, `trend`, `allocation`, `holdings`, `activity` (array order = screen order). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
+2. `dashboard_save_board` with `open: true` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values), start the local dashboard and get `url` (127.0.0.1, `?board=<id>` selects the new board) in one call. Widgets: `summary`, `trend`, `insights`, `allocation`, `heatmap`, `performance`, `holdings`, `market`, `warnings`, `activity` (array order = screen order; `market`/`warnings` show public Bithumb prices, not the user's valuation). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
 3. Give the `url` to the user. Use `dashboard_open` (optionally with `boardId`) only to reopen. A dashboard already open in the browser picks up saved boards within seconds; do not ask the user to reload.
 4. To preview the board in the conversation, call `dashboard_snapshot` with its `boardId`.
 5. For a completely custom screen, call `dashboard_get_template` with `manifest:true`, then request needed `paths`. Save edited files to a folder and run `asset-kit dashboard --web-dir <folder>`. Do not fetch source files for ordinary asset questions.

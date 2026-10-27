@@ -5,7 +5,9 @@ import { KitError } from './errors.js';
 import { dataDir } from './config.js';
 import { check, SYMBOLS_INPUT } from './schema.js';
 
-export const WIDGETS = ['summary', 'trend', 'allocation', 'holdings', 'activity'];
+export const WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'heatmap', 'performance', 'holdings', 'market', 'warnings', 'activity'];
+// 새 보드의 기본 구성입니다. 나머지 위젯은 화면 편집이나 dashboard_save_board로 고릅니다.
+export const DEFAULT_WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity'];
 export const PERIODS = [7, 30, 90, 365];
 export const REFRESH_SECONDS = [0, 30, 60, 300];
 const MAX_BOARDS = 50;
@@ -14,7 +16,7 @@ const MAX_BOARDS = 50;
 export const BOARD_FIELDS = {
   name: { type: 'string', minLength: 1, maxLength: 48, description: '화면 이름' },
   symbols: { ...SYMBOLS_INPUT, default: [], description: '표시할 자산. 빈 배열이면 원화 포함 전체' },
-  widgets: { type: 'array', minItems: 1, maxItems: WIDGETS.length, uniqueItems: true, items: { type: 'string', enum: WIDGETS }, default: [...WIDGETS], description: '배열 순서가 화면 순서' },
+  widgets: { type: 'array', minItems: 1, maxItems: WIDGETS.length, uniqueItems: true, items: { type: 'string', enum: WIDGETS }, default: [...DEFAULT_WIDGETS], description: '배열 순서가 화면 순서' },
   days: { type: 'integer', enum: PERIODS, default: 30, description: '추이 기간(일)' },
   refreshSeconds: { type: 'integer', enum: REFRESH_SECONDS, default: 60, description: '자동 갱신(초), 0은 수동' },
 };

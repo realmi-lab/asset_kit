@@ -17,7 +17,7 @@ An **MCP server** that brings a Bithumb account's balances, unrealized P&L, allo
 - “What did I deposit in KRW last month?” → the period is read in bounded pages and totalled.
 
 <p align="center">
-  <img src="docs/images/mcp-app-light.png" width="760" alt="Asset dashboard drawn inside a conversation: total value, unrealized P&L, value trend line chart, allocation donut, top holdings table">
+  <img src="docs/images/mcp-app-light.png" width="760" alt="Asset dashboard drawn inside a conversation: total value with its 30-day change, value trend chart, today's price move and unrealized P&L, allocation bar, top holdings table">
   <br><sub>A dashboard drawn inside the conversation (<code>dashboard_snapshot</code> + MCP Apps). Every number in this README is synthetic demo data.</sub>
 </p>
 
@@ -61,11 +61,11 @@ Ask “show me my asset dashboard” and the AI calls `dashboard_snapshot` **onc
 
 “Make a long-term BTC + ETH board and open it” → `dashboard_save_board` with `open: true` saves the layout, starts the local dashboard and returns `http://127.0.0.1:4319/?board=<id>` in one call.
 
-- Each board keeps its asset scope, widgets (summary, trend, allocation, holdings, activity) and their order, trend period, and refresh interval.
+- Each board keeps its asset scope, widgets (ten kinds: summary, trend, insights, allocation, heatmap, performance, holdings, market, warnings, activity) and their order, trend period, and refresh interval.
 - Edits send only the changed fields; `revision` prevents lost updates from other windows.
 - **A dashboard already open in the browser picks up the change within seconds.** No reload needed.
 
-<p align="center"><img src="docs/images/local-dashboard.png" width="760" alt="Local dashboard with board tabs, total value, value trend with a point scrubber, allocation and holdings"><br><sub>The local dashboard (<code>npm run demo</code>). Tabs at the top are saved boards.</sub></p>
+<p align="center"><img src="docs/images/local-dashboard.png" width="760" alt="Local dashboard with a side menu, total value with its 30-day change, a value chart, today's price move and unrealized P&L, insights and an allocation bar"><br><sub>The local dashboard (<code>npm run demo</code>). The side menu switches pages; tabs at the top are saved boards.</sub></p>
 
 ### 4. Trends and daily asset changes
 
@@ -137,8 +137,11 @@ npm run demo     # synthetic data at http://127.0.0.1:4319
 npm start        # live account
 ```
 
+- Five pages in a side menu (a bottom tab bar on phones): Dashboard (saved boards), Assets (heatmap, allocation, holdings), P&L (insights, P&L per asset, value trend), Market (Bithumb price rankings and alerts) and History. `?page=market` opens a page directly.
+- The total card shows the total value and the change over the selected period; pointing at the chart or using the arrow keys turns the total into the value at that point. Today's price move, unrealized P&L and crypto/cash shares sit underneath.
+- Ten widgets: summary, trend (with a daily-change calendar), insights, allocation, heatmap (area = value, color = daily change or return), performance (P&L bars per asset), holdings (30-day price lines), market (by volume, gainers, losers, holdings), warnings (Bithumb alerts and caution flags), activity.
 - Board tabs keep widgets, asset scope, periods (7/30/90 days, 1 year), and refresh settings. `?board=<id>` opens a board directly; boards changed through MCP or another window appear within seconds.
-- Explore chart values with the pointer, touch slider, or arrow keys. The daily calendar marks changes across missing recording days.
+- Light and dark themes follow the OS; the toggle is remembered in the browser. The daily calendar shades larger changes darker and marks changes across missing recording days.
 - Search holdings, filter gains/losses/unknown P&L, sort in either direction, and export exactly what is visible. Filters persist per board.
 - Orders/transfers with 7-day, 30-day, or current-month presets, date validation, cancellation, filters, and CSV export with coverage metadata.
 - Hide amounts (CSV exports are disabled; public prices stay visible), pause/resume refresh, and keep the last snapshot after a failed refresh.
@@ -165,6 +168,7 @@ flowchart LR
 
 ## Changelog
 
+- **0.6.0** — Redesigned local dashboard: total, period change and chart in one card, chart scrubbing that updates the total, light/dark themes, 30-day price lines per holding and card rows on phones. A five-page side menu (Dashboard, Assets, P&L, Market, History) and ten widgets: new insights, heatmap, performance, market and warnings widgets, selectable in the editor and through `dashboard_save_board` (new boards include insights by default). The summary gains today's price move (`dayChangeKrw`, `dayChangePct`, `dayChangeComplete`: current quantities valued at the previous close), also in `dashboard_snapshot`. New read-only dashboard endpoints `/api/tickers` and `/api/warnings` (public Bithumb prices). The inline MCP Apps view shares the new design. Allocation colors drop red and blue (they mean up and down in Korean markets); the remaining five pass color-vision-deficiency checks. Demo coins now have distinct price paths that agree with their daily change and the demo value history.
 - **0.5.0** — `dashboard_snapshot`; the MCP Apps view `ui://bithumb-asset-kit/dashboard.html`; `open: true`, `boardId`, `?board=<id>` and live board sync. On the demo account a dashboard is about 2.9KB (UTF-8) for 30 days and 4.1KB for a year, versus four calls (about 7.2KB) or a 32KB year of history before. After comparing with the OKX and Binance MCP servers: interval candles with OHLC, `market_get_tickers`, `market_get_warnings`, tool titles with a size budget, and API key expiry in diagnostics (no trading features). Closed orders are read 1,000 per upstream page. Fixes from an adversarial review: exact snapshot endpoints beyond 400 records, unknown `others` as `null`, no duplicate board when the dashboard fails to start, read-only view without a dead button, URL shown when a host refuses a link, and board sync no longer cancelling recovery reloads, overriding the first board, or interrupting a history query on rename. A dashboard that cannot start now says why (port in use, permission denied by a sandbox or security software, …) instead of a generic error, in MCP, the inline view and the CLI.
 - **0.4.0** — holdings search/filters/sorting/fields, `force`, report `sections`, history `maxPoints`, output schemas, actionable errors, bounded records with cursors, progress and cancellation.
 
