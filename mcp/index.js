@@ -102,8 +102,9 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
   let dashboard = null;
   async function openDashboard(port = 4319) {
     if (!dashboard) {
-      const { startDashboard } = await import('../src/server.js');
-      dashboard = startDashboard(service, { port }).catch(error => error.code === 'EADDRINUSE' ? startDashboard(service, { port: 0 }) : Promise.reject(error));
+      const { startDashboard, startFailure } = await import('../src/server.js');
+      dashboard = startDashboard(service, { port }).catch(error => error.code === 'EADDRINUSE' ? startDashboard(service, { port: 0 }) : Promise.reject(error))
+        .catch(error => Promise.reject(startFailure(error, port)));
       // 화면 서버와 브라우저 연결이 프로세스를 붙잡지 않게 해, MCP 연결이 끝나면 함께 종료됩니다.
       dashboard.then(({ server }) => { server.unref(); server.on('connection', socket => socket.unref()); }, () => { dashboard = null; });
     }
@@ -194,7 +195,9 @@ export function createMcpServer(service, { modules = MODULES, readOnly = false, 
     open: { type: 'boolean', default: false },
   }), { ...LOCAL_WRITE, idempotentHint: false }, async ({ id, revision, open, ...changes }) => {
     // Start the dashboard first: if that fails nothing is saved, so a retry cannot create a duplicate board.
-    const base = open ? await openDashboard() : null;
+    const base = open ? await openDashboard().catch(error => {
+      throw error instanceof KitError ? new KitError(error.code, `${error.message} 보드는 저장하지 않았습니다.`, error.status) : error;
+    }) : null;
     let board;
     if (!id) board = await service.boards.create(changes);
     else {

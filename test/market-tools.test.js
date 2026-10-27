@@ -10,6 +10,8 @@ import { BithumbProvider } from '../src/bithumb.js';
 import { calculatePortfolio } from '../src/portfolio.js';
 import { normalizeOrders } from '../src/activity.js';
 import { createMcpServer } from '../mcp/index.js';
+import { startFailure } from '../src/server.js';
+import { publicError } from '../src/errors.js';
 
 const DAY = 86400000;
 async function serverFor(t, { provider = new DemoProvider(), history, readOnly } = {}) {
@@ -151,13 +153,50 @@ test('snapshot others slice is null, not zero, when every remaining holding is u
   assert.deepEqual(result.others, { count: 1, valueKrw: null, allocationPct: null, unpriced: 1 });
 });
 
+// Makes every listen fail with this OS error code until the returned restore runs.
+function failListen(code) {
+  const listen = Server.prototype.listen;
+  Server.prototype.listen = function () { process.nextTick(() => this.emit('error', Object.assign(new Error(`listen ${code} /private/path`), { code }))); return this; };
+  return () => { Server.prototype.listen = listen; };
+}
+
 test('save_board with open:true saves nothing when the dashboard cannot start, so a retry cannot duplicate it', async t => {
   const { call, service } = await serverFor(t);
-  const listen = Server.prototype.listen;
-  Server.prototype.listen = function () { process.nextTick(() => this.emit('error', Object.assign(new Error('denied'), { code: 'EACCES' }))); return this; };
-  try { assert.equal((await call('dashboard_save_board', { name: '실패 후 재시도', open: true })).isError, true); }
-  finally { Server.prototype.listen = listen; }
+  const restore = failListen('EACCES');
+  let result;
+  try { result = await call('dashboard_save_board', { name: '실패 후 재시도', open: true }); }
+  finally { restore(); }
+  const error = JSON.parse(result.content[0].text);
+  assert.equal(result.isError, true);
+  assert.equal(error.code, 'DASHBOARD_START_FAILED');
+  assert.match(error.message, /로컬 포트를 열 권한이 없습니다\(EACCES\).*보드는 저장하지 않았습니다\.$/);
+  assert.doesNotMatch(result.content[0].text, /private\/path|처리하지 못했습니다/);
+  assert.equal(error.retryable, false);
+  assert.match(error.recovery, /asset-kit dashboard/);
   assert.equal((await service.boards.list()).some(board => board.name === '실패 후 재시도'), false);
+});
+
+test('dashboard_open names the start failure and starts normally once the cause is gone', async t => {
+  const { call, data } = await serverFor(t);
+  const restore = failListen('EPERM');
+  let failed;
+  try { failed = await call('dashboard_open'); }
+  finally { restore(); }
+  assert.equal(failed.isError, true);
+  assert.deepEqual((({ code, message }) => [code, /\(EPERM\)/.test(message)])(JSON.parse(failed.content[0].text)), ['DASHBOARD_START_FAILED', true]);
+  const opened = await data('dashboard_open');
+  assert.equal((await (await fetch(`${opened.url}/health`)).json()).status, 'ok');
+});
+
+test('startFailure explains listen errors by OS code only and leaves bugs generic', () => {
+  const failure = code => startFailure(Object.assign(new Error(`listen ${code} 127.0.0.1:4319 /Users/me`), { code }), 4319);
+  assert.deepEqual([failure('EADDRINUSE').code, failure('EADDRINUSE').message], ['PORT_IN_USE', '4319번 포트를 이미 다른 프로그램이 쓰고 있습니다.']);
+  assert.match(failure('EADDRNOTAVAIL').message, /127\.0\.0\.1 주소를 쓸 수 없습니다\(EADDRNOTAVAIL\)/);
+  assert.equal(failure('ENOSYS').message, '운영체제가 로컬 서버 시작을 거부했습니다(ENOSYS).');
+  for (const code of ['EACCES', 'EPERM', 'EADDRNOTAVAIL', 'ENOSYS']) assert.equal(failure(code).code, 'DASHBOARD_START_FAILED');
+  const bug = new TypeError('boom');
+  assert.equal(startFailure(bug, 4319), bug);
+  assert.equal(publicError(startFailure(bug, 4319)).code, 'INTERNAL_ERROR');
 });
 
 test('read-only snapshots tell the view that the local dashboard cannot be opened', async t => {

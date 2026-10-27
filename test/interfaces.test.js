@@ -132,6 +132,16 @@ test('CLI: JSON for demo data, explicit failure without live keys, boards and ex
   assert.equal(JSON.parse(run('config', 'status').stdout).configured, false);
 });
 
+test('CLI dashboard names the busy port instead of a generic failure', async () => {
+  const { server, url } = await startDashboard(new PortfolioService({ demo: true }), { port: 0, collect: false });
+  const port = new URL(url).port;
+  try {
+    const result = spawnSync(process.execPath, [cli, 'dashboard', '--demo', '--port', port], { encoding: 'utf8', env, timeout: 10000 });
+    assert.equal(result.status, 1);
+    assert.deepEqual(JSON.parse(result.stderr), { code: 'PORT_IN_USE', message: `${port}번 포트를 이미 다른 프로그램이 쓰고 있습니다. --port 옵션으로 다른 포트를 선택하세요.` });
+  } finally { server.close(); }
+});
+
 test('served dashboard: consistent JSON, guarded board writes, foreign origins and rebinding hosts fail', async () => {
   const service = new PortfolioService({ demo: true });
   const { server, url } = await startDashboard(service, { port: 0, collect: false });

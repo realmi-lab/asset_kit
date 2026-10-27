@@ -115,8 +115,8 @@ async function main() {
     case 'dashboard': {
       const port = Number(o.port);
       if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new KitError('INVALID_PORT', '포트는 1024~65535 사이 정수입니다.', 400);
-      const { startDashboard } = await import('../src/server.js');
-      const { server, url } = await startDashboard(service, { port, ...(o['web-dir'] ? { webDir: resolve(o['web-dir']) } : {}) });
+      const { startDashboard, startFailure } = await import('../src/server.js');
+      const { server, url } = await startDashboard(service, { port, ...(o['web-dir'] ? { webDir: resolve(o['web-dir']) } : {}) }).catch(error => Promise.reject(startFailure(error, port)));
       console.log(`내 자산 대시보드: ${url}\n모드: ${o.demo ? '데모 · 합성 데이터' : '빗썸 계좌 조회'}${o['web-dir'] ? `\n화면 폴더: ${resolve(o['web-dir'])}` : ''}\n종료: Ctrl+C`);
       const stop = () => server.close(() => process.exit(0));
       process.once('SIGINT', stop); process.once('SIGTERM', stop);
@@ -179,7 +179,7 @@ async function main() {
 }
 
 main().catch(error => {
-  if (error.code === 'EADDRINUSE') console.error(JSON.stringify({ code: 'PORT_IN_USE', message: '이미 사용 중인 포트입니다. --port 옵션으로 다른 포트를 선택하세요.' }));
+  if (error.code === 'PORT_IN_USE') console.error(JSON.stringify({ code: error.code, message: `${error.message} --port 옵션으로 다른 포트를 선택하세요.` }));
   else if (error.code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION' || error.code === 'ERR_PARSE_ARGS_INVALID_OPTION_VALUE') console.error(JSON.stringify({ code: 'USAGE', message: `${error.message} — asset-kit --help` }));
   else console.error(JSON.stringify(publicError(error)));
   process.exitCode = 1;

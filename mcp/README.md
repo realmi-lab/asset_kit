@@ -268,7 +268,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 `notifications/cancelled`의 `requestId`로 진행 중인 호출을 취소합니다. 취소된 요청의 최종 응답은 보내지 않고 이후 진행 알림도 멈춥니다. 주문·입출금 요청은 HTTP 요청/재시도까지 중단합니다. 공유 중인 자산·시세 조회는 다른 호출에 필요할 수 있어 내부 계산이 완료될 수 있습니다. 같은 첫 내역 조회를 여러 호출이 공유하는 경우 마지막 구독자가 취소해야 공급자 요청도 중단됩니다.
 
-도구 오류는 `isError:true`이며 텍스트 JSON에 `code`, `message`, `retryable`, `recovery`가 들어갑니다. 입력 오류에는 값 대신 `path`(예: `$.limit`)를 알려줍니다. 모든 도구는 `outputSchema`를 공개하고 성공 응답의 `structuredContent`와 텍스트 JSON에 같은 데이터를 반환합니다.
+도구 오류는 `isError:true`이며 텍스트 JSON에 `code`, `message`, `retryable`, `recovery`가 들어갑니다. 입력 오류에는 값 대신 `path`(예: `$.limit`)를 알려줍니다. 로컬 대시보드를 띄우지 못하면 `DASHBOARD_START_FAILED`(권한 없음·주소 사용 불가 등, 운영체제 오류 코드만 표시)나 `PORT_IN_USE`를 돌려주고, `dashboard_save_board`의 `open: true`가 이렇게 실패하면 보드는 저장되지 않습니다. 모든 도구는 `outputSchema`를 공개하고 성공 응답의 `structuredContent`와 텍스트 JSON에 같은 데이터를 반환합니다.
 
 구현 기준: [MCP 도구 응답 규격](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [진행 알림](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress), [취소 알림](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation).
 

@@ -41,6 +41,8 @@ export function recovery(error, status) {
     QUERY_LIMIT: [false, '날짜 구간이나 자산 범위를 나누어 새 조회를 시작하세요.'],
     BOARD_NOT_FOUND: [false, 'dashboard_list_boards로 보드 id를 확인하거나 boardId 없이 다시 호출하세요.'],
     CONFLICT: [false, 'dashboard_list_boards로 최신 revision을 읽은 뒤 변경을 다시 적용하세요.'],
+    DASHBOARD_START_FAILED: [false, '이 컴퓨터의 터미널에서 asset-kit dashboard로 직접 띄우세요. 대화 안 화면(dashboard_snapshot)은 그대로 쓸 수 있습니다.'],
+    PORT_IN_USE: [true, 'port를 빼거나 다른 port로 다시 시도하세요.'],
   };
   const [retryable, action] = codes[error.code] ?? (error.code === 'API_ERROR' && status >= 500 ? [true, '거래소 일시 오류입니다. 잠시 뒤 같은 입력으로 다시 시도하세요.'] : [false, 'tools/list의 입력 규격과 오류 메시지를 확인하세요. 반복 실패하면 system_diagnose로 상태를 확인하세요.']);
   return { ...error, retryable, recovery: action };
