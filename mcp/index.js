@@ -18,7 +18,7 @@ import { FORCE, HOLDING_FIELDS, RECORD_FIELDS, dashboardSnapshot, fieldInput, ho
 import { RecordReader } from './records.js';
 import { OUTPUTS, recovery } from './schemas.js';
 
-export const VERSION = '0.6.0';
+export const VERSION = '0.7.0';
 /** 기능 모듈. --modules로 고르며 system은 항상 켜집니다. */
 export const MODULES = ['portfolio', 'market', 'account', 'dashboard', 'system'];
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
@@ -78,13 +78,16 @@ export async function dashboardTemplate({ manifest: manifestOnly = false, paths 
   if (paths?.some(path => !available.has(path))) throw new KitError('INVALID_ARGUMENTS', 'manifest에 있는 텍스트 파일 경로만 요청할 수 있습니다.', 400);
   if (!manifestOnly) for (const path of paths ?? available.keys()) files[path] = await readFile(available.get(path), 'utf8');
   return {
-    name: '내 자산 대시보드', schemaVersion: '1.2', files, binaryAssets, manifest: manifest.sort((a, b) => a.path.localeCompare(b.path)),
+    name: '내 자산 대시보드', schemaVersion: '1.3', files, binaryAssets, manifest: manifest.sort((a, b) => a.path.localeCompare(b.path)),
     instructions: '로컬 API만 사용하며 API 키를 브라우저에 전달하지 않습니다. 금액은 서버가 계산한 십진 문자열을 표시용으로만 변환하세요. 고친 화면은 새 폴더에 저장한 뒤 `asset-kit dashboard --web-dir <폴더>`로 실행합니다. 보드 저장은 Content-Type: application/json과 X-Asset-Kit: 1 헤더가 있는 같은 출처 요청만 허용됩니다. 외부 공개 배포에는 사용자별 인증·데이터 격리가 있는 별도 서버가 필요합니다.',
     api: {
       status: 'GET /api/status', portfolio: 'GET /api/portfolio?symbols=BTC,ETH', explain: 'GET /api/explain?symbols=…',
-      history: 'GET /api/history?days=7|30|90|365&symbols=… (&daily=1: 일별 자산 변화)', market: 'GET /api/market?symbol=BTC&days=30',
+      history: 'GET /api/history?days=7|30|90|365&symbols=… (&daily=1: 일별 자산 변화)',
+      market: 'GET /api/market?symbol=BTC&days=30 (일봉) · &interval=1m|3m|5m|10m|15m|30m|1h|4h|day|week|month&count=1-200 (차트 캔들)', markets: 'GET /api/markets (원화 마켓 심볼·이름·유의, 검색용)',
+      returns: 'GET /api/returns?months=3|6|12 (입출금을 뺀 실제 수익·월별 손익·실현손익 추정)',
+      stream: 'GET /api/stream?symbols=…&watch=BTC,ETH (SSE: status·tick·portfolio, 빗썸 공개 웹소켓 실시간 시세)',
       records: 'GET /api/records?kind=orders|pending|deposits|withdrawals|krw_deposits|krw_withdrawals&from=YYYY-MM-DD&to=YYYY-MM-DD',
-      tickers: 'GET /api/tickers?scope=all|holdings&sort=value24h|change|price|name&direction=desc|asc&limit=1-50 (빗썸 공개 시세)', warnings: 'GET /api/warnings?scope=all|holdings',
+      tickers: 'GET /api/tickers?scope=all|holdings&symbols=…&sort=value24h|change|price|name&direction=desc|asc&limit=1-50 (빗썸 공개 시세)', warnings: 'GET /api/warnings?scope=all|holdings',
       orders: 'GET /api/orders', transfers: 'GET /api/transfers',
       boards: 'GET /api/boards · POST /api/boards · PUT|DELETE /api/boards/:id {revision} · POST /api/boards/import {boards}',
     },

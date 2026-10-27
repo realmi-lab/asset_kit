@@ -54,7 +54,8 @@ export class HistoryStore {
     return true;
   }
   async read(days = 30, now = Date.now()) {
-    if (!Number.isInteger(days) || days < 1 || days > 366) throw new KitError('INVALID_RANGE', '조회 기간은 1~365일입니다.', 400);
+    // getHistory allows 365 days; the 12-month returns window also reads the week before its first day.
+    if (!Number.isInteger(days) || days < 1 || days > 400) throw new KitError('INVALID_RANGE', '조회 기간은 1~400일입니다.', 400);
     await this.#writing;
     const dates = Array.from({ length: days + 1 }, (_, i) => new Date(now - (days - i) * DAY).toISOString().slice(0, 10));
     const today = new Date(now).toISOString().slice(0, 10);

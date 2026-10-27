@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { publicError, KitError } from './errors.js';
+import { parseSymbols } from './service.js';
+import { CANDLE_PATHS } from './bithumb.js';
 
 const DEFAULT_WEB = fileURLToPath(new URL('../web/', import.meta.url));
 const TYPES = {
@@ -10,10 +12,12 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
-const READ_PATHS = new Set(['/api/status', '/api/portfolio', '/api/history', '/api/market', '/api/tickers', '/api/warnings', '/api/explain', '/api/records', '/api/boards', '/api/orders', '/api/transfers']);
+const READ_PATHS = new Set(['/api/status', '/api/portfolio', '/api/history', '/api/market', '/api/markets', '/api/tickers', '/api/warnings', '/api/returns', '/api/explain', '/api/records', '/api/boards', '/api/orders', '/api/transfers']);
 const pick = (value, allowed) => allowed.includes(value) ? value : allowed[0];
 const BOARD_PATH = /^\/api\/boards\/([0-9a-f-]{36})$/;
 const MAX_BODY = 64 * 1024;
+// Live stream extras beyond the held coins: the chart coin, up to 30 watched coins and the coins of price alerts.
+const MAX_WATCH = 60;
 
 async function readJson(req) {
   const chunks = [];
@@ -61,9 +65,17 @@ export async function startDashboard(service, { port = 4319, collect = true, web
       case '/api/status': return service.status();
       case '/api/portfolio': return service.portfolio({ symbols, force });
       case '/api/history': return service.getHistory({ days: number('days', 30), symbols, daily: query.get('daily') === '1' });
-      case '/api/market': return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30), force });
+      case '/api/market': {
+        // interval·count가 있으면 차트용 캔들(분~월), 없으면 기존처럼 days일 일봉입니다.
+        const interval = query.get('interval');
+        if (interval === null) return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30), force });
+        if (!Object.hasOwn(CANDLE_PATHS, interval)) throw new KitError('INVALID_MARKET', `간격은 ${Object.keys(CANDLE_PATHS).join(', ')} 중 하나입니다.`, 400);
+        return service.getMarket({ symbol: query.get('symbol') ?? '', interval, count: number('count', 120), force });
+      }
+      case '/api/markets': return { markets: await service.marketList() };
+      case '/api/returns': return service.returns({ months: number('months', 12), force });
       // 시장 개요·경보는 공개 시세입니다. 허용하지 않는 값은 기본값으로 바꿉니다.
-      case '/api/tickers': return service.marketOverview({ scope: pick(query.get('scope'), ['all', 'holdings']), sort: pick(query.get('sort'), ['value24h', 'change', 'price', 'name']),
+      case '/api/tickers': return service.marketOverview({ scope: pick(query.get('scope'), ['all', 'holdings']), symbols: query.get('symbols') ?? '', sort: pick(query.get('sort'), ['value24h', 'change', 'price', 'name']),
         direction: pick(query.get('direction'), ['desc', 'asc']), limit: Math.min(Math.max(Math.trunc(number('limit', 10)) || 10, 1), 50), force });
       case '/api/warnings': return service.getWarnings({ scope: pick(query.get('scope'), ['all', 'holdings']), force });
       case '/api/explain': return service.explain({ symbols });
@@ -92,6 +104,46 @@ export async function startDashboard(service, { port = 4319, collect = true, web
     if (!Number.isInteger(body.revision)) throw new KitError('INVALID_BOARD', '대시보드의 revision이 필요합니다.', 400);
     return [200, req.method === 'PUT' ? await service.boards.update(board[1], body, body.revision) : await service.boards.remove(board[1], body.revision)];
   };
+  /**
+   * Server-Sent Events: live prices for the held markets (and `watch` symbols) plus the portfolio revalued with them.
+   * Events: status {live, mode}, tick {tickers}, portfolio {...same contract as /api/portfolio}. Same origin only.
+   */
+  const openStream = async (req, res, url) => {
+    // Listen for the hang-up before the account read: a tab that closes or switches boards meanwhile must not leave a subscription behind.
+    let closed = false;
+    const cleanup = [], stop = () => { closed = true; for (const fn of cleanup.splice(0)) fn(); };
+    req.on('close', stop);
+    res.on('close', stop);
+    const symbols = parseSymbols(url.searchParams.get('symbols') ?? ''), watch = parseSymbols(url.searchParams.get('watch') ?? '').filter(symbol => symbol !== 'KRW').slice(0, MAX_WATCH);
+    const held = await service.liveMarkets({ symbols });
+    // Only listed KRW markets: a delisted symbol kept in a browser must not break the subscription shared by every tab.
+    const listed = watch.length ? await service.marketList().then(list => new Set(list.map(m => m.symbol)), () => null) : null;
+    if (closed) return;
+    const markets = [...new Set([...held, ...watch.filter(symbol => !listed || listed.has(symbol)).map(symbol => `KRW-${symbol}`)])];
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    const write = text => { if (!res.writableEnded && !res.destroyed) res.write(text); };
+    const send = (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    let lastStatus = null, refreshing = false;
+    const status = live => { if (live !== lastStatus) { lastStatus = live; send('status', { live, mode: service.provider.mode }); } };
+    const quote = market => service.live.quotes.get(market);
+    const unsubscribe = service.live.subscribe(markets, changed => {
+      const tickers = [...changed].filter(market => market.startsWith('KRW-')).map(market => quote(market)).filter(Boolean).map(t => ({
+        symbol: t.market.slice(4), priceKrw: String(t.trade_price), changePct: t.signed_change_rate === undefined ? null : String(Math.round(Number(t.signed_change_rate) * 1e6) / 1e4),
+        highKrw: t.high_price === undefined ? null : String(t.high_price), lowKrw: t.low_price === undefined ? null : String(t.low_price),
+        value24hKrw: t.acc_trade_price_24h === undefined ? null : String(t.acc_trade_price_24h), at: new Date(t.timestamp).toISOString() }));
+      if (tickers.length) send('tick', { tickers });
+      if ([...changed].some(market => held.includes(market))) { const portfolio = service.livePortfolio({ symbols }); if (portfolio) send('portfolio', portfolio); }
+    }, status);
+    status(service.live.status);
+    // Balances change only through trades and transfers: re-read the account every 30 seconds while the stream is open.
+    const timers = [setInterval(() => write(': keep-alive\n\n'), 20000), setInterval(async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try { await service.portfolio({ symbols }); } catch { /* the next round retries */ } finally { refreshing = false; }
+    }, 30000)];
+    for (const timer of timers) timer.unref?.();
+    cleanup.push(unsubscribe, () => { for (const timer of timers) clearInterval(timer); });
+  };
   const server = createServer(async (req, res) => {
     const actualPort = server.address().port;
     const hosts = new Set([`127.0.0.1:${actualPort}`, `localhost:${actualPort}`]);
@@ -111,6 +163,7 @@ export async function startDashboard(service, { port = 4319, collect = true, web
       const url = new URL(req.url, `http://127.0.0.1:${actualPort}`);
       if (url.pathname === '/health') return json(200, { status: 'ok', name: 'bithumb-asset-kit', mode: service.status().mode });
       if (url.pathname.startsWith('/api/')) {
+        if (reading && url.pathname === '/api/stream') return await openStream(req, res, url);
         if (reading && READ_PATHS.has(url.pathname)) return json(200, await read(url));
         if (reading) throw new KitError('NOT_FOUND', '지원하지 않는 API입니다.', 404);
         const [code, body] = await write(req, url);

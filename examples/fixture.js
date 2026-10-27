@@ -11,18 +11,25 @@ window.AssetKitFixture = (() => {
   const MAX_BOARDS = 50;
   const invalidBoard = () => Object.assign(new Error('대시보드 설정을 확인하세요. 이름 1~48자, 위젯 1개 이상(중복 없음), 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.'), { status: 400, code: 'INVALID_BOARD' });
 
-  // 원화 포함 전체 응답을 일부 자산으로 좁힙니다. 샘플 표시용 단순 계산입니다.
-  function project(symbols) {
+  // 실시간 흉내용: 한 자산을 새 현재가로 다시 평가합니다. 샘플 표시용 단순 계산입니다.
+  function reprice(h, tick) {
+    if (!tick || h.currentPriceKrw === null) return h;
+    const value = Number(h.quantity) * Number(tick.priceKrw), cost = h.costKrw === null ? null : Number(h.costKrw), profit = cost === null ? null : value - cost;
+    return { ...h, currentPriceKrw: tick.priceKrw, valueKrw: String(Math.round(value)), priceChangePct: tick.changePct ?? h.priceChangePct, quoteAt: tick.at,
+      profitKrw: profit === null ? null : String(Math.round(profit)), profitRatePct: profit === null || !cost ? h.profitRatePct : (profit / cost * 100).toFixed(4) };
+  }
+  // 원화 포함 전체 응답을 일부 자산으로 좁히고, 실시간 가격이 있으면 다시 평가합니다. 샘플 표시용 단순 계산입니다.
+  function project(symbols, ticks) {
     const full = DATA.portfolio;
-    if (!symbols.length) return full;
-    const holdings = full.holdings.filter(h => symbols.includes(h.symbol));
+    if (!symbols.length && !ticks) return full;
+    const holdings = full.holdings.filter(h => !symbols.length || symbols.includes(h.symbol)).map(h => reprice(h, ticks?.get(h.symbol)));
     const total = holdings.reduce((sum, h) => sum + Number(h.valueKrw ?? 0), 0);
     const comparable = holdings.filter(h => h.profitKrw !== null);
     const cost = comparable.reduce((sum, h) => sum + Number(h.costKrw), 0), profit = comparable.reduce((sum, h) => sum + Number(h.profitKrw), 0);
     const cash = Number(holdings.find(h => h.symbol === 'KRW')?.valueKrw ?? 0);
     const moved = holdings.filter(h => h.symbol !== 'KRW' && h.valueKrw !== null && h.priceChangePct !== null);
     const day = moved.reduce((sum, h) => sum + Number(h.valueKrw) - Number(h.valueKrw) / (1 + Number(h.priceChangePct) / 100), 0);
-    return { ...full, scope: symbols,
+    return { ...full, scope: symbols, asOf: ticks ? new Date().toISOString() : full.asOf,
       holdings: holdings.map(h => ({ ...h, allocationPct: total ? (Number(h.valueKrw) / total * 100).toFixed(4) : null })),
       summary: { ...full.summary, totalValueKrw: String(total), cashKrw: String(cash), cryptoValueKrw: String(total - cash),
         profitKrw: comparable.length ? String(profit) : null, profitRatePct: cost ? (profit / cost * 100).toFixed(4) : null,
@@ -56,10 +63,45 @@ window.AssetKitFixture = (() => {
   function tickers(params) {
     const scope = params.get('scope') === 'holdings' ? 'holdings' : 'all', sort = ['change', 'price', 'name'].includes(params.get('sort')) ? params.get('sort') : 'value24h';
     const factor = params.get('direction') === 'asc' ? 1 : -1, limit = Math.min(Math.max(Math.trunc(Number(params.get('limit'))) || 10, 1), 50);
-    const field = { change: 'changePct', value24h: 'value24hKrw', price: 'priceKrw' }[sort];
-    const rows = DATA.tickers.rows.filter(row => scope === 'all' || row.held)
+    const field = { change: 'changePct', value24h: 'value24hKrw', price: 'priceKrw' }[sort], wanted = (params.get('symbols') || '').split(',').filter(Boolean);
+    const rows = DATA.tickers.rows.filter(row => (scope === 'all' || row.held) && (!wanted.length || wanted.includes(row.symbol)))
       .sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, 'ko') * factor : (Number(a[field]) - Number(b[field])) * factor || a.symbol.localeCompare(b.symbol));
     return { ...clone(DATA.tickers), scope, sort, direction: factor > 0 ? 'asc' : 'desc', total: rows.length, rows: clone(rows.slice(0, limit)) };
+  }
+  // 차트 캔들: 빌드 때 줄여 담은 배열을 서버 응답 모양으로 되돌립니다. interval이 없으면 기존처럼 days일 일봉입니다.
+  function market(params) {
+    const symbol = params.get('symbol'), interval = params.get('interval') ?? 'day', packed = DATA.candles[symbol]?.[interval];
+    if (!packed) return fail(DATA.candles[symbol] ? '샘플 페이지에는 보유 코인만 분·주 단위 캔들이 있습니다. 일봉으로 보세요.' : '샘플 데이터에 없는 원화 마켓입니다.', 404, 'NO_KRW_MARKET');
+    const count = Math.min(Math.max(Math.trunc(Number(params.get(params.has('interval') ? 'count' : 'days'))) || (params.has('interval') ? 120 : 30), 1), 200);
+    const { rows, ...rest } = packed;
+    return { ...clone(rest), candles: rows.slice(-count).map(([minute, open, high, low, close, volume]) => {
+      const at = new Date(minute * 60000 + 9 * 3600000).toISOString().slice(0, 19);
+      return { date: at.slice(0, 10), at: `${at}+09:00`, openKrw: String(open), highKrw: String(high), lowKrw: String(low), closeKrw: String(close), volume: String(volume) };
+    }) };
+  }
+  // 실시간 시세 흉내: 빌드 때 시세를 기준으로 ±3% 안에서 1.5초마다 조금씩 움직입니다. 서버의 데모 모드와 같은 방식입니다.
+  function stream(params, handlers) {
+    const symbols = (params.symbols || '').split(',').filter(Boolean), watch = (params.watch || '').split(',').filter(Boolean);
+    const held = DATA.portfolio.holdings.filter(h => h.symbol !== 'KRW' && h.currentPriceKrw !== null && (!symbols.length || symbols.includes(h.symbol))).map(h => h.symbol);
+    const base = new Map([...new Set([...held, ...watch])].map(symbol => [symbol, DATA.tickers.rows.find(row => row.symbol === symbol)]).filter(([, row]) => row));
+    // 시각은 샘플을 만든 때부터 흐르게 해서 차트의 마지막 캔들과 이어지게 합니다.
+    const ticks = new Map(), started = Date.now(), sampleTime = Date.parse(DATA.portfolio.asOf) + 1000;
+    const tick = () => {
+      const tickers = [...base].map(([symbol, row]) => {
+        const origin = Number(row.priceKrw), previous = Number(ticks.get(symbol)?.priceKrw ?? origin);
+        const next = Math.min(origin * 1.03, Math.max(origin * 0.97, previous * (1 + (Math.random() - 0.5) * 0.004))), value = next >= 100 ? Math.round(next) : Number(next.toFixed(2));
+        const rate = row.changePct === null ? null : ((1 + Number(row.changePct) / 100) * value / origin - 1) * 100;
+        const item = { symbol, priceKrw: String(value), changePct: rate === null ? null : rate.toFixed(4), highKrw: row.highKrw === null ? null : String(Math.max(Number(row.highKrw), value)),
+          lowKrw: row.lowKrw === null ? null : String(Math.min(Number(row.lowKrw), value)), value24hKrw: row.value24hKrw, at: new Date(sampleTime + Date.now() - started).toISOString() };
+        ticks.set(symbol, item);
+        return item;
+      });
+      if (tickers.length) handlers.tick({ tickers });
+      if (held.length) handlers.portfolio(clone(project(symbols, ticks)));
+    };
+    handlers.status({ live: 'live', mode: DATA.status.mode });
+    const first = setTimeout(tick, 400), timer = setInterval(tick, 1500);
+    return { close: () => { clearTimeout(first); clearInterval(timer); } };
   }
   function warnings(params) {
     const scope = params.get('scope') === 'holdings' ? 'holdings' : 'all', rows = DATA.warnings.rows.filter(row => scope === 'all' || row.held);
@@ -96,7 +138,9 @@ window.AssetKitFixture = (() => {
         case '/api/tickers': return tickers(params);
         case '/api/warnings': return warnings(params);
         case '/api/records': return records(params);
-        case '/api/market': return DATA.markets[params.get('symbol')] ? clone(DATA.markets[params.get('symbol')]) : fail('샘플 데이터에 없는 원화 마켓입니다.', 404);
+        case '/api/market': return market(params);
+        case '/api/markets': return { markets: clone(DATA.marketList) };
+        case '/api/returns': return DATA.returns[params.get('months') ?? '12'] ? clone(DATA.returns[params.get('months') ?? '12']) : fail('수익률 기간은 3, 6, 12개월 중 하나입니다.', 400, 'INVALID_RANGE');
       }
     }
     if (method === 'POST' && url.pathname === '/api/boards') {
@@ -128,5 +172,5 @@ window.AssetKitFixture = (() => {
     }
     return fail('샘플 페이지에서 지원하지 않는 요청입니다.', 405);
   }
-  return { request };
+  return { request, stream };
 })();

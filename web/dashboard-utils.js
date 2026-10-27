@@ -101,3 +101,71 @@ export function dateRangeError(from, to) {
   if (end - start >= 366 * DAY) return '한 번에 조회할 수 있는 기간은 최대 366일입니다.';
   return '';
 }
+
+// ===== 차트·계산기·알림용 순수 계산 (화면 표시용 Number 계산, 참고용) =====
+
+/** Simple moving average; null until `period` values are available. */
+export function movingAverage(values, period) {
+  let total = 0;
+  return values.map((value, i) => {
+    total += value;
+    if (i >= period) total -= values[i - period];
+    return i >= period - 1 ? total / period : null;
+  });
+}
+
+/** Position after buying `buyQuantity` more at `buyPrice` (average-cost method, fees excluded). */
+export function averageAfterBuy({ quantity, average, buyQuantity, buyPrice }) {
+  const q = Number(quantity) || 0, a = Number(average) || 0, b = Math.max(0, Number(buyQuantity) || 0), p = Number(buyPrice) || 0;
+  const total = q + b, cost = q * a + b * p;
+  return { quantity: total, cost, average: total > 0 ? cost / total : null };
+}
+
+/** Quantity to buy at `price` so the average becomes `target`; null when the target cannot be reached by buying. */
+export function quantityForTarget({ quantity, average, price, target }) {
+  const q = Number(quantity), a = Number(average), p = Number(price), t = Number(target);
+  if (!(q > 0) || !(a > 0) || !(p > 0) || !(t > 0)) return null;
+  // Buying at p moves the average toward p, so the target must lie strictly between p and the current average.
+  if (!((t < a && t > p) || (t > a && t < p))) return null;
+  return q * (a - t) / (t - p);
+}
+
+/**
+ * Trades that bring each asset to its target share of (current total + extra cash).
+ * rows: [{ symbol, value, price, target }] with target in percent; KRW rows have price 1.
+ */
+export function rebalance(rows, extraCash = 0) {
+  const total = rows.reduce((sum, row) => sum + (Number(row.value) || 0), 0) + (Number(extraCash) || 0);
+  const targetSum = rows.reduce((sum, row) => sum + (Number(row.target) || 0), 0);
+  return {
+    total, targetSum,
+    rows: rows.map(row => {
+      const targetValue = total * (Number(row.target) || 0) / 100, diff = targetValue - (Number(row.value) || 0), price = Number(row.price) || 0;
+      return { ...row, targetValue, diff, quantity: price > 0 ? diff / price : null };
+    }),
+  };
+}
+
+/** Portfolio value and P&L if each coin's price moves by its percentage (or by `all` when not set). */
+export function scenario(holdings, changes = {}, all = 0) {
+  let total = 0, base = 0, cost = 0, costKnown = true;
+  const rows = holdings.map(h => {
+    const value = Number(h.valueKrw) || 0, cash = h.symbol === 'KRW';
+    const pct = cash ? 0 : Number(changes[h.symbol] ?? all) || 0, next = value * (1 + pct / 100);
+    total += next; base += value;
+    if (!cash) { if (h.costKrw === null || h.costKrw === undefined) costKnown = false; else cost += Number(h.costKrw); }
+    return { symbol: h.symbol, name: h.name, pct, value, next, price: Number(h.currentPriceKrw) * (1 + pct / 100), change: next - value };
+  });
+  const crypto = rows.filter(r => r.symbol !== 'KRW').reduce((sum, r) => sum + r.next, 0);
+  return { total, base, change: total - base, changePct: base ? (total - base) / base * 100 : 0, profit: costKnown ? crypto - cost : null, profitPct: costKnown && cost ? (crypto - cost) / cost * 100 : null, rows };
+}
+
+/** Whether an alert rule's condition holds for the current metrics { price, changePct, profitPct, total }; null when the metric is unknown. */
+export function alertMet(rule, metrics) {
+  const value = Number(rule.value);
+  if (!Number.isFinite(value)) return false;
+  const pick = { above: metrics.price, below: metrics.price, rise: metrics.changePct, fall: metrics.changePct, profit: metrics.profitPct, loss: metrics.profitPct, total_above: metrics.total, total_below: metrics.total }[rule.type];
+  if (pick === null || pick === undefined || !Number.isFinite(Number(pick))) return null;
+  const current = Number(pick);
+  return { above: current >= value, below: current <= value, rise: current >= value, fall: current <= -Math.abs(value), profit: current >= value, loss: current <= -Math.abs(value), total_above: current >= value, total_below: current <= value }[rule.type] ?? false;
+}
