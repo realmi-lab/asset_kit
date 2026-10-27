@@ -7,7 +7,7 @@ export const ORDER_OPTIONS = { type: 'object', additionalProperties: false, prop
   kind: { type: 'string', enum: ['pending', 'history'], default: 'pending', description: 'pending=대기 주문, history=종료 주문(최대 7일 구간)' },
   market: { ...MARKET, description: '선택: KRW-BTC' },
   state: { type: 'string', enum: ['wait', 'watch', 'done', 'cancel'] },
-  limit: { type: 'integer', minimum: 1, maximum: 100, default: 30 },
+  limit: { type: 'integer', minimum: 1, maximum: 1000, default: 30, description: '대기 주문 최대 100, 종료 주문 최대 1000' },
   nextKey: { type: 'string', minLength: 1, maxLength: 4096, description: '이전 응답의 next_key' },
   fromMs: { ...time, description: '종료 주문 시작(Unix ms)' }, toMs: { ...time, description: '종료 주문 끝(Unix ms)' },
 } };
@@ -33,6 +33,8 @@ export const TRANSFER_PAGE = { type: 'array', items: { type: 'object', required:
 } } };
 
 const DAY = 86400000;
+/** Upstream page sizes: closed orders allow 1,000 per page, pending orders and transfers 100. */
+export const ORDER_PAGE_SIZE = { pending: 100, history: 1000 };
 /** Range-collected record kinds for the dashboard widget, CLI `records` and MCP `account_get_records`. */
 export const RECORD_KINDS = {
   orders: { label: '종료 주문' },
@@ -65,8 +67,8 @@ const parse = (schema, input) => check(schema, input, { code: 'INVALID_QUERY', m
 export function normalizeOrders(input = {}, now = Date.now()) {
   const options = parse(ORDER_OPTIONS, input);
   if (options.kind === 'pending') {
-    if (options.fromMs !== undefined || options.toMs !== undefined || (options.state && !['wait','watch'].includes(options.state))) {
-      throw new KitError('INVALID_QUERY', '대기 주문은 wait/watch 상태를 사용하며 기간 필터를 지원하지 않습니다.', 400);
+    if (options.fromMs !== undefined || options.toMs !== undefined || (options.state && !['wait','watch'].includes(options.state)) || options.limit > 100) {
+      throw new KitError('INVALID_QUERY', '대기 주문은 wait/watch 상태와 최대 100건을 사용하며 기간 필터를 지원하지 않습니다.', 400);
     }
   } else {
     if (options.state && !['done','cancel'].includes(options.state)) throw new KitError('INVALID_QUERY', '종료 주문은 done/cancel 상태를 사용합니다.', 400);

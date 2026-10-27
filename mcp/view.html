@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내 자산 대시보드</title>
+<!-- MCP Apps 화면: dashboard_snapshot 결과를 대화 안에 그립니다. 외부 파일·네트워크 없이 호스트와 postMessage(JSON-RPC 2.0)로만 통신합니다. -->
+<style>
+/* 호스트가 주는 테마 변수(--color-*)를 먼저 쓰고, 없으면 대시보드 기본 색을 씁니다. */
+:root {
+  --brand: #F37321;
+  --bg: var(--color-background-primary, #FFFFFF);
+  --surface: var(--color-background-secondary, #F8F9FA);
+  --border: var(--color-border-primary, #E8EBEE);
+  --text: var(--color-text-primary, #191F28);
+  --text-2: var(--color-text-secondary, #4E5968);
+  --up: #E42939;
+  --down: #2C6BED;
+  --warning: #A86A12;
+  --radius: var(--border-radius-md, 12px);
+  color-scheme: light;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif);
+  font-size: 14px;
+  color: var(--text);
+}
+:root[data-theme="dark"] {
+  --bg: var(--color-background-primary, #17191C);
+  --surface: var(--color-background-secondary, #212429);
+  --border: var(--color-border-primary, #33373D);
+  --text: var(--color-text-primary, #F2F4F6);
+  --text-2: var(--color-text-secondary, #A5ADB8);
+  --up: #FF6B76;
+  --down: #6B9BFF;
+  --warning: #E0A43A;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #17191C; --surface: #212429; --border: #33373D; --text: #F2F4F6; --text-2: #A5ADB8;
+    --up: #FF6B76; --down: #6B9BFF; --warning: #E0A43A; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body { line-height: 1.5; font-variant-numeric: tabular-nums; }
+h1, h2, p { margin: 0; }
+button { font: inherit; color: inherit; }
+#app { padding: 16px; display: grid; gap: 12px; }
+#app[aria-busy="true"] .card, #app[aria-busy="true"] .summary { opacity: .6; transition: opacity .2s; }
+.head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.head h1 { font-size: 16px; font-weight: 700; }
+.muted { color: var(--text-2); font-size: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); }
+.badge.is-demo { color: var(--brand); border-color: var(--brand); }
+.button { border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.button:hover:not(:disabled) { border-color: var(--text-2); }
+.button:disabled { opacity: .5; cursor: default; }
+.button:focus-visible, .segmented button:focus-visible, svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.alert { padding: 8px 12px; border-radius: 8px; background: var(--surface); border-left: 3px solid var(--warning); font-size: 12px; }
+.summary { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 8px; }
+.metric { background: var(--surface); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+.metric span { display: block; color: var(--text-2); font-size: 12px; }
+.metric strong { display: block; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.metric--total strong { font-size: 22px; }
+.metric small { color: var(--text-2); font-size: 12px; }
+.positive, .metric small.positive { color: var(--up); }
+.negative, .metric small.negative { color: var(--down); }
+.grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 12px; }
+.card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; }
+.card__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.card h2 { font-size: 14px; font-weight: 700; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.segmented button { border: 0; background: transparent; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.segmented button[aria-pressed="true"] { background: var(--surface); font-weight: 700; color: var(--brand); }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+.stats b { color: var(--text); font-weight: 600; }
+.readout { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); min-height: 18px; }
+.readout output { color: var(--text); font-weight: 700; }
+.chart svg { display: block; width: 100%; height: auto; touch-action: none; }
+.chart text { fill: var(--text-2); font-size: 10px; }
+.chart .grid-line { stroke: var(--border); stroke-width: 1; }
+.chart .line { fill: none; stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; }
+.chart .area { fill: var(--brand); opacity: .08; }
+.chart .cursor { stroke: var(--text-2); stroke-dasharray: 3 3; }
+.chart .point { fill: var(--brand); stroke: var(--bg); stroke-width: 2; }
+.empty { color: var(--text-2); font-size: 12px; text-align: center; padding: 24px 8px; }
+.donut { position: relative; width: 132px; margin: 0 auto 8px; }
+.donut svg { display: block; transform: rotate(-90deg); }
+.donut__label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; font-size: 11px; color: var(--text-2); }
+.donut__label strong { font-size: 18px; color: var(--text); }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.legend li { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.legend svg { width: 10px; height: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: right; font-weight: 600; color: var(--text-2); padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { text-align: right; padding: 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td small { display: block; color: var(--text-2); }
+td small.positive { color: var(--up); }
+td small.negative { color: var(--down); }
+.table-scroll { overflow-x: auto; }
+.note { color: var(--text-2); font-size: 11px; }
+.flag { display: inline-block; margin-left: 4px; padding: 0 5px; border: 1px solid var(--warning); border-radius: 4px; color: var(--warning); font-size: 10px; font-weight: 600; vertical-align: 1px; }
+@media (max-width: 560px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+  .metric--total { grid-column: 1 / -1; }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main id="app" aria-busy="true">
+  <header class="head">
+    <div><h1 id="title">내 자산</h1><p class="muted" id="meta">도구 결과를 기다리는 중</p></div>
+    <div class="actions">
+      <span class="badge" id="mode" hidden></span>
+      <button type="button" class="button" id="privacy" aria-pressed="false">금액 숨기기</button>
+      <button type="button" class="button" id="refresh" disabled>새로고침</button>
+      <button type="button" class="button" id="open" disabled>로컬 대시보드 열기</button>
+    </div>
+  </header>
+  <p class="alert" id="error" role="alert" hidden></p>
+  <p class="alert" id="warnings" role="status" hidden></p>
+  <section class="summary" aria-label="자산 요약">
+    <div class="metric metric--total"><span id="total-label">총 평가금액</span><strong id="total">—</strong><small id="scope">—</small></div>
+    <div class="metric"><span>보유분 평가손익</span><strong id="profit">—</strong><small id="profit-rate">—</small></div>
+    <div class="metric"><span>보유 원화</span><strong id="cash">—</strong><small>주문 중 포함</small></div>
+    <div class="metric"><span>보유 가상자산</span><strong id="crypto">—</strong><small id="count">—</small></div>
+  </section>
+  <div class="grid">
+    <section class="card" aria-labelledby="trend-title">
+      <div class="card__head"><h2 id="trend-title">자산 추이</h2>
+        <div class="segmented" role="group" aria-label="조회 기간" id="periods"><button type="button" data-days="7" disabled>7일</button><button type="button" data-days="30" disabled>30일</button><button type="button" data-days="90" disabled>90일</button><button type="button" data-days="365" disabled>1년</button></div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="readout"><span id="readout-date"></span><output id="readout-value"></output></div>
+      <div class="chart" id="chart"><p class="empty">불러오는 중</p></div>
+      <p class="note">입출금이 포함된 평가금액 기록이며 수익률이 아닙니다.</p>
+    </section>
+    <section class="card" aria-labelledby="allocation-title">
+      <div class="card__head"><h2 id="allocation-title">자산 비중</h2></div>
+      <div id="allocation"><p class="empty">불러오는 중</p></div>
+    </section>
+  </div>
+  <section class="card" aria-labelledby="holdings-title">
+    <div class="card__head"><h2 id="holdings-title">보유 상위 자산</h2><span class="muted" id="holding-count"></span></div>
+    <div class="table-scroll"><table><thead><tr><th scope="col">자산</th><th scope="col">평가금액</th><th scope="col">비중</th><th scope="col">평가손익 / 수익률</th><th scope="col">전일 대비</th></tr></thead><tbody id="holdings"><tr><td colspan="5" class="empty">불러오는 중</td></tr></tbody></table></div>
+  </section>
+  <p class="note">평가손익은 현재 보유분의 API 평균 매수가 기준이며 수수료·실현손익을 포함하지 않습니다. 조회 전용이며 주문·출금 기능이 없습니다. Asset Kit __VERSION__</p>
+</main>
+<script>
+'use strict';
+const VERSION = '__VERSION__';
+const COLORS = ['#F37321', '#2C6BED', '#14B8A6', '#8B5CF6', '#F5B700', '#8B95A1', '#D5DAE0'];
+const $ = id => document.getElementById(id);
+const state = { data: null, args: {}, hidden: false, busy: false, index: null, chart: null };
+
+// ===== 표시 형식: 서버의 십진 문자열을 화면에 보여줄 때만 숫자로 바꿉니다 =====
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+const missing = value => value === null || value === undefined || value === '';
+const formats = new Map();
+const number = (value, digits = 0) => {
+  if (missing(value) || !Number.isFinite(Number(value))) return '—';
+  if (!formats.has(digits)) formats.set(digits, new Intl.NumberFormat('ko-KR', { maximumFractionDigits: digits }));
+  return formats.get(digits).format(Number(value));
+};
+const money = (value, signed = false) => state.hidden ? '••••' : missing(value) ? '—' : `${signed && Number(value) > 0 ? '+' : ''}${number(value)}원`;
+const percent = value => missing(value) ? '—' : `${Number(value) > 0 ? '+' : ''}${number(value, 2)}%`;
+const tone = value => state.hidden || missing(value) ? '' : Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '';
+const axis = value => value >= 1e8 ? `${number(value / 1e8, 2)}억` : value >= 1e4 ? `${number(value / 1e4, 1)}만` : number(value);
+const time = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
+const day = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Seoul' });
+const when = (value, format = time) => Number.isFinite(Date.parse(value)) ? format.format(new Date(value)) : '—';
+
+// ===== 호스트 연결: MCP Apps(JSON-RPC 2.0 over postMessage) =====
+let nextId = 1;
+const pending = new Map();
+const post = message => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
+function request(method, params = {}) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('호스트 응답이 늦어 중단했습니다.')); }, 120000);
+    pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
+    post({ id, method, params });
+  });
+}
+window.addEventListener('message', ({ source, data: message }) => {
+  if (source !== window.parent || !message || message.jsonrpc !== '2.0') return;
+  if (message.method === undefined) {
+    const waiting = pending.get(message.id);
+    if (!waiting) return;
+    pending.delete(message.id);
+    if (message.error) waiting.reject(new Error(message.error.message || '호스트 요청이 실패했습니다.')); else waiting.resolve(message.result);
+    return;
+  }
+  switch (message.method) {
+    case 'ui/notifications/tool-input': state.args = message.params?.arguments ?? {}; busy(true); break;
+    case 'ui/notifications/tool-result': busy(false); receive(message.params); break;
+    case 'ui/notifications/tool-cancelled': busy(false); if (!state.data) showError('조회가 취소되었습니다.'); break;
+    case 'ui/notifications/host-context-changed': applyContext(message.params); break;
+    default:
+      if (message.id === undefined) return;
+      if (message.method === 'ui/resource-teardown' || message.method === 'ping') post({ id: message.id, result: {} });
+      else post({ id: message.id, error: { code: -32601, message: 'Method not found' } });
+  }
+});
+function applyContext(context) {
+  if (!context) return;
+  if (context.theme === 'light' || context.theme === 'dark') document.documentElement.dataset.theme = context.theme;
+  for (const [name, value] of Object.entries(context.styles?.variables ?? {})) {
+    if (/^--[\w-]+$/.test(name) && typeof value === 'string') document.documentElement.style.setProperty(name, value);
+  }
+}
+const errorText = result => { try { const error = JSON.parse(result.content?.[0]?.text ?? '{}'); return [error.message, error.recovery].filter(Boolean).join(' ') || '조회하지 못했습니다.'; } catch { return result.content?.[0]?.text || '조회하지 못했습니다.'; } };
+function receive(result) {
+  if (!result) return;
+  if (result.isError) { showError(errorText(result)); return; }
+  let data = result.structuredContent;
+  if (!data) try { data = JSON.parse(result.content?.[0]?.text ?? 'null'); } catch { data = null; }
+  if (!data?.summary || !data.trend) { showError('대시보드 데이터 형식이 아닙니다. dashboard_snapshot 결과만 그릴 수 있습니다.'); return; }
+  state.data = data; state.index = null;
+  showError(''); render();
+}
+async function callTool(name, args) {
+  const result = await request('tools/call', { name, arguments: args });
+  if (result?.isError) throw new Error(errorText(result));
+  return result;
+}
+// 새로고침·기간 변경은 같은 도구를 다시 부릅니다. force는 이번 호출에만 씁니다.
+async function reload(changes = {}) {
+  if (state.busy) return;
+  const { force, ...args } = { ...state.args, ...changes };
+  busy(true);
+  try { receive(await callTool('dashboard_snapshot', force ? { ...args, force } : args)); state.args = args; }
+  catch (error) { showError(`${error.message} 대화에서 다시 요청할 수도 있습니다.`); }
+  finally { busy(false); }
+}
+async function openLocal() {
+  busy(true);
+  try {
+    const result = await callTool('dashboard_open', state.data?.board ? { boardId: state.data.board.id } : {});
+    const url = result.structuredContent?.url ?? JSON.parse(result.content[0].text).url;
+    // A host may refuse the link by policy ({ isError: true }) instead of failing the request.
+    let opened = false;
+    try { opened = !(await request('ui/open-link', { url }))?.isError; } catch { /* 아래 안내로 대신합니다. */ }
+    if (!opened) showError(`이 컴퓨터의 브라우저에서 ${url} 을 여세요.`);
+  } catch (error) { showError(`로컬 대시보드를 띄우지 못했습니다. ${error.message}`); }
+  finally { busy(false); }
+}
+function busy(on) {
+  state.busy = on;
+  $('app').setAttribute('aria-busy', String(on));
+  $('refresh').disabled = $('open').disabled = on || !state.data;
+  for (const button of document.querySelectorAll('[data-days]')) button.disabled = on || !state.data;
+}
+function showError(message) { $('error').textContent = message; $('error').hidden = !message; }
+
+// ===== 그리기 =====
+function render() {
+  const d = state.data;
+  if (!d) return;
+  const s = d.summary, demo = d.mode === 'demo';
+  $('title').textContent = d.board?.name ?? (d.scope.length ? d.scope.join(' · ') : '내 자산');
+  $('meta').textContent = `${when(d.asOf)} 기준 · ${demo ? '합성 예시 데이터' : '빗썸 계좌 조회'}`;
+  $('mode').hidden = false; $('mode').textContent = demo ? 'DEMO' : 'READ ONLY'; $('mode').classList.toggle('is-demo', demo);
+  $('open').hidden = d.canOpenLocal === false;
+  $('warnings').textContent = d.warnings.join(' '); $('warnings').hidden = !d.warnings.length;
+  $('total-label').textContent = s.valuationComplete ? '총 평가금액' : '확인된 평가금액';
+  $('total').textContent = money(s.totalValueKrw);
+  $('scope').textContent = d.scope.length ? `${d.scope.join(' · ')} 범위` : '원화 포함 전체 자산';
+  $('profit').textContent = money(s.profitKrw, true); $('profit').className = tone(s.profitKrw);
+  $('profit-rate').textContent = `${state.hidden ? '••' : percent(s.profitRatePct)}${s.profitComplete ? '' : ' · 일부 자산 기준'}`; $('profit-rate').className = tone(s.profitKrw);
+  $('cash').textContent = money(s.cashKrw);
+  $('crypto').textContent = money(s.cryptoValueKrw);
+  $('count').textContent = `${s.assetCount}종`;
+  for (const button of document.querySelectorAll('[data-days]')) button.setAttribute('aria-pressed', String(Number(button.dataset.days) === d.trend.days));
+  renderTrend(); renderAllocation(); renderHoldings();
+  busy(state.busy);
+}
+function renderTrend() {
+  const box = $('chart'), t = state.data.trend;
+  const points = t.at.map((at, i) => ({ at, value: Number(t.valueKrw[i]) })).filter(p => Number.isFinite(p.value));
+  $('stats').innerHTML = points.length > 1 ? `<span>첫 기록 <b>${money(t.firstKrw)}</b></span><span>최근 기록 <b>${money(t.lastKrw)}</b></span><span>구간 변화 <b class="${tone(t.changeKrw)}">${money(t.changeKrw, true)}</b></span><span>${points.length}개 시점${t.sampled ? '(간추림)' : ''}${t.omitted ? ` · 가격 미확인 ${t.omitted}개 제외` : ''}</span>` : '';
+  $('readout-date').textContent = $('readout-value').textContent = '';
+  state.chart = null;
+  if (state.hidden) { box.innerHTML = '<p class="empty">금액을 숨겼습니다.</p>'; return; }
+  if (points.length < 2) { box.innerHTML = '<p class="empty">기록이 두 번 이상 쌓이면 추이가 나타납니다.<br>조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록합니다.</p>'; return; }
+  const values = points.map(p => p.value), height = 190;
+  let low = Math.min(...values), high = Math.max(...values);
+  const pad = Math.max((high - low) * 0.2, Math.abs(high) * 0.001, 1);
+  low -= pad; high += pad;
+  const start = Date.parse(points[0].at), span = Math.max(Date.parse(points.at(-1).at) - start, 1);
+  const width = Math.max(260, Math.round(box.clientWidth)), left = 50, right = width - 8, top = 10, bottom = height - 22;
+  const x = p => left + (Date.parse(p.at) - start) / span * (right - left);
+  const y = value => bottom - (value - low) / (high - low) * (bottom - top);
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(p).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const grid = [low, (low + high) / 2, high].map(v => `<line class="grid-line" x1="${left}" x2="${right}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="0" y="${(y(v) + 4).toFixed(1)}">${esc(axis(v))}</text>`).join('');
+  box.innerHTML = `<svg viewBox="0 0 ${width} ${height}" tabindex="0" role="img" aria-label="${esc(`평가금액 추이 ${when(points[0].at, day)}부터 ${when(points.at(-1).at, day)}까지. 좌우 방향키로 시점 이동`)}">${grid}<path class="area" d="${line} L${right},${bottom} L${left},${bottom} Z"/><path class="line" d="${line}"/><line class="cursor" y1="${top}" y2="${bottom}"/><circle class="point" r="4"/><text x="${left}" y="${height - 4}">${esc(when(points[0].at, day))}</text><text x="${right}" y="${height - 4}" text-anchor="end">${esc(when(points.at(-1).at, day))}</text></svg>`;
+  box.dataset.width = String(box.clientWidth);
+  state.chart = { points, x, y, width };
+  select(state.index ?? points.length - 1);
+}
+function select(index) {
+  const c = state.chart, p = c?.points[index];
+  if (!p) return;
+  state.index = index;
+  const svg = $('chart').querySelector('svg');
+  for (const [name, value] of [['x1', c.x(p)], ['x2', c.x(p)]]) svg.querySelector('.cursor').setAttribute(name, value.toFixed(1));
+  svg.querySelector('.point').setAttribute('cx', c.x(p).toFixed(1));
+  svg.querySelector('.point').setAttribute('cy', c.y(p.value).toFixed(1));
+  $('readout-date').textContent = when(p.at);
+  $('readout-value').textContent = money(p.value);
+}
+function renderAllocation() {
+  const box = $('allocation'), d = state.data;
+  const slices = d.holdings.filter(h => !missing(h.allocationPct) && Number(h.allocationPct) > 0).map(h => ({ name: h.name, symbol: h.symbol, pct: Number(h.allocationPct) }));
+  if (Number(d.others.allocationPct) > 0) slices.push({ name: `기타 ${d.others.count}종`, symbol: '', pct: Number(d.others.allocationPct) });
+  if (state.hidden || !slices.length) { box.innerHTML = `<p class="empty">${state.hidden ? '금액과 자산 비중을 숨겼습니다.' : '평가 가능한 자산이 없습니다.'}</p>`; return; }
+  let offset = 0;
+  const arcs = slices.map((slice, i) => {
+    const arc = `<circle cx="66" cy="66" r="52" pathLength="100" fill="none" stroke="${COLORS[i % COLORS.length]}" stroke-width="15" stroke-dasharray="${slice.pct} ${100 - slice.pct}" stroke-dashoffset="${-offset}"/>`;
+    offset += slice.pct;
+    return arc;
+  }).join('');
+  box.innerHTML = `<div class="donut"><svg viewBox="0 0 132 132" role="img" aria-label="자산 비중 도넛 차트. 상세는 아래 목록">${arcs}</svg><div class="donut__label"><strong>${d.holdings.length + d.others.count}</strong>보유 자산</div></div>
+    <ul class="legend">${slices.map((slice, i) => `<li><svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="${COLORS[i % COLORS.length]}"/></svg><span>${esc(slice.name)}${slice.symbol && slice.symbol !== slice.name ? ` <span class="muted">${esc(slice.symbol)}</span>` : ''}</span><b>${number(slice.pct, 1)}%</b></li>`).join('')}</ul>`;
+}
+function renderHoldings() {
+  const d = state.data, rows = d.holdings;
+  $('holding-count').textContent = d.others.count ? `상위 ${rows.length}개 · 나머지 ${d.others.count}개 ${d.others.valueKrw === null ? '가격 미확인' : money(d.others.valueKrw)}` : `${rows.length}개`;
+  $('holdings').innerHTML = rows.length ? rows.map(h => {
+    const cash = h.symbol === 'KRW';
+    return `<tr><td><strong>${esc(h.name)}</strong>${h.marketWarning ? '<span class="flag" title="빗썸 거래 유의 지정">유의</span>' : ''}<small>${esc(h.symbol)}${cash || state.hidden ? '' : ` · ${esc(number(h.quantity, 8))}`}</small></td>
+      <td>${h.valueKrw === null ? '가격 미확인' : money(h.valueKrw)}</td>
+      <td>${state.hidden || missing(h.allocationPct) ? '—' : `${number(h.allocationPct, 1)}%`}</td>
+      <td class="${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '현금' : state.hidden ? '••' : percent(h.profitRatePct)}</small></td>
+      <td class="${cash ? '' : tone(h.priceChangePct)}">${cash ? '—' : percent(h.priceChangePct)}</td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">보유 자산이 없습니다.</td></tr>';
+}
+
+// ===== 조작 =====
+$('privacy').addEventListener('click', () => {
+  state.hidden = !state.hidden;
+  $('privacy').textContent = state.hidden ? '금액 보기' : '금액 숨기기';
+  $('privacy').setAttribute('aria-pressed', String(state.hidden));
+  render();
+});
+$('refresh').addEventListener('click', () => reload({ force: true }));
+$('open').addEventListener('click', openLocal);
+$('periods').addEventListener('click', event => {
+  const button = event.target.closest('[data-days]');
+  if (button && !button.disabled && Number(button.dataset.days) !== state.data?.trend.days) void reload({ days: Number(button.dataset.days) });
+});
+$('chart').addEventListener('pointermove', event => {
+  const c = state.chart, svg = event.target.closest('svg');
+  if (!c || !svg) return;
+  const rect = svg.getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width * c.width;
+  let closest = 0;
+  c.points.forEach((p, i) => { if (Math.abs(c.x(p) - x) < Math.abs(c.x(c.points[closest]) - x)) closest = i; });
+  if (closest !== state.index) select(closest);
+});
+$('chart').addEventListener('keydown', event => {
+  if (!state.chart || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const last = state.chart.points.length - 1;
+  select({ ArrowLeft: Math.max(0, state.index - 1), ArrowRight: Math.min(last, state.index + 1), Home: 0, End: last }[event.key]);
+});
+// 칸 너비가 바뀌면 차트를 다시 그리고, 화면 높이를 호스트에 알립니다.
+new ResizeObserver(() => {
+  if (state.data && Number($('chart').dataset.width) !== $('chart').clientWidth) renderTrend();
+  post({ method: 'ui/notifications/size-changed', params: { height: Math.ceil($('app').getBoundingClientRect().height) } });
+}).observe($('app'));
+
+(async () => {
+  if (window.parent === window) { showError('MCP Apps를 지원하는 AI 클라이언트에서 dashboard_snapshot 도구로 여는 화면입니다.'); $('app').setAttribute('aria-busy', 'false'); return; }
+  try {
+    const init = await request('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'bithumb-asset-kit-dashboard', version: VERSION }, appCapabilities: {} });
+    applyContext(init?.hostContext);
+    post({ method: 'ui/notifications/initialized', params: {} });
+  } catch (error) { showError(`AI 클라이언트와 연결하지 못했습니다. ${error.message}`); }
+})();
+</script>
+</body>
+</html>

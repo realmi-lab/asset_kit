@@ -10,6 +10,7 @@ import { DemoProvider } from '../src/demo.js';
 import { BithumbProvider } from '../src/bithumb.js';
 import { createMcpServer, dashboardTemplate, startMcp } from '../mcp/index.js';
 import { RecordReader } from '../mcp/records.js';
+import { dashboardSnapshot } from '../mcp/query.js';
 import { KitError } from '../src/errors.js';
 
 const NOW = Date.parse('2026-10-26T06:00:00Z');
@@ -48,13 +49,63 @@ test('MCP exposes force refresh, exact filters/sorts and selected fields without
   const loss = (await call('portfolio_get_holdings', { performance: 'loss', search: '리플' })).structuredContent;
   assert.equal(loss.holdings[0].symbol, 'XRP');
   const tools = (await server.handle('tools/list')).tools;
-  assert.equal(tools.length, 14);
+  assert.equal(tools.length, 17);
   assert.ok(tools.every(tool => tool.outputSchema.type === 'object'));
   for (const args of [{ fields: ['secret'] }, { limit: 0 }, JSON.parse('{"constructor":true}')]) {
     const bad = await call('portfolio_get_holdings', args);
     assert.equal(bad.isError, true);
     assert.equal(JSON.parse(bad.content[0].text).retryable, false);
   }
+});
+
+test('dashboard snapshot draws a board in one compact call with exact decimals and columnar series', async t => {
+  const { call, service } = await serverFor(t);
+  const result = (await call('dashboard_snapshot', { top: 2 })).structuredContent;
+  assert.deepEqual(result.holdings.map(h => h.symbol), ['BTC', 'ETH']);
+  assert.deepEqual(Object.keys(result.holdings[0]).sort(), ['allocationPct', 'marketWarning', 'name', 'priceChangePct', 'profitKrw', 'profitRatePct', 'quantity', 'symbol', 'valueKrw']);
+  // The others slice is a decimal sum, so top holdings and others cover the whole scope exactly.
+  assert.equal(result.others.count, 3);
+  assert.equal(result.others.valueKrw, '7836000');
+  assert.equal(result.holdings.reduce((sum, h) => sum + BigInt(h.valueKrw), BigInt(result.others.valueKrw)).toString(), result.summary.totalValueKrw);
+  assert.equal(result.summary.totalValueKrw, '28074000');
+  assert.equal(result.trend.at.length, result.trend.valueKrw.length);
+  assert.equal(result.trend.days, 30);
+  assert.equal(result.trend.firstKrw, result.trend.valueKrw[0]);
+  assert.equal(result.trend.lastKrw, result.trend.valueKrw.at(-1));
+  assert.equal(result.daily, undefined);
+  const year = (await call('dashboard_snapshot', { days: 365, points: 20, daily: true })).structuredContent;
+  const history = (await call('portfolio_get_history', { days: 365 })).structuredContent;
+  assert.equal(year.trend.at.length, 20);
+  assert.equal(year.trend.sampled, true);
+  assert.equal(year.trend.firstKrw, history.points[0].totalValueKrw);
+  assert.equal(year.trend.changeKrw, (BigInt(year.trend.lastKrw) - BigInt(year.trend.firstKrw)).toString());
+  assert.equal(year.daily.day.length, year.daily.changeKrw.length);
+  const compact = (await call('dashboard_snapshot', { days: 365 })).structuredContent;
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(history).length / 4);
+  // A board supplies the default scope and period; explicit arguments still win.
+  const board = await service.boards.create({ name: '이더리움', symbols: ['ETH'], days: 7 });
+  const scoped = (await call('dashboard_snapshot', { boardId: board.id })).structuredContent;
+  assert.deepEqual([scoped.board.name, scoped.scope, scoped.trend.days, scoped.holdings[0].allocationPct, scoped.others.count], ['이더리움', ['ETH'], 7, '100.0000', 0]);
+  assert.equal((await call('dashboard_snapshot', { boardId: board.id, days: 90 })).structuredContent.trend.days, 90);
+  const missing = await call('dashboard_snapshot', { boardId: '00000000-0000-4000-8000-000000000000' });
+  assert.equal(missing.isError, true);
+  assert.deepEqual([JSON.parse(missing.content[0].text).code, JSON.parse(missing.content[0].text).retryable], ['BOARD_NOT_FOUND', false]);
+});
+
+test('dashboard snapshot keeps unpriced history out of the series and reports it', async () => {
+  const history = { mode: 'live', days: 30, scope: [], sampled: false, points: [
+    { asOf: '2026-10-01T00:00:00.000Z', totalValueKrw: '100', valuationComplete: true },
+    { asOf: '2026-10-02T00:00:00.000Z', totalValueKrw: null, valuationComplete: false },
+    { asOf: '2026-10-03T00:00:00.000Z', totalValueKrw: '90.5', valuationComplete: true },
+  ] };
+  const portfolio = { mode: 'live', asOf: '2026-10-03T00:00:00.000Z', scope: [], warnings: [], summary: { totalValueKrw: '0', valuationComplete: true },
+    holdings: [{ symbol: 'KRW', name: '원화', valueKrw: null, allocationPct: null }] };
+  const result = await dashboardSnapshot({ portfolio: async () => portfolio, historyPoints: async () => history }, {});
+  assert.deepEqual(result.trend.valueKrw, ['100', '90.5']);
+  assert.deepEqual([result.trend.omitted, result.trend.changeKrw], [1, '-9.5']);
+  assert.deepEqual(result.others, { count: 0, valueKrw: '0', allocationPct: '0', unpriced: 0 });
+  const empty = await dashboardSnapshot({ portfolio: async () => portfolio, historyPoints: async () => ({ ...history, points: [] }) }, {});
+  assert.deepEqual([empty.trend.at, empty.trend.firstKrw, empty.trend.changeKrw], [[], null, null]);
 });
 
 test('MCP field projection keeps decimals, nulls, and full-scope allocation semantics', async t => {

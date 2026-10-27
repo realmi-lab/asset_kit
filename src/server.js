@@ -31,6 +31,22 @@ async function readJson(req) {
 }
 
 /**
+ * Turns a failed listen into a specific error. Only the OS error code is shown, never paths or internals;
+ * an error without one is a bug and stays a generic INTERNAL_ERROR.
+ */
+export function startFailure(error, port) {
+  const code = typeof error?.code === 'string' && /^E[A-Z]+$/.test(error.code) ? error.code : null;
+  if (!code) return error;
+  if (code === 'EADDRINUSE') return new KitError('PORT_IN_USE', `${port}번 포트를 이미 다른 프로그램이 쓰고 있습니다.`, 503);
+  const reason = {
+    EACCES: `이 환경에서 로컬 포트를 열 권한이 없습니다(${code}). 샌드박스나 보안 프로그램이 로컬 서버를 막았을 수 있습니다.`,
+    EPERM: `이 환경에서 로컬 포트를 열 권한이 없습니다(${code}). 샌드박스나 보안 프로그램이 로컬 서버를 막았을 수 있습니다.`,
+    EADDRNOTAVAIL: `이 컴퓨터에서 127.0.0.1 주소를 쓸 수 없습니다(${code}). 네트워크 설정을 확인하세요.`,
+  }[code] ?? `운영체제가 로컬 서버 시작을 거부했습니다(${code}).`;
+  return new KitError('DASHBOARD_START_FAILED', reason, 503);
+}
+
+/**
  * Loopback dashboard. Account data is GET-only. The only writes are local board settings, and they need a
  * same-origin JSON request with X-Asset-Kit: a header cross-site pages cannot send without a preflight this server never grants.
  */

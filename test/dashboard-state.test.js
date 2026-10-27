@@ -68,7 +68,7 @@ function dashboard() {
   };
   context.window = context;
   const executable = source.replace(/^import .* from '\.\/dashboard-utils\.js';\s*$/m, '')
-    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, load, loadHistory, loadActivity, showExplain, reloadBoards, resetActivity: (...args) => resetActivity(...args) };');
+    .replace(/void init\(\);\s*$/, 'globalThis.app = { state, beginRequest, cancelRequest, selectBoard, load, loadHistory, loadActivity, showExplain, reloadBoards, syncBoards, resetActivity: (...args) => resetActivity(...args) };');
   runInNewContext(executable, context, { filename: 'web/app.js' });
   assert.ok(context.app, 'The harness must expose actual app functions instead of initializing a server connection.');
   Object.assign(context.app.state, { status: { mode: 'demo', sample: true, sampleAsOf: '2026-10-06T06:00:00.000Z' },
@@ -283,4 +283,78 @@ test('failed board reload is visible and preserves the last known board and edit
   assert.equal(h.app.state.draft, draft);
   assert.equal(h.elements.get('error').hidden, false);
   assert.match(h.elements.get('error').textContent, /synthetic reload failure/);
+});
+
+test('board changes saved elsewhere (MCP) reach an open dashboard without touching unrelated state', async () => {
+  const h = await ready();
+  await h.app.syncBoards();
+  assert.equal(h.pending.some(item => !item.taken && item.path === '/api/boards'), false, 'Offline samples never poll boards.');
+  h.app.state.status = { mode: 'demo', configured: true };
+  h.app.state.boards = h.app.state.boards.map(b => ({ ...b, revision: 1 }));
+  const [a, b] = h.app.state.boards;
+
+  // A new board only adds a tab; the active board keeps its data.
+  const added = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [a, b, { ...b, id: 'c', name: 'AI가 만든 보드' }] });
+  await added;
+  assert.equal(h.app.state.boards.length, 3);
+  assert.match(h.elements.get('board-tabs').innerHTML, /AI가 만든 보드/);
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+
+  // An edited active board is re-mounted with its new scope.
+  const edited = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [{ ...a, revision: 2, name: 'BTC·ETH', symbols: ['BTC', 'ETH'] }, b] });
+  await edited;
+  assert.equal(h.elements.get('board-name').textContent, 'BTC·ETH');
+  assert.match(h.next('/api/portfolio').path, /symbols=BTC%2CETH/);
+
+  // Open dialogs and unchanged lists are left alone.
+  const same = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: h.app.state.boards });
+  await same;
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+  h.elements.get('board-dialog').open = true;
+  await h.app.syncBoards();
+  assert.equal(h.pending.some(item => !item.taken && item.path === '/api/boards'), false);
+});
+
+// A cancelled recovery reload never settles, so a regression would hang without the timeout.
+test('board sync never runs before the first board is chosen, never cancels a recovery reload, and keeps work on a rename', { timeout: 5000 }, async () => {
+  // Before init() picks a board (page loading in a background tab): nothing to compare, no toast.
+  const loading = dashboard();
+  Object.assign(loading.app.state, { status: { mode: 'demo', configured: true }, boardId: null });
+  await loading.app.syncBoards();
+  assert.equal(loading.pending.length, 0);
+
+  const h = await ready();
+  h.app.state.status = { mode: 'demo', configured: true };
+  h.app.state.boards = h.app.state.boards.map(b => ({ ...b, revision: 1 }));
+  const [a, b] = h.app.state.boards;
+
+  // A reload after a failed save restores server settings; a poll must neither cancel nor race it.
+  const reload = h.app.reloadBoards();
+  await h.app.syncBoards();
+  assert.equal(h.pending.filter(item => !item.taken && item.path === '/api/boards').length, 1);
+  h.next('/api/boards').resolve({ boards: [a, b] });
+  assert.equal(await reload, true);
+  h.next('/api/portfolio').resolve(portfolio('BTC'));
+  await flush();
+
+  // A rename made elsewhere keeps an in-flight history query and the dates the user typed.
+  h.elements.get('activity-kind').value = 'orders';
+  h.elements.get('activity-from').value = '2026-01-01';
+  const records = h.app.loadActivity(), recordsRequest = h.next('/api/records');
+  const renamed = h.app.syncBoards();
+  await flush();
+  h.next('/api/boards').resolve({ boards: [{ ...h.app.state.boards[0], revision: 2, name: '새 이름' }, h.app.state.boards[1]] });
+  await renamed;
+  assert.equal(h.elements.get('board-name').textContent, '새 이름');
+  assert.equal(h.elements.get('activity-from').value, '2026-01-01');
+  assert.equal(h.pending.some(item => !item.taken && item.path.startsWith('/api/portfolio')), false);
+  recordsRequest.resolve(activity);
+  await records;
+  assert.equal(h.app.state.activity, activity);
 });

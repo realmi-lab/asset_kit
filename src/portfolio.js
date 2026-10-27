@@ -23,6 +23,8 @@ export function calculatePortfolio({ accounts, tickers, markets = [], mode = 'li
   const validAccounts = validResponse(ACCOUNTS, accounts);
   const quotes = new Map(validResponse(TICKERS, tickers).map(ticker => [ticker.market, ticker]));
   const names = new Map(markets.map(market => [market.market, market.korean_name]));
+  // market_warning: NONE 또는 CAUTION(거래 유의). 값이 없으면 확인하지 못한 것이므로 null입니다.
+  const cautions = new Map(markets.map(market => [market.market, market.market_warning]));
   const holdings = validAccounts.flatMap(account => {
     const quantity = dec(account.balance).plus(account.locked);
     if (quantity.isZero()) return [];
@@ -45,6 +47,7 @@ export function calculatePortfolio({ accounts, tickers, markets = [], mode = 'li
       priceSource: quote?.source ?? null,
       averagePriceModified: account.avg_buy_price_modified,
       quoteAt: quote ? new Date(quote.timestamp).toISOString() : null,
+      marketWarning: cash ? null : [cautions.get(`KRW-${account.currency}`), cautions.get(`BTC-${account.currency}`)].find(flag => flag && flag !== 'NONE') ?? null,
       staleQuote: Boolean(quote && Date.parse(asOf) - quote.timestamp > 120000),
       valuationStatus: value === null ? 'unpriced' : 'priced',
     }];
@@ -69,6 +72,8 @@ function summarize(rows, { mode, asOf, scope = [] }) {
   if (holdings.some(h => h.staleQuote)) warnings.push('일부 현재가의 기준 시각이 2분 이상 지났습니다.');
   if (holdings.some(h => h.priceSource?.startsWith('BTC-'))) warnings.push('원화 마켓이 없는 자산은 BTC 마켓 가격 × KRW-BTC로 환산했습니다.');
   if (holdings.some(h => h.averagePriceModified && h.symbol !== 'KRW')) warnings.push('사용자가 수정한 평균 매수가가 계산에 포함되어 있습니다.');
+  const flagged = holdings.filter(h => h.marketWarning);
+  if (flagged.length) warnings.push(`빗썸이 거래 유의로 지정한 자산을 보유 중입니다: ${flagged.map(h => h.symbol).join(', ')}.`);
   return {
     schemaVersion: '1.1', mode, provider: 'bithumb', currency: 'KRW', asOf, scope,
     summary: {
