@@ -18,7 +18,7 @@ import { FORCE, HOLDING_FIELDS, RECORD_FIELDS, dashboardSnapshot, fieldInput, ho
 import { RecordReader } from './records.js';
 import { OUTPUTS, recovery } from './schemas.js';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 /** 기능 모듈. --modules로 고르며 system은 항상 켜집니다. */
 export const MODULES = ['portfolio', 'market', 'account', 'dashboard', 'system'];
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
@@ -84,6 +84,7 @@ export async function dashboardTemplate({ manifest: manifestOnly = false, paths 
       status: 'GET /api/status', portfolio: 'GET /api/portfolio?symbols=BTC,ETH', explain: 'GET /api/explain?symbols=…',
       history: 'GET /api/history?days=7|30|90|365&symbols=… (&daily=1: 일별 자산 변화)', market: 'GET /api/market?symbol=BTC&days=30',
       records: 'GET /api/records?kind=orders|pending|deposits|withdrawals|krw_deposits|krw_withdrawals&from=YYYY-MM-DD&to=YYYY-MM-DD',
+      tickers: 'GET /api/tickers?scope=all|holdings&sort=value24h|change|price|name&direction=desc|asc&limit=1-50 (빗썸 공개 시세)', warnings: 'GET /api/warnings?scope=all|holdings',
       orders: 'GET /api/orders', transfers: 'GET /api/transfers',
       boards: 'GET /api/boards · POST /api/boards · PUT|DELETE /api/boards/:id {revision} · POST /api/boards/import {boards}',
     },

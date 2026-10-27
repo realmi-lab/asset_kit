@@ -7,6 +7,30 @@ const OTHERS = [['DOGE', 412, 0.0612, '도지코인'], ['ADA', 1180, -0.0247, '�
 const VOLUMES = { BTC: 412e9, ETH: 198e9, XRP: 156e9, SOL: 61e9, DOGE: 88e9, ADA: 24e9, LINK: 9e9 };
 const STEPS = { '1m': 60000, '3m': 180000, '5m': 300000, '10m': 600000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, day: DAY, week: 7 * DAY, month: 30 * DAY };
 const kst = time => new Date(time + 9 * 3600000).toISOString().slice(0, 19);
+const ACCOUNTS = [
+  { currency: 'KRW', balance: '2450000', locked: '350000', avg_buy_price: '0', avg_buy_price_modified: false, unit_currency: 'KRW' },
+  { currency: 'BTC', balance: '0.12', locked: '0.005', avg_buy_price: '92000000', avg_buy_price_modified: false, unit_currency: 'KRW' },
+  { currency: 'ETH', balance: '1.5', locked: '0.1', avg_buy_price: '3800000', avg_buy_price_modified: false, unit_currency: 'KRW' },
+  { currency: 'XRP', balance: '1200', locked: '0', avg_buy_price: '2750', avg_buy_price_modified: false, unit_currency: 'KRW' },
+  { currency: 'SOL', balance: '8', locked: '0', avg_buy_price: '225000', avg_buy_price_modified: false, unit_currency: 'KRW' },
+];
+// 코인마다 다른 합성 시세 흐름: 추세(일), 긴 주기 [진폭, 일, 위상], 짧은 주기 [진폭, 일, 위상], 날마다 다른 결정적 잡음.
+const SHAPES = {
+  BTC: [0.0016, [0.11, 140, 3.63], [0.02, 13, 5.5], 0.022], ETH: [0.0011, [0.14, 120, 0.59], [0.025, 11, 0.79], 0.03],
+  XRP: [-0.0004, [0.16, 100, 0.49], [0.03, 9, 4.32], 0.035], SOL: [0.0019, [0.2, 150, 4.22], [0.035, 17, 5.89], 0.04],
+  DOGE: [0.0008, [0.25, 90, 0.88], [0.05, 8, 4.12], 0.05], ADA: [-0.0009, [0.18, 110, 0.69], [0.03, 12, 4.12], 0.035],
+  LINK: [0.0009, [0.15, 130, 3.93], [0.025, 15, 4.12], 0.03],
+};
+const jitter = (symbol, day) => { let h = 2166136261; for (const char of `${symbol}:${day}`) { h ^= char.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295 * 2 - 1; };
+function wave(symbol, t) {
+  const [trend, [a1, p1, f1], [a2, p2, f2], noise] = SHAPES[symbol], day = Math.floor(t), frac = t - day;
+  return -trend * t + a1 * Math.sin(2 * Math.PI * t / p1 + f1) + a2 * Math.sin(2 * Math.PI * t / p2 + f2) + noise * (jitter(symbol, day) * (1 - frac) + jitter(symbol, day + 1) * frac);
+}
+/** 지금 가격 대비 t일 전 가격의 배수. 하루 전 값은 티커의 전일 대비 등락률과 정확히 맞습니다. */
+function priceFactor(symbol, t) {
+  const change = [...PRICES, ...OTHERS].find(([code]) => code === symbol)[2], today = wave(symbol, 0);
+  return Math.exp(wave(symbol, t) - today + (-Math.log1p(change) - (wave(symbol, 1) - today)) * Math.min(t, 1));
+}
 
 // Entirely synthetic portfolio. Never used as a fallback for live failures.
 export class DemoProvider {
@@ -15,13 +39,7 @@ export class DemoProvider {
   accountId = 'demo';
   credentialSource = null;
   async getAccounts() {
-    return [
-      { currency: 'KRW', balance: '2450000', locked: '350000', avg_buy_price: '0', avg_buy_price_modified: false, unit_currency: 'KRW' },
-      { currency: 'BTC', balance: '0.12', locked: '0.005', avg_buy_price: '92000000', avg_buy_price_modified: false, unit_currency: 'KRW' },
-      { currency: 'ETH', balance: '1.5', locked: '0.1', avg_buy_price: '3800000', avg_buy_price_modified: false, unit_currency: 'KRW' },
-      { currency: 'XRP', balance: '1200', locked: '0', avg_buy_price: '2750', avg_buy_price_modified: false, unit_currency: 'KRW' },
-      { currency: 'SOL', balance: '8', locked: '0', avg_buy_price: '225000', avg_buy_price_modified: false, unit_currency: 'KRW' },
-    ];
+    return ACCOUNTS.map(account => ({ ...account }));
   }
   async getMarkets() {
     return [...PRICES, ...OTHERS].map(([symbol, , , name]) => ({ market: `KRW-${symbol}`, korean_name: name, english_name: symbol, market_warning: 'NONE' }));
@@ -35,8 +53,8 @@ export class DemoProvider {
   async getCandles(market, count = 30, { interval = 'day', now = Date.now() } = {}) {
     const quote = [...PRICES, ...OTHERS].find(([symbol]) => `KRW-${symbol}` === market);
     if (!quote) throw new KitError('NO_KRW_MARKET', '예시 데이터에 없는 원화 마켓입니다.', 404);
-    const step = STEPS[interval] ?? DAY, drift = 0.004 * Math.sqrt(step / DAY);
-    const price = offset => quote[1] * Math.exp(-drift * offset) * (1 + (offset ? Math.sin(offset * 1.3 + quote[1] % 7) * 0.02 : 0));
+    const step = STEPS[interval] ?? DAY;
+    const price = offset => quote[1] * priceFactor(quote[0], offset * step / DAY);
     const round = value => Number(value.toFixed(value >= 100 ? 0 : 2));
     return Array.from({ length: count }, (_, index) => {
       const offset = count - index - 1, close = price(offset), open = price(offset + 1);
@@ -70,11 +88,17 @@ export class DemoProvider {
   }
 }
 
-/** One synthetic daily value per day, ending exactly at the demo portfolio's current total. */
-export function demoHistory(days = 30, now = Date.now(), current = 28074000) {
+/**
+ * One synthetic daily value per day: the demo holdings (only `symbols` when given) valued along the same price paths
+ * as the demo candles, ending exactly at `current`.
+ */
+export function demoHistory(days = 30, now = Date.now(), current = 28074000, symbols = []) {
+  const prices = new Map(PRICES.map(([symbol, price]) => [symbol, price])), wanted = new Set(symbols);
+  const accounts = ACCOUNTS.filter(a => !wanted.size || wanted.has(a.currency));
+  const value = t => accounts.reduce((sum, a) => sum + (Number(a.balance) + Number(a.locked)) * (a.currency === 'KRW' ? 1 : prices.get(a.currency) * priceFactor(a.currency, t)), 0);
+  const today = value(0);
   return Array.from({ length: days }, (_, index) => {
     const offset = days - index - 1;
-    const factor = Math.exp(-0.0037 * offset) + Math.sin(offset * 1.7) * Math.min(offset, 3) * 0.0052;
-    return { asOf: new Date(now - offset * DAY).toISOString(), totalValueKrw: String(Math.round(current * factor)), mode: 'demo', valuationComplete: true };
+    return { asOf: new Date(now - offset * DAY).toISOString(), totalValueKrw: String(today ? Math.round(current * value(offset) / today) : 0), mode: 'demo', valuationComplete: true };
   });
 }

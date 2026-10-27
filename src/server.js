@@ -10,7 +10,8 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
-const READ_PATHS = new Set(['/api/status', '/api/portfolio', '/api/history', '/api/market', '/api/explain', '/api/records', '/api/boards', '/api/orders', '/api/transfers']);
+const READ_PATHS = new Set(['/api/status', '/api/portfolio', '/api/history', '/api/market', '/api/tickers', '/api/warnings', '/api/explain', '/api/records', '/api/boards', '/api/orders', '/api/transfers']);
+const pick = (value, allowed) => allowed.includes(value) ? value : allowed[0];
 const BOARD_PATH = /^\/api\/boards\/([0-9a-f-]{36})$/;
 const MAX_BODY = 64 * 1024;
 
@@ -61,6 +62,10 @@ export async function startDashboard(service, { port = 4319, collect = true, web
       case '/api/portfolio': return service.portfolio({ symbols, force });
       case '/api/history': return service.getHistory({ days: number('days', 30), symbols, daily: query.get('daily') === '1' });
       case '/api/market': return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30), force });
+      // 시장 개요·경보는 공개 시세입니다. 허용하지 않는 값은 기본값으로 바꿉니다.
+      case '/api/tickers': return service.marketOverview({ scope: pick(query.get('scope'), ['all', 'holdings']), sort: pick(query.get('sort'), ['value24h', 'change', 'price', 'name']),
+        direction: pick(query.get('direction'), ['desc', 'asc']), limit: Math.min(Math.max(Math.trunc(number('limit', 10)) || 10, 1), 50), force });
+      case '/api/warnings': return service.getWarnings({ scope: pick(query.get('scope'), ['all', 'holdings']), force });
       case '/api/explain': return service.explain({ symbols });
       case '/api/records': return service.getRecords({ kind: query.get('kind') ?? 'orders', from: query.get('from') || undefined, to: query.get('to') || undefined, force });
       case '/api/boards': return { boards: await service.boards.list() };

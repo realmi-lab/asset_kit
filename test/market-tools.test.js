@@ -210,3 +210,48 @@ test('tool metadata stays within the token budget', async t => {
   // About 7k tokens for 17 tools (main had 14 tools in 19.9KB). Tool metadata is sent with every request, so raise this deliberately.
   assert.ok(Buffer.byteLength(JSON.stringify(tools)) < 28000, `${Buffer.byteLength(JSON.stringify(tools))} bytes`);
 });
+
+test("summary reports today's price move at current quantities, only for coins with a known daily change", () => {
+  const account = (currency, balance) => ({ currency, balance, locked: '0', avg_buy_price: '0', avg_buy_price_modified: false, unit_currency: 'KRW' });
+  const ticker = (market, price, rate) => ({ market, trade_price: price, ...(rate === undefined ? {} : { signed_change_rate: rate }), timestamp: Date.parse('2026-10-27T00:00:00Z') });
+  const asOf = '2026-10-27T00:00:00.000Z';
+  // BTC 110 was 100 yesterday (+10); 2 ETH worth 100 were worth 200 (−100). Total 1,210 against a 1,300 base.
+  const both = calculatePortfolio({ accounts: [account('KRW', '1000'), account('BTC', '1'), account('ETH', '2')], tickers: [ticker('KRW-BTC', 110, 0.1), ticker('KRW-ETH', 50, -0.5)], asOf });
+  assert.deepEqual([both.summary.dayChangeKrw, both.summary.dayChangePct, both.summary.dayChangeComplete], ['-90', '-6.9231', true]);
+  const partial = calculatePortfolio({ accounts: [account('BTC', '1'), account('ETH', '1')], tickers: [ticker('KRW-BTC', 110, 0.1), ticker('KRW-ETH', 50)], asOf });
+  assert.deepEqual([partial.summary.dayChangeKrw, partial.summary.dayChangeComplete], ['10', false]);
+  const cash = calculatePortfolio({ accounts: [account('KRW', '1000')], tickers: [], asOf });
+  assert.deepEqual([cash.summary.dayChangeKrw, cash.summary.dayChangePct, cash.summary.dayChangeComplete], [null, null, true]);
+});
+
+test("dashboard snapshot carries today's price move for the inline view", async t => {
+  const { data } = await serverFor(t);
+  const { summary } = await data('dashboard_snapshot');
+  assert.deepEqual([summary.dayChangeKrw, summary.dayChangePct, summary.dayChangeComplete], ['380658', '1.3745', true]);
+});
+
+test('boards accept the new widgets and new boards start with insights', async t => {
+  const { data } = await serverFor(t);
+  const board = await data('dashboard_save_board', { name: '시장 보기', widgets: ['market', 'warnings', 'heatmap', 'performance', 'insights'] });
+  assert.deepEqual(board.widgets, ['market', 'warnings', 'heatmap', 'performance', 'insights']);
+  assert.deepEqual((await data('dashboard_save_board', { name: '기본' })).widgets, ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity']);
+});
+
+test('public market data keeps working when the account API fails; only the held marks drop', async t => {
+  class BrokenAccounts extends DemoProvider { mode = 'live'; accountId = 'fixture'; async getAccounts() { throw new Error('NotAllowIP'); } }
+  const { service } = await serverFor(t, { provider: new BrokenAccounts() });
+  const tickers = await service.marketOverview({ scope: 'all', limit: 3 });
+  assert.deepEqual([tickers.rows.length, tickers.rows.every(row => row.held === null)], [3, true]);
+  assert.equal((await service.getWarnings({ scope: 'all' })).rows[0].held, null);
+  await assert.rejects(service.marketOverview({ scope: 'holdings' }));
+});
+
+test("a scoped demo board's history follows only its own coins", async t => {
+  const { service } = await serverFor(t);
+  const points = (await service.getHistory({ days: 30, symbols: ['XRP'] })).points;
+  const candles = await new DemoProvider().getCandles('KRW-XRP', 30);
+  assert.equal(points.at(-1).totalValueKrw, '3132000');
+  const history = Number(points.at(-1).totalValueKrw) / Number(points[0].totalValueKrw), market = candles.at(-1).trade_price / candles[0].trade_price;
+  assert.ok(Math.abs(history - market) < 0.002, `${history} vs ${market}`);
+  assert.ok(history < 1, 'XRP fell over the demo month, so its board must not show the whole portfolio rising');
+});

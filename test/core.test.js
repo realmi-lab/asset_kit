@@ -191,7 +191,7 @@ test('boards: default board, revision conflicts, last-board guard and all-or-not
     const viaMcp=new BoardStore({directory:join(directory,'mcp-first'),mode:'demo'});
     await viaMcp.create({name:'AI 보드'});assert.deepEqual((await viaMcp.list()).map(x=>x.name),['내 자산','AI 보드']);
     const store=new BoardStore({directory,mode:'demo'});
-    const [first]=await store.list();assert.equal(first.name,'내 자산');assert.deepEqual(first.widgets,['summary','trend','allocation','holdings','activity']);
+    const [first]=await store.list();assert.equal(first.name,'내 자산');assert.deepEqual(first.widgets,['summary','trend','insights','allocation','holdings','activity']);
     await assert.rejects(store.remove(first.id,first.revision),{code:'LAST_BOARD'});
     const b=await store.create({name:' BTC 장기 ',symbols:['btc','BTC'],widgets:['summary','holdings'],days:90});
     assert.equal(b.name,'BTC 장기');assert.deepEqual(b.symbols,['BTC']);

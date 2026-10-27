@@ -74,6 +74,10 @@ function summarize(rows, { mode, asOf, scope = [] }) {
   if (holdings.some(h => h.averagePriceModified && h.symbol !== 'KRW')) warnings.push('사용자가 수정한 평균 매수가가 계산에 포함되어 있습니다.');
   const flagged = holdings.filter(h => h.marketWarning);
   if (flagged.length) warnings.push(`빗썸이 거래 유의로 지정한 자산을 보유 중입니다: ${flagged.map(h => h.symbol).join(', ')}.`);
+  // 오늘 시세 변동: 지금 보유 수량을 전일 종가로 평가했을 때와의 차이입니다. 오늘의 입출금·매매는 반영하지 않습니다.
+  const moved = holdings.filter(h => h.symbol !== 'KRW' && h.valueKrw !== null && h.priceChangePct !== null && dec(h.priceChangePct).cmp(-100) > 0);
+  const dayChange = sum(moved.map(h => dec(h.valueKrw).minus(dec(h.valueKrw).times(100).div(dec(h.priceChangePct).plus(100), 8))));
+  const dayBase = total.minus(dayChange);
   return {
     schemaVersion: '1.1', mode, provider: 'bithumb', currency: 'KRW', asOf, scope,
     summary: {
@@ -84,12 +88,16 @@ function summarize(rows, { mode, asOf, scope = [] }) {
       comparableCostKrw: comparableCost.toFixed(), assetCount: holdings.filter(h => h.symbol !== 'KRW').length,
       unpricedCount, unknownCostCount, valuationComplete: unpricedCount === 0,
       profitComplete: unpricedCount === 0 && unknownCostCount === 0,
+      dayChangeKrw: moved.length ? dayChange.toFixed(0) : null,
+      dayChangePct: moved.length && dayBase.gt(0) ? dayChange.times(100).div(dayBase, 4).toFixed(4) : null,
+      dayChangeComplete: moved.length === holdings.filter(h => h.symbol !== 'KRW').length,
     },
     holdings, warnings,
     calculation: {
       quantity: 'balance + locked', value: '보유 수량 × 원화 현재가 (원화 마켓이 없으면 BTC 마켓 가격 × KRW-BTC)',
       profit: '현재 보유분 평가금액 − API 평균 매수가 × 보유 수량. 수수료·실현손익 제외.',
       allocation: '가격이 확인된 자산 평가금액 합계(원화 포함)를 기준으로 계산.',
+      dayChange: '평가금액 − 평가금액 ÷ (1 + 빗썸 전일 대비 등락률). 지금 수량 기준이며 오늘의 입출금·매매는 반영하지 않습니다. 비율은 총 평가금액 대비.',
       history: '기록 시점의 평가금액입니다. 입출금 영향을 포함하므로 투자 수익률이 아닙니다.',
     },
   };
