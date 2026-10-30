@@ -66,7 +66,7 @@ export async function startDashboard(service, { port = 4319, collect = true, web
       case '/api/portfolio': return service.portfolio({ symbols, force });
       case '/api/history': return service.getHistory({ days: number('days', 30), symbols, daily: query.get('daily') === '1' });
       case '/api/market': {
-        // interval·count가 있으면 차트용 캔들(분~월), 없으면 기존처럼 days일 일봉입니다.
+        // interval이 있으면 차트용 캔들(분~월), 없으면 기존처럼 days일 일봉입니다.
         const interval = query.get('interval');
         if (interval === null) return service.getMarket({ symbol: query.get('symbol') ?? '', days: number('days', 30), force });
         if (!Object.hasOwn(CANDLE_PATHS, interval)) throw new KitError('INVALID_MARKET', `간격은 ${Object.keys(CANDLE_PATHS).join(', ')} 중 하나입니다.`, 400);

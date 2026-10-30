@@ -5,7 +5,7 @@ const time = { type: 'integer', minimum: 0 };
 /** 주문 한 페이지 조회 조건. MCP 도구 입력 스키마로도 공개합니다. */
 export const ORDER_OPTIONS = { type: 'object', additionalProperties: false, properties: {
   kind: { type: 'string', enum: ['pending', 'history'], default: 'pending', description: 'pending=대기 주문, history=종료 주문(최대 7일 구간)' },
-  market: { ...MARKET, description: '선택: KRW-BTC' },
+  market: { ...MARKET, description: '선택: 마켓 코드(예: KRW-BTC)' },
   state: { type: 'string', enum: ['wait', 'watch', 'done', 'cancel'] },
   limit: { type: 'integer', minimum: 1, maximum: 1000, default: 30, description: '대기 주문 최대 100, 종료 주문 최대 1000' },
   nextKey: { type: 'string', minLength: 1, maxLength: 4096, description: '이전 응답의 next_key' },
@@ -68,14 +68,14 @@ export function normalizeOrders(input = {}, now = Date.now()) {
   const options = parse(ORDER_OPTIONS, input);
   if (options.kind === 'pending') {
     if (options.fromMs !== undefined || options.toMs !== undefined || (options.state && !['wait','watch'].includes(options.state)) || options.limit > 100) {
-      throw new KitError('INVALID_QUERY', '대기 주문은 wait/watch 상태와 최대 100건을 사용하며 기간 필터를 지원하지 않습니다.', 400);
+      throw new KitError('INVALID_QUERY', '대기 주문은 상태 wait·watch와 최대 100건만 지정할 수 있으며 기간은 지정할 수 없습니다.', 400);
     }
   } else {
-    if (options.state && !['done','cancel'].includes(options.state)) throw new KitError('INVALID_QUERY', '종료 주문은 done/cancel 상태를 사용합니다.', 400);
+    if (options.state && !['done','cancel'].includes(options.state)) throw new KitError('INVALID_QUERY', '종료 주문의 상태는 done 또는 cancel만 지정할 수 있습니다.', 400);
     options.toMs ??= now;
     options.fromMs ??= options.toMs - 7 * 86400000;
     if (options.toMs < options.fromMs || options.toMs - options.fromMs > 7 * 86400000) {
-      throw new KitError('INVALID_RANGE', '종료 주문은 한 번에 최대 7일 범위로 조회합니다.', 400);
+      throw new KitError('INVALID_RANGE', '종료 주문 기간은 시작이 종료보다 늦을 수 없고 최대 7일입니다.', 400);
     }
   }
   return options;

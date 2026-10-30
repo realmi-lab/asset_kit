@@ -4,26 +4,27 @@ import { filterHoldings, filterActivity, csvText, recordDates, dateRangeError, m
 
 const $ = selector => document.querySelector(selector);
 const fixture = globalThis.AssetKitFixture;
-const WIDGETS = { summary: '자산 요약', trend: '자산 추이', insights: '인사이트', allocation: '자산 비중', heatmap: '자산 히트맵', performance: '손익 분석', holdings: '보유 내역', market: '시장 개요', warnings: '시장 경보', activity: '거래·입출금' };
+const WIDGETS = { summary: '자산 요약', trend: '자산 추이', insights: '인사이트', allocation: '자산 비중', heatmap: '자산 히트맵', performance: '손익 분석', holdings: '보유 자산', market: '시장 개요', warnings: '시장 경보', activity: '거래·입출금' };
 // 왼쪽 메뉴의 고정 화면입니다. 대시보드(home)만 보드 설정을 따르고, 나머지는 원화 포함 전체 자산을 봅니다.
 const PAGES = {
   home: {},
   assets: { title: '자산', description: '원화 포함 전체 자산의 구성과 보유 내역', widgets: ['summary', 'heatmap', 'allocation', 'holdings'] },
-  analysis: { title: '손익 분석', description: '평균 매수가 기준 손익과 기간별 평가금액 변화 · 수수료·실현손익 제외', widgets: ['insights', 'performance', 'trend'] },
+  analysis: { title: '손익 분석', description: '평균 매수가 기준 손익과 기간별 평가금액 변화 · 수수료·실현손익 미반영', widgets: ['insights', 'performance', 'trend'] },
   market: { title: '시장', description: '관심 코인 실시간 시세 · 빗썸 원화 마켓 순위와 경보 · 투자 권유 아님', widgets: ['watchlist', 'market', 'warnings'] },
   activity: { title: '거래내역', description: '주문·입출금 기록 조회 · 조회 전용', widgets: ['activity'] },
-  returns: { title: '수익률', description: '입출금을 뺀 실제 수익, 실현손익, 월별 리포트 · 추정치이며 세금 계산용이 아닙니다', widgets: ['returns', 'monthly', 'realized'] },
+  returns: { title: '수익률', description: '입출금을 뺀 실제 수익, 실현손익, 월별 손익 · 추정치 · 세금 계산용 아님', widgets: ['returns', 'monthly', 'realized'] },
   chart: { title: '차트', description: '빗썸 원화 마켓 캔들 · 이동평균 · 거래량 · 내 평균 매수가 · 실시간 마지막 캔들', widgets: ['coinchart'] },
-  tools: { title: '계산기', description: '물타기·리밸런싱·시나리오 계산 · 참고용이며 주문하지 않습니다 · 수수료 제외', widgets: ['averaging', 'rebalance', 'scenario'] },
+  tools: { title: '계산기', description: '물타기·리밸런싱·시나리오 계산 · 참고용 · 주문 기능 없음 · 수수료 미반영', widgets: ['averaging', 'rebalance', 'scenario'] },
 };
 // 넓은 위젯과 좁은 위젯이 이어지면 한 줄에 나란히 둡니다.
 const WIDE = new Set(['trend', 'heatmap', 'market', 'performance']), NARROW = new Set(['allocation', 'warnings']);
 const INTERVALS = [['15m', '15분'], ['1h', '1시간'], ['4h', '4시간'], ['day', '일'], ['week', '주']];
-const OVERLAYS = [['ma5', 'MA5'], ['ma20', 'MA20'], ['ma60', 'MA60'], ['avg', '내 평단가'], ['volume', '거래량']];
+const OVERLAYS = [['ma5', 'MA5'], ['ma20', 'MA20'], ['ma60', 'MA60'], ['avg', '평균 매수가'], ['volume', '거래량']];
 const PERIODS = [[7, '7일'], [30, '30일'], [90, '90일'], [365, '1년']];
 const PERIOD_LABEL = { 7: '지난 7일', 30: '지난 30일', 90: '지난 90일', 365: '지난 1년' };
 const REFRESH = { 0: '수동 갱신', 30: '30초마다 갱신', 60: '1분마다 갱신', 300: '5분마다 갱신' };
 const KINDS = { orders: '종료 주문', pending: '대기 주문', krw_deposits: '원화 입금', krw_withdrawals: '원화 출금', deposits: '코인 입금', withdrawals: '코인 출금' };
+const ORDER_TYPES = { limit: '지정가', price: '시장가', market: '시장가' };
 const STATES = { wait: '미체결', watch: '예약 대기', done: '체결 완료', cancel: '취소', DONE: '완료', ACCEPTED: '완료', DEPOSIT_ACCEPTED: '입금 완료', PROCESSING: '처리 중', DEPOSIT_PROCESSING: '입금 처리 중', CANCELLED: '취소', REJECTED: '거절' };
 const SPARK_TTL = 10 * 60000;
 const ICONS = {
@@ -183,10 +184,10 @@ async function api(path, { method = 'GET', body, signal } = {}) {
   let response;
   try { response = await fetch(path, options); } catch (error) {
     if (signal?.aborted) throw error;
-    throw new Error(error.name === 'TimeoutError' ? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해주세요.' : '로컬 대시보드 서버에 연결하지 못했습니다. 터미널에서 실행 중인지 확인하세요.');
+    throw new Error(error.name === 'TimeoutError' ? '응답이 늦어 중단했습니다. 잠시 후 다시 시도하세요.' : '로컬 대시보드 서버에 연결하지 못했습니다. 터미널에서 실행 중인지 확인하세요.');
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(data.error?.message || '요청을 처리하지 못했습니다. 다시 시도해주세요.'), { code: data.error?.code, status: response.status });
+  if (!response.ok) throw Object.assign(new Error(data.error?.message || '요청을 처리하지 못했습니다. 다시 시도하세요.'), { code: data.error?.code, status: response.status });
   return data;
 }
 function notice(message) { const toast = $('#toast'); toast.textContent = message; toast.hidden = false; clearTimeout(notice.timer); notice.timer = setTimeout(() => { toast.hidden = true; }, 3000); }
@@ -271,7 +272,7 @@ async function syncBoards() {
             if (current.days !== previous?.days && widgetsNow().includes('trend')) { $('#chart')?.classList.add('is-stale'); void loadHistory(); }
           }
         }
-        notice('다른 곳에서 바꾼 화면 설정을 반영했어요.');
+        notice('다른 곳에서 바꾼 화면 설정을 반영했습니다.');
       }
     } catch { /* 다음 확인에서 다시 시도합니다. */ }
   }
@@ -314,9 +315,9 @@ const TEMPLATES = {
     <div id="chart" class="chart"><span class="skeleton chart-skeleton"></span></div>
     <div id="calendar" class="calendar" aria-live="polite" hidden></div>
     <p class="chart-caption"><span id="history-summary">—</span></p></section>`,
-  insights: () => `<section class="card" aria-labelledby="insights-title"><div class="card__head"><div><h2 id="insights-title">오늘의 인사이트</h2><p class="card__sub">보유 자산 데이터로 계산한 사실 요약 · 투자 조언이 아닙니다</p></div></div><div class="insights" id="insights">${'<span class="skeleton insight-skeleton"></span>'.repeat(3)}</div></section>`,
+  insights: () => `<section class="card" aria-labelledby="insights-title"><div class="card__head"><div><h2 id="insights-title">오늘의 인사이트</h2><p class="card__sub">보유 자산 데이터로 계산한 사실 요약 · 투자 권유 아님</p></div></div><div class="insights" id="insights">${'<span class="skeleton insight-skeleton"></span>'.repeat(3)}</div></section>`,
   performance: () => `<section class="card" aria-labelledby="performance-title">
-    <div class="card__head"><div><h2 id="performance-title">손익 분석</h2><p class="card__sub">자산별 평가손익 · 평균 매수가 기준 · 수수료·실현손익 제외</p></div>
+    <div class="card__head"><div><h2 id="performance-title">손익 분석</h2><p class="card__sub">자산별 평가손익 · 평균 매수가 기준 · 수수료·실현손익 미반영</p></div>
       <div class="segmented" role="group" aria-label="손익 단위"><button type="button" data-action="perf-metric" data-metric="amount">금액</button><button type="button" data-action="perf-metric" data-metric="rate">수익률</button></div></div>
     <dl class="perf-summary" id="perf-summary"></dl>
     <div class="perf" id="perf-chart"><span class="skeleton stack-skeleton"></span></div></section>`,
@@ -338,7 +339,7 @@ const TEMPLATES = {
   watchlist: () => `<section class="card" id="watch-card" aria-labelledby="watch-title">
     <div class="card__head"><div><h2 id="watch-title">관심 코인 <span class="count" id="watch-count">0</span></h2><p class="card__sub">실시간 시세 · 빗썸 원화 마켓 · 이 브라우저에 저장</p></div>
       <form class="inline-form" id="watch-form"><label class="search">${icon('search')}<input class="input" id="watch-input" list="market-options" placeholder="코인 이름 또는 심볼" aria-label="관심 코인 추가" autocomplete="off"></label><button type="submit" class="button">${icon('plus')}추가</button></form></div>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="관심 코인 시세 표"><table class="table watch-table"><thead><tr><th scope="col">자산</th><th scope="col">현재가</th><th scope="col">전일 대비</th><th scope="col" class="col-volume">거래대금(24시간)</th><th scope="col" class="col-spark">30일</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead><tbody id="watch-body"><tr><td colspan="6" class="empty">불러오는 중</td></tr></tbody></table></div></section>`,
+    <div class="table-wrap" tabindex="0" role="region" aria-label="관심 코인 시세 표"><table class="table watch-table"><thead><tr><th scope="col">자산</th><th scope="col">현재가</th><th scope="col">전일 대비</th><th scope="col" class="col-volume">거래대금(24시간)</th><th scope="col" class="col-spark">30일 시세</th><th scope="col"><span class="sr-only">관리</span></th></tr></thead><tbody id="watch-body"><tr><td colspan="6" class="empty">불러오는 중</td></tr></tbody></table></div></section>`,
   coinchart: () => `<section class="card coin-card" id="coin-card" aria-labelledby="coin-title">
     <div class="coin-top"><form class="inline-form coin-search" id="coin-form"><label class="search">${icon('search')}<input class="input" id="coin-input" list="market-options" placeholder="코인 이름·심볼 (예: BTC)" aria-label="차트로 볼 코인" autocomplete="off"></label><button type="submit" class="button">보기</button></form>
       <div class="chips" id="coin-chips" role="group" aria-label="보유·관심 코인"></div></div>
@@ -358,16 +359,16 @@ const TEMPLATES = {
     <div class="table-wrap" tabindex="0" role="region" aria-label="월별 손익 표"><table class="table monthly-table"><thead><tr><th scope="col">월</th><th scope="col">순입금</th><th scope="col">실현손익</th><th scope="col">수수료</th><th scope="col">월말 평가금액</th><th scope="col">월 손익</th></tr></thead><tbody id="monthly-body"></tbody></table></div></section>`,
   realized: () => `<section class="card" aria-labelledby="realized-title"><div class="card__head"><div><h2 id="realized-title">실현손익</h2><p class="card__sub">기간 안의 매도 · 평균 매수가 방식 추정 · 수수료 차감</p></div></div><div class="perf" id="realized-body"><span class="skeleton stack-skeleton"></span></div></section>`,
   averaging: () => `<section class="card" id="avg-card" aria-labelledby="avg-title">
-    <div class="card__head"><div><h2 id="avg-title">물타기·불타기 계산기</h2><p class="card__sub">추가로 사면 평균 매수가가 어떻게 바뀌는지 · 수수료 제외 · 참고용</p></div></div>
+    <div class="card__head"><div><h2 id="avg-title">물타기·불타기 계산기</h2><p class="card__sub">추가로 사면 평균 매수가가 어떻게 바뀌는지 · 수수료 미반영 · 참고용</p></div></div>
     <div class="tool"><div class="tool__form">
       <label class="field"><span>자산</span><select class="input" id="avg-symbol"></select></label>
       <div class="field-row"><label class="field"><span>보유 수량</span><input class="input" id="avg-qty" type="number" step="any" inputmode="decimal"></label><label class="field"><span>평균 매수가(원)</span><input class="input" id="avg-avg" type="number" step="any" inputmode="decimal"></label></div>
       <div class="field-row"><label class="field"><span>추가 매수 가격(원)</span><input class="input" id="avg-price" type="number" step="any" inputmode="decimal"></label><label class="field"><span>추가 매수 금액(원)</span><input class="input" id="avg-amount" type="number" step="any" inputmode="decimal" placeholder="예: 1000000"></label></div>
       <div class="chips" role="group" aria-label="금액 빠르게 더하기">${[100000, 500000, 1000000, 5000000].map(v => `<button type="button" class="chip" data-action="avg-add" data-amount="${v}">+${v >= 10000 ? `${v / 10000}만` : v}</button>`).join('')}<button type="button" class="chip" data-action="avg-add" data-amount="0">지우기</button></div>
-      <label class="field"><span>목표 평균 매수가(선택) <small>그 평단을 만들려면 얼마나 사야 하는지</small></span><input class="input" id="avg-target" type="number" step="any" inputmode="decimal"></label>
+      <label class="field"><span>목표 평균 매수가(선택) <small>이 평균 매수가가 되려면 얼마나 더 사야 하는지</small></span><input class="input" id="avg-target" type="number" step="any" inputmode="decimal"></label>
     </div><div class="tool__result" id="avg-result" aria-live="polite"></div></div></section>`,
   rebalance: () => `<section class="card" id="reb-card" aria-labelledby="reb-title">
-    <div class="card__head"><div><h2 id="reb-title">목표 비중 리밸런싱</h2><p class="card__sub">목표 비중으로 맞추려면 얼마나 사고팔아야 하는지 · 주문하지 않습니다</p></div>
+    <div class="card__head"><div><h2 id="reb-title">목표 비중 리밸런싱</h2><p class="card__sub">목표 비중으로 맞추려면 얼마나 사고팔아야 하는지 · 주문 기능 없음</p></div>
       <div class="chips" role="group" aria-label="목표 비중 빠르게 채우기"><button type="button" class="chip" data-action="reb-preset" data-preset="current">현재 비중</button><button type="button" class="chip" data-action="reb-preset" data-preset="equal">균등</button><button type="button" class="chip" data-action="reb-preset" data-preset="cash10">원화 10% 유지</button></div></div>
     <div class="toolbar"><label class="field field--inline"><span>추가 투입 금액(원)</span><input class="input" id="reb-cash" type="number" step="any" inputmode="decimal" placeholder="0"></label></div>
     <div class="reb-bars" id="reb-bars" aria-hidden="true"></div>
@@ -380,14 +381,14 @@ const TEMPLATES = {
   allocation: () => `<section class="card" aria-labelledby="allocation-title"><div class="card__head"><div><h2 id="allocation-title">자산 비중</h2><p class="card__sub" id="allocation-sub">원화 포함 · 평가금액 기준</p></div></div><div id="allocation" class="allocation"><span class="skeleton stack-skeleton"></span></div></section>`,
   holdings: () => `<section class="card holdings-card" id="holdings" aria-labelledby="holdings-title">
     <div class="card__head"><div><h2 id="holdings-title">보유 자산 <span class="count" id="holding-count">0</span></h2><p class="card__sub" id="holding-filter-summary" role="status"></p></div><button type="button" class="button button--quiet" id="export" data-action="export" disabled>${icon('download')}CSV</button></div>
-    <div class="toolbar"><label class="search">${icon('search')}<input class="input" id="search" type="search" placeholder="자산명 또는 심볼 검색" aria-label="보유자산 검색"></label>
+    <div class="toolbar"><label class="search">${icon('search')}<input class="input" id="search" type="search" placeholder="자산명 또는 심볼 검색" aria-label="보유 자산 검색"></label>
       <label class="switch"><input type="checkbox" id="cash-filter"><span>원화 제외</span></label>
       <select class="input" id="performance" aria-label="손익 필터"><option value="all">손익 전체</option><option value="gain">수익 자산</option><option value="loss">손실 자산</option><option value="unknown">손익 미확인</option></select>
       <select class="input" id="sort" aria-label="정렬 기준"><option value="value">평가금액순</option><option value="profit">수익률순</option><option value="pnl">평가손익순</option><option value="change">전일 대비순</option><option value="name">이름순</option></select>
       <button type="button" class="button" id="sort-direction" data-action="sort-direction" aria-label="정렬 방향">높은 순 ↓</button>
       <button type="button" class="button button--ghost" data-action="filter-reset">초기화</button></div>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="보유자산 표"><table class="table holdings-table"><thead><tr><th scope="col">자산</th><th scope="col" class="col-price">현재가 · 전일 대비</th><th scope="col" class="col-spark">30일 시세</th><th scope="col" class="col-qty">보유 수량</th><th scope="col">평가금액 · 비중</th><th scope="col">평가손익</th></tr></thead><tbody id="holdings-body"><tr><td colspan="6" class="empty">불러오는 중</td></tr></tbody></table></div>
-    <p class="card__foot">평가손익은 API 평균 매수가 기준이며 수수료와 실현손익은 포함하지 않습니다. 가격·원가 미확인 항목은 합계에서 제외됩니다. 30일 시세는 원화 마켓 일봉 종가입니다.</p></section>`,
+    <div class="table-wrap" tabindex="0" role="region" aria-label="보유 자산 표"><table class="table holdings-table"><thead><tr><th scope="col">자산</th><th scope="col" class="col-price">현재가 · 전일 대비</th><th scope="col" class="col-spark">30일 시세</th><th scope="col" class="col-qty">보유 수량</th><th scope="col">평가금액 · 비중</th><th scope="col">평가손익</th></tr></thead><tbody id="holdings-body"><tr><td colspan="6" class="empty">불러오는 중</td></tr></tbody></table></div>
+    <p class="card__foot">평가손익은 빗썸 평균 매수가 기준이며 수수료와 실현손익은 포함하지 않습니다. 가격·원가 미확인 항목은 합계에서 제외됩니다. 30일 시세는 원화 마켓 일봉 종가입니다.</p></section>`,
   activity: () => `<section class="card" id="activity" aria-labelledby="activity-title">
     <div class="card__head"><div><h2 id="activity-title">거래·입출금 내역</h2><p class="card__sub">조회 전용 · 최대 366일 · 한국 시간</p></div><button type="button" class="button button--quiet" id="activity-export" data-action="activity-export" disabled>${icon('download')}CSV</button></div>
     <div class="toolbar">
@@ -397,9 +398,9 @@ const TEMPLATES = {
       <button type="button" class="button button--primary" id="activity-load" data-action="activity">내역 조회</button>
       <button type="button" class="button button--ghost" id="activity-cancel" data-action="activity-cancel" hidden>조회 중단</button>
     </div>
-    <div class="toolbar" id="activity-filters" hidden><label class="search">${icon('search')}<input type="search" class="input" id="activity-search" aria-label="거래 내역 검색" placeholder="자산·마켓·상태 검색"></label><select class="input" id="activity-status" aria-label="거래 상태"><option value="all">상태 전체</option></select><select class="input" id="activity-side" aria-label="매수·매도"><option value="all">매수·매도 전체</option><option value="bid">매수</option><option value="ask">매도</option></select></div>
+    <div class="toolbar" id="activity-filters" hidden><label class="search">${icon('search')}<input type="search" class="input" id="activity-search" aria-label="거래내역 검색" placeholder="자산·마켓·상태 검색"></label><select class="input" id="activity-status" aria-label="거래 상태"><option value="all">상태 전체</option></select><select class="input" id="activity-side" aria-label="매수·매도"><option value="all">매수·매도 전체</option><option value="bid">매수</option><option value="ask">매도</option></select></div>
     <p class="coverage" id="activity-coverage">종류와 기간(최대 366일, 한국 시간)을 고른 뒤 조회하세요.</p>
-    <div class="empty-state" id="activity-empty">${icon('inbox')}<strong>아직 불러온 내역이 없어요</strong><span id="activity-hint">종류와 기간을 고른 뒤 내역 조회를 누르세요.</span></div>
+    <div class="empty-state" id="activity-empty">${icon('inbox')}<strong>아직 불러온 내역이 없습니다</strong><span id="activity-hint">종류와 기간을 고른 뒤 내역 조회를 누르세요.</span></div>
     <div class="table-wrap" id="activity-table" tabindex="0" role="region" aria-label="거래·입출금 내역 표" hidden><table class="table"><thead><tr><th scope="col">종류 / 자산</th><th scope="col">시각</th><th scope="col">수량 / 금액</th><th scope="col">수수료</th><th scope="col">상태</th></tr></thead><tbody id="activity-body"><tr><td colspan="5" class="empty">조회 전입니다.</td></tr></tbody></table></div>
     <div class="pagination"><button type="button" class="button" id="activity-more" data-action="activity-more" hidden>더 보기</button></div></section>`,
 };
@@ -441,7 +442,7 @@ function connectionStatus() {
   $('#auto-refresh').hidden = !board()?.refreshSeconds;
   $('#auto-refresh').textContent = state.paused ? '자동 갱신 재개' : '자동 갱신 중지';
   $('#auto-refresh').setAttribute('aria-pressed', String(state.paused));
-  box.textContent = state.loading ? '자산을 갱신하고 있습니다…' : state.failed ? '갱신 실패 · 마지막 조회 결과 유지' : state.lastLoaded
+  box.textContent = state.loading ? '자산 갱신 중…' : state.failed ? '갱신 실패 · 마지막 조회 결과 유지' : state.lastLoaded
     ? `${state.status.sample ? '샘플 기준' : '마지막 조회'} ${date(state.lastLoaded)} · ${state.status.sample ? '오프라인 샘플' : document.hidden || document.querySelector('dialog[open]') || state.paused ? '자동 갱신 일시 정지' : REFRESH[board()?.refreshSeconds]}` : '연결 확인 중';
 }
 
@@ -498,8 +499,8 @@ function renderFailure() {
   if ($('#updated')) $('#updated').textContent = '조회 실패 · 새로고침으로 다시 시도하세요.';
   if ($('#total')) $('#total').textContent = '—';
   if ($('#holdings-body')) $('#holdings-body').innerHTML = '<tr><td colspan="6" class="empty">계좌 데이터를 가져오지 못했습니다.</td></tr>';
-  if ($('#allocation')) $('#allocation').innerHTML = '<p class="empty">자산 데이터가 없습니다.</p>';
-  if ($('#chart')) $('#chart').innerHTML = '<p class="empty">연결 후 추이를 확인할 수 있습니다.</p>';
+  if ($('#allocation')) $('#allocation').innerHTML = '<p class="empty">계좌 데이터를 가져오지 못했습니다.</p>';
+  if ($('#chart')) $('#chart').innerHTML = '<p class="empty">추이를 불러오지 못했습니다. 새로고침으로 다시 시도하세요.</p>';
   for (const id of ['#insights', '#perf-chart', '#heatmap']) if ($(id)) $(id).innerHTML = '<p class="empty">계좌 데이터를 가져오지 못했습니다.</p>';
 }
 async function loadHistory() {
@@ -539,7 +540,7 @@ function renderSummary() {
   if (!p || !$('#summary')) return;
   const s = p.summary;
   $('#total-label').textContent = s.valuationComplete ? '총 평가금액' : '확인된 평가금액';
-  $('#updated').textContent = `${date(p.asOf)} 기준${p.mode === 'demo' ? ' · 합성 예시' : ''}`;
+  $('#updated').textContent = `${date(p.asOf)} 기준${p.mode === 'demo' ? ' · 합성 데이터' : ''}`;
   setFigure(s.totalValueKrw);
   $('#day-change').textContent = money(s.dayChangeKrw, true);
   $('#day-change').className = tone(s.dayChangeKrw);
@@ -590,7 +591,7 @@ function renderAllocation() {
   const cryptoPct = crypto.reduce((sum, h) => sum + Number(h.allocationPct), 0);
   if ($('#allocation-sub')) $('#allocation-sub').textContent = `가상자산 ${number(cryptoPct, 1)}% · 원화 ${number(cash ? cash.allocationPct : 0, 1)}% · ${priced.length}개 자산`;
   const item = s => `<span class="swatch" aria-hidden="true"></span><span class="legend__name">${esc(s.name)}${s.symbol && s.symbol !== 'KRW' && s.symbol !== s.name ? `<small>${esc(s.symbol)}</small>` : ''}</span><span class="legend__nums"><b class="legend__pct">${number(s.pct, 1)}%</b><span class="legend__value">${money(s.value)}</span></span>`;
-  morph(box, `<div class="stack" role="img" aria-label="${esc(`자산 비중:${slices.map(s => `${s.name} ${number(s.pct, 1)}%`).join(', ')}`)}">${slices.map(s => `<span class="stack__seg ${s.cls}" data-key="${esc(s.key)}" data-share="${s.pct}"></span>`).join('')}</div>
+  morph(box, `<div class="stack" role="img" aria-label="${esc(`자산 비중: ${slices.map(s => `${s.name} ${number(s.pct, 1)}%`).join(', ')}`)}">${slices.map(s => `<span class="stack__seg ${s.cls}" data-key="${esc(s.key)}" data-share="${s.pct}"></span>`).join('')}</div>
     <ul class="legend">${slices.map(s => `<li>${s.symbol
       ? `<button type="button" class="legend__item ${s.cls}" data-action="detail" data-symbol="${esc(s.symbol)}" data-key="${esc(s.key)}">${item(s)}</button>`
       : `<div class="legend__item ${s.cls}" data-key="other" title="${esc(s.title)}">${item(s)}</div>`}</li>`).join('')}</ul>`);
@@ -621,7 +622,7 @@ function holdingRow(h) {
     <td class="col-spark" data-spark="${esc(h.symbol)}">${sparkCell(h.symbol)}</td>
     <td class="col-qty">${state.hidden ? '••••' : esc(number(h.quantity, 8))}<small>${esc(h.symbol)}</small></td>
     <td class="col-value"><span class="cell-strong">${money(h.valueKrw)}</span>${h.valueKrw === null ? '<small>합계에서 제외</small>' : `<span class="share ${cls}"><span class="share__track"><span class="share__fill" data-share="${state.hidden ? 0 : Number(h.allocationPct ?? 0)}"></span></span>${allocation}</span>`}</td>
-    <td class="col-pnl ${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '현금' : percent(h.profitRatePct)}</small></td>
+    <td class="col-pnl ${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '손익 없음' : percent(h.profitRatePct)}</small></td>
   </tr>`;
 }
 
@@ -684,7 +685,7 @@ function renderInsights() {
     worst && worst !== best && { icon: 'low', label: '수익률이 가장 낮은 자산', name: worst.name, metric: percent(worst.profitRatePct), tone: tone(worst.profitRatePct), sub: `평가손익 ${money(worst.profitKrw, true)}` },
     priced[0] && { icon: 'pie', label: '비중이 가장 큰 자산', name: priced[0].name, metric: state.hidden ? '••' : `${number(priced[0].allocationPct, 1)}%`, sub: `상위 3개 합계 ${state.hidden ? '••' : `${number(priced.slice(0, 3).reduce((sum, h) => sum + Number(h.allocationPct), 0), 1)}%`}` },
     { icon: 'wallet', label: '원화 비중', name: state.hidden ? '••' : share(state.portfolio.summary.cashKrw, state.portfolio.summary.totalValueKrw), metric: '', sub: `주문 가능 ${money(cash?.available ?? 0)} · 주문 중 ${money(cash?.locked ?? 0)}` },
-    flagged.length && { icon: 'alert', label: '거래 유의 지정 보유', name: `${flagged.length}개`, metric: flagged.map(h => h.symbol).join(', '), tone: 'warn', sub: '빗썸 거래 유의 종목 기준' },
+    flagged.length && { icon: 'alert', label: '보유 중인 거래 유의 종목', name: `${flagged.length}개`, metric: flagged.map(h => h.symbol).join(', '), tone: 'warn', sub: '빗썸 거래 유의 종목 기준' },
   ].filter(Boolean);
   box.innerHTML = cards.map(card => `<article class="insight${card.tone === 'warn' ? ' insight--warn' : ''}"><span class="insight__icon">${icon(card.icon)}</span><div class="insight__body"><p class="insight__label">${esc(card.label)}</p><p class="insight__value"><span>${esc(card.name)}</span>${card.metric ? ` <b class="${card.tone ?? ''}">${esc(card.metric)}</b>` : ''}</p><p class="insight__sub">${esc(card.sub)}</p></div></article>`).join('');
 }
@@ -741,10 +742,11 @@ function renderHeatmap() {
   const tiles = squarify(priced.map(holding => ({ holding, area: Number(holding.valueKrw) / total * width * height })), 0, 0, width, height);
   box.dataset.width = String(box.clientWidth);
   morph(box, tiles.map(({ holding: h, x, y, w, h: tall }) => {
-    const value = h.symbol === 'KRW' ? null : h[metric.key], level = missing(value) || Number(value) === 0 ? 0 : Math.min(4, Math.max(1, Math.ceil(Math.abs(Number(value)) / metric.cap * 4)));
+    // 가장 진한 4단계는 범례에 적힌 기준값(cap) 이상입니다.
+    const value = h.symbol === 'KRW' ? null : h[metric.key], level = missing(value) || Number(value) === 0 ? 0 : Math.min(4, Math.floor(Math.abs(Number(value)) / metric.cap * 3) + 1);
     const cls = h.symbol === 'KRW' ? 'heat-cash' : level ? `heat-${Number(value) > 0 ? 'up' : 'down'}-${level}` : 'heat-flat';
     const text = h.symbol === 'KRW' ? '원화' : missing(value) ? '—' : `${Number(value) > 0 ? '+' : ''}${number(value, 2)}%`;
-    const label = `${h.name} ${h.symbol}, 평가금액 ${money(h.valueKrw)}, 비중 ${number(h.allocationPct, 1)}%, ${metric.label} ${text}`;
+    const label = `${h.name} ${h.symbol}, 평가금액 ${money(h.valueKrw)}, 비중 ${number(h.allocationPct, 1)}%${h.symbol === 'KRW' ? '' : `, ${metric.label} ${text}`}`;
     const roomy = w >= 64 && tall >= 46, large = w >= 140 && tall >= 92;
     return `<button type="button" class="heat-tile ${cls}" data-action="detail" data-symbol="${esc(h.symbol)}" data-box="${(x / width * 100).toFixed(3)},${(y / height * 100).toFixed(3)},${(w / width * 100).toFixed(3)},${(tall / height * 100).toFixed(3)}" aria-label="${esc(label)}" title="${esc(label)}">${roomy ? `<strong>${esc(h.symbol === 'KRW' ? '원화' : h.symbol)}</strong><span>${h.symbol === 'KRW' ? `${number(h.allocationPct, 1)}%` : esc(text)}</span>${large ? `<small>${esc(h.name)} · ${money(h.valueKrw)}</small>` : ''}` : ''}</button>`;
   }).join(''));
@@ -802,7 +804,7 @@ function renderAlerts() {
     : `<li class="alerts__empty">${icon('check')}<span>${esc(a.note)}</span></li>`;
 }
 // ===== 실시간 시세: 서버가 빗썸 공개 웹소켓을 받아 SSE(/api/stream)로 넘겨줍니다 =====
-const LIVE_LABEL = { live: '실시간', connecting: '실시간 연결 중', polling: '실시간 · 3초 조회', reconnecting: '다시 연결 중' };
+const LIVE_LABEL = { live: '실시간', connecting: '실시간 연결 중', polling: '3초마다 갱신', reconnecting: '다시 연결 중' };
 const LIVE_RETRY = [3000, 10000, 30000, 60000];
 // 차트 코인, 관심 코인, 알림을 건 코인 순서입니다(서버도 60개까지 받습니다). 알림은 지금 화면에 없는 코인도 실시간 가격으로 확인합니다.
 const liveWatch = () => [...new Set([...(state.page === 'chart' && state.chart.symbol ? [state.chart.symbol] : []), ...watchlist(),
@@ -874,7 +876,7 @@ function renderLive() {
 }
 
 // ===== 가격 알림: 실시간 값으로 이 브라우저에서 확인합니다 =====
-const PRICE_TYPES = { above: ['현재가가 이 값 이상', '원'], below: ['현재가가 이 값 이하', '원'], rise: ['전일 대비 상승률 이상', '%'], fall: ['전일 대비 하락률 이상', '%'] };
+const PRICE_TYPES = { above: ['현재가가 이 값 이상', '원'], below: ['현재가가 이 값 이하', '원'], rise: ['전일 대비 상승률이 이 값 이상', '%'], fall: ['전일 대비 하락률이 이 값 이상', '%'] };
 const PROFIT_TYPES = { profit: ['내 수익률이 이 값 이상', '%'], loss: ['내 손실률이 이 값 이상', '%'] };
 const TOTAL_TYPES = { total_above: ['총 평가금액이 이 값 이상', '원'], total_below: ['총 평가금액이 이 값 이하', '원'] };
 const ALL_TYPES = { ...PRICE_TYPES, ...PROFIT_TYPES, ...TOTAL_TYPES };
@@ -887,7 +889,7 @@ function metricsFor(symbol) {
   return { price: num(t?.priceKrw ?? h?.currentPriceKrw ?? w?.priceKrw), changePct: num(t?.changePct ?? h?.priceChangePct ?? w?.changePct), profitPct: num(h?.profitRatePct) };
 }
 function describeRule(rule) {
-  const [label, unit] = ALL_TYPES[rule.type], value = unit === '원' ? `${number(rule.value)}원` : `${number(rule.value, 2)}%`;
+  const [label, unit] = ALL_TYPES[rule.type], value = unit === '원' ? price(rule.value) : `${number(rule.value, 2)}%`;
   const name = nameOf(rule.symbol);
   return `${rule.symbol === 'TOTAL' ? '총 평가금액' : name === rule.symbol ? name : `${name} ${rule.symbol}`} · ${label.replace('이 값', value)}`;
 }
@@ -934,7 +936,7 @@ function openAlerts(symbol) {
 function syncAlertForm(prefill) {
   const symbol = $('#alert-target').value, held = state.portfolio?.holdings.some(h => h.symbol === symbol && !missing(h.profitRatePct));
   const types = symbol === 'TOTAL' ? TOTAL_TYPES : { ...PRICE_TYPES, ...(held ? PROFIT_TYPES : {}) }, select = $('#alert-type'), keep = select.value;
-  select.innerHTML = Object.entries(types).map(([value, [label]]) => `<option value="${value}">${label.replace('이 값 ', '').replace('이 값', '')}</option>`).join('');
+  select.innerHTML = Object.entries(types).map(([value, [label]]) => `<option value="${value}">${label.replace(/[이가] 이 값 /, ' ')}</option>`).join('');
   if (types[keep]) select.value = keep;
   $('#alert-unit').textContent = types[select.value][1] === '원' ? '원' : '%';
   if (!prefill) return;
@@ -946,14 +948,14 @@ function renderPermission() {
   const box = $('#alert-permission'), support = typeof globalThis.Notification === 'function', permission = support ? globalThis.Notification.permission : 'unsupported';
   box.innerHTML = { granted: `${icon('check')}<span>브라우저 알림이 켜져 있습니다. 이 탭을 열어 두면 다른 탭을 보고 있어도 알림이 뜹니다.</span>`, denied: `${icon('alert')}<span>브라우저 설정에서 이 페이지의 알림이 막혀 있습니다. 화면 안 알림만 보여줍니다.</span>`,
     default: `${icon('bell')}<span>다른 탭을 보고 있을 때도 알림을 받으려면 허용하세요.</span><button type="button" class="button button--quiet" data-action="alert-permission">브라우저 알림 허용</button>`,
-    unsupported: `${icon('alert')}<span>이 브라우저는 시스템 알림을 지원하지 않아 화면 안 알림만 보여줍니다.</span>` }[permission];
+    unsupported: `${icon('alert')}<span>이 브라우저는 알림 기능을 지원하지 않아 화면 안 알림만 보여줍니다.</span>` }[permission];
 }
 function renderAlertLists() {
   const rules = alertRules();
   $('#alert-rules').innerHTML = rules.length ? rules.map(rule => {
     const m = metricsFor(rule.symbol), unit = ALL_TYPES[rule.type][1];
     const current = rule.symbol === 'TOTAL' ? money(m.total) : rule.type in PROFIT_TYPES ? percent(m.profitPct) : rule.type === 'rise' || rule.type === 'fall' ? percent(m.changePct) : m.price === null ? '—' : price(m.price);
-    const status = !rule.enabled ? '꺼짐' : rule.armed === false ? `발생 ${date(rule.firedAt)} · 조건이 풀리면 다시 켜집니다` : `대기 중 · 지금 ${current}`;
+    const status = !rule.enabled ? '꺼짐' : rule.armed === false ? `발생 ${date(rule.firedAt)} · 조건을 벗어나면 다시 대기합니다` : `대기 중 · 지금 ${current}`;
     return `<li class="rule${rule.enabled ? '' : ' is-off'}${rule.armed === false ? ' is-fired' : ''}"><div class="rule__text"><strong>${esc(describeRule(rule))}</strong><small>${esc(status)}${unit === '%' ? '' : ''}</small></div><div class="rule__actions"><button type="button" class="button button--quiet" data-action="alert-toggle" data-id="${esc(rule.id)}">${rule.enabled ? '끄기' : '켜기'}</button><button type="button" class="icon-button icon-button--quiet" data-action="alert-delete" data-id="${esc(rule.id)}" aria-label="알림 삭제">${icon('trash')}</button></div></li>`;
   }).join('') : '<li class="empty">설정한 알림이 없습니다. 위에서 대상과 조건을 고르세요.</li>';
   const log = store.list('alert-log');
@@ -963,11 +965,11 @@ function addAlert() {
   const symbol = $('#alert-target').value, type = $('#alert-type').value, value = Number($('#alert-value').value);
   if (!ALL_TYPES[type] || !Number.isFinite(value) || value <= 0) { $('#alert-error').textContent = '0보다 큰 값을 입력하세요.'; $('#alert-error').hidden = false; return; }
   const rules = alertRules();
-  if (rules.length >= 50) { $('#alert-error').textContent = '알림은 50개까지 저장합니다.'; $('#alert-error').hidden = false; return; }
+  if (rules.length >= 50) { $('#alert-error').textContent = '알림은 최대 50개까지 만들 수 있습니다.'; $('#alert-error').hidden = false; return; }
   rules.push({ id: globalThis.crypto?.randomUUID?.() ?? `a${Date.now()}`, symbol, type, value, enabled: true, armed: true, createdAt: new Date().toISOString() });
   store.put('alerts', rules);
   $('#alert-error').hidden = true;
-  notice('알림을 추가했어요. 이 화면이 열려 있는 동안 확인합니다.');
+  notice('알림을 추가했습니다. 이 화면이 열려 있는 동안 확인합니다.');
   evaluateAlerts(); renderAlertLists(); connectLive();
 }
 
@@ -1027,10 +1029,10 @@ async function addWatch(text) {
   const symbol = resolveSymbol(text), list = watchlist();
   if (!symbol) { notice('빗썸 원화 마켓에서 찾지 못했습니다. 심볼(BTC)이나 이름을 입력하세요.'); return; }
   if (list.includes(symbol)) { notice('이미 관심 코인에 있습니다.'); return; }
-  if (list.length >= 30) { notice('관심 코인은 30개까지 저장합니다.'); return; }
+  if (list.length >= 30) { notice('관심 코인은 최대 30개까지 추가할 수 있습니다.'); return; }
   store.put('watchlist', [...list, symbol]);
   if ($('#watch-input')) $('#watch-input').value = '';
-  notice(`관심 코인에 추가했어요: ${nameOf(symbol)}`);
+  notice(`관심 코인에 추가했습니다: ${nameOf(symbol)}`);
   await loadWatch(); connectLive();
 }
 function removeWatch(symbol) {
@@ -1092,8 +1094,8 @@ function renderCoinStats() {
   const high = Math.max(...candles.map(c => Number(c.highKrw ?? c.closeKrw))), low = Math.min(...candles.map(c => Number(c.lowKrw ?? c.closeKrw)));
   const holding = state.portfolio?.holdings.find(h => h.symbol === data.symbol), avg = holding?.averagePriceKrw ? Number(holding.averagePriceKrw) : null;
   const label = INTERVALS.find(([value]) => value === state.chart.interval)?.[1];
-  const items = [[`기간 수익률 (${label} ${candles.length}개)`, `<span class="${sign(last - first)}">${number((last - first) / first * 100, 2)}%</span>`], ['기간 최고가', price(high)], ['기간 최저가', price(low)], ['고점 대비', `${number((last - high) / high * 100, 2)}%`]];
-  if (holding) items.push(['내 보유', amount(holding.quantity, holding.symbol)], ['내 평균 매수가', avg ? money(avg) : '—'], ['평가손익', `<span class="${tone(holding.profitKrw)}">${money(holding.profitKrw, true)} · ${percent(holding.profitRatePct)}</span>`], ['평단까지', avg ? `<span class="${sign(avg - last)}">${state.hidden ? '••' : `${number((avg - last) / last * 100, 2)}%`}</span>` : '—']);
+  const items = [[`기간 수익률 (${label}봉 ${candles.length}개)`, `<span class="${sign(last - first)}">${number((last - first) / first * 100, 2)}%</span>`], ['기간 최고가', price(high)], ['기간 최저가', price(low)], ['고점 대비', `${number((last - high) / high * 100, 2)}%`]];
+  if (holding) items.push(['보유 수량', amount(holding.quantity, holding.symbol)], ['내 평균 매수가', avg ? (state.hidden ? '••••' : price(avg)) : '—'], ['평가손익', `<span class="${tone(holding.profitKrw)}">${money(holding.profitKrw, true)} · ${percent(holding.profitRatePct)}</span>`], ['평균 매수가까지', avg ? `<span class="${sign(avg - last)}">${state.hidden ? '••' : `${number((avg - last) / last * 100, 2)}%`}</span>` : '—']);
   box.innerHTML = items.map(([name, value]) => `<div><dt>${esc(name)}</dt><dd>${value}</dd></div>`).join('');
 }
 const candleLabel = (at, interval) => {
@@ -1131,12 +1133,12 @@ function renderCandles() {
   const maPaths = lines.map(([key, values]) => { const points = values.map((value, i) => value === null ? null : [x(i), y(value)]).filter(Boolean); return points.length > 1 ? `<path class="ma ma-${key}" d="${smoothPath(points)}"/>` : ''; }).join('');
   const last = candles.at(-1), up = last.c >= candles.at(-2).c ? 'up' : 'down', lastY = f(y(last.c));
   const lastLine = `<line class="last-line ${up}" x1="${left}" x2="${right}" y1="${lastY}" y2="${lastY}"/><g class="last-tag ${up}"><rect x="${right + 3}" y="${f(y(last.c) - 10)}" width="${gutter - 6}" height="20" rx="5"/><text x="${f(right + 3 + (gutter - 6) / 2)}" y="${f(y(last.c) + 4)}" text-anchor="middle">${esc(axisLabel(last.c, step))}</text></g>`;
-  const avgLine = avgInside ? `<line class="avg-line" x1="${left}" x2="${right}" y1="${f(y(avg))}" y2="${f(y(avg))}"/><text class="avg-label" x="${left + 6}" y="${f(y(avg) - 6)}">내 평단 ${esc(price(avg))}</text>` : '';
+  const avgLine = avgInside ? `<line class="avg-line" x1="${left}" x2="${right}" y1="${f(y(avg))}" y2="${f(y(avg))}"/><text class="avg-label" x="${left + 6}" y="${f(y(avg) - 6)}">평균 매수가 ${esc(price(avg))}</text>` : '';
   const count = width >= 760 ? 5 : narrow ? 3 : 4, indexes = [...new Set(Array.from({ length: count }, (_, i) => Math.round(i * (n - 1) / (count - 1))))];
   const dates = indexes.map((index, i) => `<text class="tick" x="${f(x(index))}" y="${height - 8}" text-anchor="${i === 0 ? 'start' : i === indexes.length - 1 ? 'end' : 'middle'}">${esc(candleLabel(candles[index].at, state.chart.interval))}</text>`).join('');
   box.dataset.width = String(box.clientWidth);
   chartModels.set('candles', { candles, x, y, band, left, right, top, bottom: vTop + volH, index: null, lines, points: candles });
-  box.innerHTML = `<div class="candle-legend" id="candle-legend" aria-live="off"></div><div class="chart__plot" tabindex="0" role="slider" aria-label="${esc(`${data.name} ${INTERVALS.find(([v]) => v === state.chart.interval)?.[1]} 캔들 차트. 좌우 방향키로 캔들 이동`)}" aria-valuemin="0" aria-valuemax="${n - 1}" aria-valuenow="${n - 1}">
+  box.innerHTML = `<div class="candle-legend" id="candle-legend" aria-live="off"></div><div class="chart__plot" tabindex="0" role="slider" aria-label="${esc(`${data.name} ${INTERVALS.find(([v]) => v === state.chart.interval)?.[1]}봉 차트. 좌우 방향키로 캔들 이동`)}" aria-valuemin="0" aria-valuemax="${n - 1}" aria-valuenow="${n - 1}">
     <svg viewBox="0 0 ${width} ${height}" aria-hidden="true" focusable="false">${grid}${volH ? `<line class="baseline" x1="${left}" x2="${right}" y1="${vTop + volH}" y2="${vTop + volH}"/>` : ''}${bars}${maPaths}${avgLine}${lastLine}
       <line class="cross cross-x" x1="0" x2="0" y1="${top}" y2="${vTop + volH}"/><line class="cross cross-y" x1="${left}" x2="${right}" y1="0" y2="0"/>${dates}</svg></div>`;
   renderCandleLegend(null);
@@ -1236,7 +1238,7 @@ function renderReturns() {
   const s = r.summary, notes = [];
   if (!r.history.coversStart && s.startAt) notes.push(`평가금액 기록이 ${date(s.startAt)}부터라 그 이후만 계산했습니다.`);
   if (!r.coverage.complete) notes.push('조회 한도 때문에 일부 기록만 읽었습니다. 기간을 줄이면 더 정확합니다.');
-  if (r.skipped.btcMarketOrders) notes.push(`BTC 마켓 주문 ${r.skipped.btcMarketOrders}건은 원화 금액이 아니라 계산에서 뺐습니다.`);
+  if (r.skipped.btcMarketOrders) notes.push(`BTC 마켓 주문 ${r.skipped.btcMarketOrders}건은 원화 거래가 아니어서 계산에서 뺐습니다.`);
   if (r.skipped.unpricedFlows) notes.push(`그날 가격을 확인하지 못한 코인 입출금 ${r.skipped.unpricedFlows}건은 순입금에서 뺐습니다.`);
   if (!s.realizedComplete) notes.push('일부 자산은 당시 평균 매수가를 알 수 없어 실현손익에서 뺐습니다.');
   box.innerHTML = s.profitKrw === null ? '<p class="empty">기간 초 평가금액 기록이 없어 실제 수익을 계산할 수 없습니다. 대시보드를 며칠 사용하면 기록이 쌓입니다.</p>' : `
@@ -1244,8 +1246,8 @@ function renderReturns() {
       <p class="hero__delta"><span class="pill ${tone(s.profitKrw)}">${percent(s.profitRatePct)}</span><span>평가금액 변화 ${money(s.changeKrw, true)}에서 순입금 ${money(s.netFlowKrw, true)}을 뺀 값</span></p></div>
       <div class="returns-chart" id="returns-chart"></div></div>
     <dl class="kpis kpis--flat">
-      <div class="kpi"><dt>입금</dt><dd><strong>${money(s.depositsKrw)}</strong><small>코인 입금 ${money(s.coinInKrw)}</small></dd></div>
-      <div class="kpi"><dt>출금</dt><dd><strong>${money(s.withdrawalsKrw)}</strong><small>코인 출금 ${money(s.coinOutKrw)}</small></dd></div>
+      <div class="kpi"><dt>원화 입금</dt><dd><strong>${money(s.depositsKrw)}</strong><small>코인 입금 ${money(s.coinInKrw)}</small></dd></div>
+      <div class="kpi"><dt>원화 출금</dt><dd><strong>${money(s.withdrawalsKrw)}</strong><small>코인 출금 ${money(s.coinOutKrw)}</small></dd></div>
       <div class="kpi"><dt>실현손익</dt><dd><strong class="${tone(s.realizedKrw)}">${money(s.realizedKrw, true)}</strong><small>매도 금액 ${money(s.sellKrw)}</small></dd></div>
       <div class="kpi"><dt>수수료</dt><dd><strong>${money(s.feesKrw)}</strong><small>거래 ${s.trades}건 · 입출금 ${s.transfers}건</small></dd></div>
     </dl>
@@ -1272,7 +1274,7 @@ function renderMonthly() {
       const value = values[i], cx = band * (i + 0.5), label = `${Number(m.month.slice(5))}월`;
       if (value === null) return `<text class="tick" x="${f(cx)}" y="${height - 10}" text-anchor="middle">${label}</text><text class="tick" x="${f(cx)}" y="${zero - 6}" text-anchor="middle">—</text>`;
       const h = Math.abs(value) / maxAbs * (bottom - top) / 2, yy = value >= 0 ? zero - h : zero;
-      return `<rect class="mbar ${value >= 0 ? 'up' : 'down'}" x="${f(cx - bar / 2)}" y="${f(yy)}" width="${f(bar)}" height="${f(Math.max(1, h))}" rx="3"><title>${esc(`${m.month} 월 손익 ${money(value, true)} · 순입금 ${money(m.netFlowKrw, true)}`)}</title></rect>
+      return `<rect class="mbar ${value >= 0 ? 'up' : 'down'}" x="${f(cx - bar / 2)}" y="${f(yy)}" width="${f(bar)}" height="${f(Math.max(1, h))}" rx="3"><title>${esc(`${m.month.replace('-', '.')} 손익 ${money(value, true)} · 순입금 ${money(m.netFlowKrw, true)}`)}</title></rect>
         ${i === best || i === worst ? `<text class="wf-value" x="${f(cx)}" y="${f(value >= 0 ? yy - 6 : yy + h + 14)}" text-anchor="middle">${esc(compact(value))}</text>` : ''}
         <text class="tick" x="${f(cx)}" y="${height - 10}" text-anchor="middle">${label}</text>`;
     }).join('')}</svg>`;
@@ -1331,8 +1333,8 @@ function computeAveraging() {
     <p class="hero__delta"><span class="pill ${sign(change)}">${change > 0 ? '▲' : change < 0 ? '▼' : ''} ${number(Math.abs(change), 2)}%</span><span>지금 ${price(avg)}에서</span></p>
     <dl class="tool__list"><div><dt>추가 수량</dt><dd>${number(buyQty, 8)} ${esc(symbol)}</dd></div><div><dt>총 보유 수량</dt><dd>${number(after.quantity, 8)} ${esc(symbol)}</dd></div>
       <div><dt>총 매수 원가</dt><dd>${money(after.cost)}</dd></div><div><dt>현재가 기준 평가손익</dt><dd class="${sign(profit)}">${profit === null ? '—' : `${money(profit, true)} · ${number(profit / after.cost * 100, 2)}%`}</dd></div>
-      <div><dt>본전까지</dt><dd>${current && after.average ? `${number((after.average - current) / current * 100, 2)}% <small class="muted">현재가 ${price(current)}</small>` : '—'}</dd></div></dl>
-    ${target ? `<p class="tool__note">${needed === null ? `목표 평단 ${price(target)}은 추가 매수 가격(${price(buyPrice)})과 지금 평단(${price(avg)}) 사이여야 만들 수 있습니다.` : `목표 평단 ${price(target)}을 만들려면 ${price(buyPrice)}에 <b>${number(needed, 8)} ${esc(symbol)}</b>, 약 <b>${money(needed * buyPrice)}</b>어치를 사야 합니다.`}</p>` : ''}`;
+      <div><dt>평균 매수가까지</dt><dd>${current && after.average ? `${number((after.average - current) / current * 100, 2)}% <small class="muted">현재가 ${price(current)}</small>` : '—'}</dd></div></dl>
+    ${target ? `<p class="tool__note">${needed === null ? `목표 평균 매수가 ${price(target)}은 추가 매수 가격(${price(buyPrice)})과 현재 평균 매수가(${price(avg)}) 사이여야 만들 수 있습니다.` : `평균 매수가를 ${price(target)}으로 맞추려면 ${price(buyPrice)}에 <b>${number(needed, 8)} ${esc(symbol)}</b>, 약 <b>${money(needed * buyPrice)}</b>어치를 사야 합니다.`}</p>` : ''}`;
 }
 function setupRebalance() {
   const body = $('#reb-body');
@@ -1390,7 +1392,7 @@ function computeRebalance() {
     tr.querySelector('.reb-qty').innerHTML = cash ? `<small class="muted">${row.diff > 0.5 ? '원화로 남김' : row.diff < -0.5 ? '원화에서 사용' : '—'}</small>` : `${state.hidden ? '••••' : `${number(Math.abs(row.quantity), 8)} ${esc(row.symbol)}`}<small>${side}</small>`;
   }
   const off = Math.abs(result.targetSum - 100) > 0.05;
-  $('#reb-foot').innerHTML = `${off ? `<span class="warn-text">${icon('alert')}목표 비중 합계가 ${number(result.targetSum, 1)}%입니다. 100%가 되도록 맞추세요.</span> ` : `목표 비중 합계 100% · 총 ${money(result.total)} 기준 · `}현재가로 계산했으며 수수료·호가 단위는 빼고 계산했습니다. 실제 주문은 빗썸 앱에서 직접 하세요.`;
+  $('#reb-foot').innerHTML = `${off ? `<span class="warn-text">${icon('alert')}목표 비중 합계가 ${number(result.targetSum, 1)}%입니다. 100%가 되도록 맞추세요.</span> ` : `목표 비중 합계 100% · 총 ${money(result.total)} 기준 · `}현재가 기준이며 수수료와 호가 단위는 반영하지 않았습니다. 실제 주문은 빗썸 앱에서 직접 하세요.`;
   const bar = (label, getter) => `<div class="reb-bar"><span class="muted small">${label}</span><span class="stack">${result.rows.map(row => `<span class="stack__seg ${seriesClass(row.symbol)}" data-share="${Math.max(0, getter(row))}" title="${esc(`${row.name} ${number(getter(row), 1)}%`)}"></span>`).join('')}</span></div>`;
   $('#reb-bars').innerHTML = bar('현재', row => row.value / Math.max(1, result.total) * 100) + bar('목표', row => row.targetValue / Math.max(1, result.total) * 100);
   applyShares($('#reb-bars'));
@@ -1562,7 +1564,7 @@ function renderChartArea() {
   if (state.hidden) { chartModels.delete('chart'); box.innerHTML = '<p class="empty">금액을 숨겼습니다.</p>'; $('#history-summary').textContent = '금액 숨김'; heroReadout(null); return; }
   const points = h.points.filter(p => p.valuationComplete && p.totalValueKrw !== null && Number.isFinite(Number(p.totalValueKrw)));
   const omitted = h.points.length - points.length;
-  $('#history-summary').textContent = `${h.mode === 'demo' ? '합성 예시' : '로컬 기록'} · ${points.length}개 시점${h.sampled ? '(간추림)' : ''}${omitted ? ` · 가격 미확인 ${omitted}개 제외` : ''}`;
+  $('#history-summary').textContent = `${h.mode === 'demo' ? '합성 데이터' : '로컬 기록'} · ${points.length}개 시점${h.sampled ? '(간추림)' : ''}${omitted ? ` · 가격 미확인 ${omitted}개 제외` : ''}`;
   if (points.length < 2) {
     chartModels.delete('chart');
     if ($('#trend-stats')) $('#trend-stats').hidden = true;
@@ -1584,7 +1586,7 @@ function renderCalendar() {
   if (!d) { box.innerHTML = '<p class="empty">불러오는 중</p>'; return; }
   if (state.hidden) { box.innerHTML = '<p class="empty">금액을 숨겼습니다.</p>'; $('#history-summary').textContent = '금액 숨김'; return; }
   const days = new Map(d.daily.filter(row => row.changeKrw !== null).map(row => [row.day, row]));
-  $('#history-summary').textContent = `${d.mode === 'demo' ? '합성 예시' : '로컬 기록'} · 변화 기록 ${days.size}일`;
+  $('#history-summary').textContent = `${d.mode === 'demo' ? '합성 데이터' : '로컬 기록'} · 변화 기록 ${days.size}일`;
   if (!days.size) { box.innerHTML = '<p class="empty">이틀 이상 기록되면 날짜별 자산 변화가 표시됩니다.</p>'; return; }
   const today = kstDay(new Date(now()).toISOString()), first = [...days.keys()][0].slice(0, 7), last = today.slice(0, 7);
   if (!state.month || state.month < first || state.month > last) state.month = last;
@@ -1606,11 +1608,11 @@ function renderCalendar() {
       <button type="button" class="icon-button" data-action="month" data-step="-1" aria-label="이전 달"${state.month <= first ? ' disabled' : ''}>${icon('left')}</button>
       <strong>${year}년 ${month}월</strong>
       <button type="button" class="icon-button" data-action="month" data-step="1" aria-label="다음 달"${state.month >= last ? ' disabled' : ''}>${icon('right')}</button>
-      <span class="calendar__total">표시 변화 합계<strong class="${counted ? sign(total) : ''}">${counted ? money(total, true) : '—'}</strong></span>
+      <span class="calendar__total">${month}월 변화 합계<strong class="${counted ? sign(total) : ''}">${counted ? money(total, true) : '—'}</strong></span>
     </div>
     <div class="calendar__grid">${['일', '월', '화', '수', '목', '금', '토'].map(w => `<span class="calendar__weekday">${w}</span>`).join('')}${'<div class="calendar__day is-blank"></div>'.repeat(blanks)}${cells.join('')}</div>
-    <p id="calendar-detail" class="calendar-detail" role="status">${selected ? `${state.calendarDay} · 자산 변화 <strong class="${tone(selected.changeKrw)}">${money(selected.changeKrw, true)}</strong> · 마지막 기록 ${money(selected.closeKrw)}${selected.gapDays > 1 ? ` · ${selected.gapDays}일간 변화` : ''}` : '이번 달에는 비교할 기록이 없습니다.'}</p>
-    <p class="calendar__note">날짜를 누르면 정확한 금액을 확인합니다. 칸의 금액은 반올림한 값이고, 색이 진할수록 이번 달에서 변화가 큰 날입니다.<br>직전 기록일 대비 변화 · 입출금 포함 · 한국 시간 · * 표시는 기록 공백을 포함한 여러 날의 변화입니다.</p>`;
+    <p id="calendar-detail" class="calendar-detail" role="status">${selected ? `${state.calendarDay} · 자산 변화 <strong class="${tone(selected.changeKrw)}">${money(selected.changeKrw, true)}</strong> · 마지막 기록 ${money(selected.closeKrw)}${selected.gapDays > 1 ? ` · ${selected.gapDays}일간 변화` : ''}` : `${month}월에는 비교할 기록이 없습니다.`}</p>
+    <p class="calendar__note">날짜를 누르면 정확한 금액을 볼 수 있습니다. 칸의 금액은 반올림한 값이고, 색이 진할수록 그달에서 변화가 큰 날입니다.<br>직전 기록일 대비 변화 · 입출금 포함 · 한국 시간 · * 표시는 기록 공백을 포함한 여러 날의 변화입니다.</p>`;
 }
 function setView(view) {
   if (state.view === view) return;
@@ -1644,7 +1646,7 @@ function persist(id, changes) {
     try {
       const result = await api(`/api/boards/${id}`, { method: 'PUT', body: { name, symbols, widgets, days, refreshSeconds, revision } });
       state.boards = state.boards.map(b => b.id === id ? result : b);
-    } catch (error) { notice(`설정을 저장하지 못했어요: ${error.message}`); await reloadBoards(); }
+    } catch (error) { notice(`설정을 저장하지 못했습니다. ${error.message}`); await reloadBoards(); }
   });
 }
 
@@ -1656,7 +1658,7 @@ function activityBusy(busy) {
   $('#activity-cancel').hidden = !busy;
   $('#activity').setAttribute('aria-busy', String(busy));
 }
-function resetActivity(message = '조건을 바꿨습니다. 내역 조회를 눌러주세요.') {
+function resetActivity(message = '조건을 바꿨습니다. 내역 조회를 누르세요.') {
   cancelRequest('activity'); state.activity = null; state.activityShown = 100;
   if (!$('#activity-body')) return;
   activityBusy(false);
@@ -1686,7 +1688,7 @@ async function loadActivity(force = false) {
   $('#activity-empty').hidden = true;
   $('#activity-table').hidden = false;
   $('#activity-body').innerHTML = '<tr><td colspan="5" class="empty">내역을 불러오는 중입니다.</td></tr>';
-  $('#activity-coverage').textContent = '페이지를 이어서 조회하고 있습니다. 기간이 길면 시간이 걸릴 수 있습니다.';
+  $('#activity-coverage').textContent = '내역을 차례로 불러오고 있습니다. 기간이 길면 시간이 걸릴 수 있습니다.';
   try {
     const result = await api(`/api/records?${query({ kind, ...period, force: force ? 1 : '' })}`, { signal: request.signal });
     if (!request.current()) return;
@@ -1701,7 +1703,7 @@ async function loadActivity(force = false) {
   } catch (error) {
     if (!request.current()) return;
     $('#activity-coverage').textContent = error.message;
-    $('#activity-body').innerHTML = '<tr><td colspan="5" class="empty">내역 조회에 실패했습니다. 다시 조회할 수 있습니다.</td></tr>';
+    $('#activity-body').innerHTML = '<tr><td colspan="5" class="empty">내역을 불러오지 못했습니다. 내역 조회를 다시 누르세요.</td></tr>';
     notice(error.message);
   } finally { if (request.current() && button === $('#activity-load')) activityBusy(false); }
 }
@@ -1722,7 +1724,7 @@ function renderActivity() {
   body.innerHTML = rows.length ? rows.slice(0, state.activityShown).map(row => {
     if (order) {
       const [quote, base] = row.market.split('-');
-      return `<tr><td><span class="kind"><span class="kind__badge ${row.side === 'bid' ? 'positive' : 'negative'}">${row.side === 'bid' ? '매수' : '매도'}</span><strong>${esc(base)}</strong></span><small>${esc(row.market)} · ${esc(row.order_type)}</small></td><td>${date(row.at ?? row.created_at)}</td><td>${amount(row.volume, base)}<small>체결 ${amount(row.executed_volume, base)}${Number(row.executed_funds) ? ` · ${amount(row.executed_funds, quote)}` : ''}</small></td><td>${amount(row.paid_fee, quote)}</td><td>${esc(STATES[row.state] ?? row.state)}</td></tr>`;
+      return `<tr><td><span class="kind"><span class="kind__badge ${row.side === 'bid' ? 'positive' : 'negative'}">${row.side === 'bid' ? '매수' : '매도'}</span><strong>${esc(base)}</strong></span><small>${esc(row.market)} · ${esc(ORDER_TYPES[row.order_type] ?? row.order_type)}</small></td><td>${date(row.at ?? row.created_at)}</td><td>${amount(row.volume, base)}<small>체결 ${amount(row.executed_volume, base)}${Number(row.executed_funds) ? ` · ${amount(row.executed_funds, quote)}` : ''}</small></td><td>${amount(row.paid_fee, quote)}</td><td>${esc(STATES[row.state] ?? row.state)}</td></tr>`;
     }
     return `<tr><td><span class="kind"><span class="kind__badge">${r.kind.includes('deposit') ? '입금' : '출금'}</span><strong>${esc(row.currency)}</strong></span><small>${esc(row.net_type ?? (row.currency === 'KRW' ? '원화' : '가상자산'))}</small></td><td>${date(row.at)}</td><td>${amount(row.amount, row.currency)}</td><td>${amount(row.fee, row.currency)}</td><td>${esc(STATES[row.state] ?? row.state)}</td></tr>`;
   }).join('') : '<tr><td colspan="5" class="empty">선택한 조건에 해당하는 내역이 없습니다.</td></tr>';
@@ -1730,7 +1732,7 @@ function renderActivity() {
   $('#activity-more').textContent = `100건 더 보기 (${Math.min(rows.length, state.activityShown)} / ${rows.length})`;
   $('#activity-export').disabled = state.hidden || !rows.length;
   const range = r.period ? `${kstDay(r.period.from)} ~ ${kstDay(r.period.to)}` : '현재';
-  $('#activity-coverage').textContent = `${r.mode === 'demo' ? '합성 예시 · ' : ''}${r.label} · ${r.rows.length}건 중 ${rows.length}건${only.size ? ` (${[...only].join('·')} 범위)` : ''} · ${range} · ${r.coverage.complete ? '요청 범위 조회 완료' : `일부만 조회됨(최대 ${r.coverage.maxPages}페이지)`} · ${date(r.asOf)} 조회 · ${r.coverage.note}`;
+  $('#activity-coverage').textContent = `${r.mode === 'demo' ? '합성 데이터 · ' : ''}${r.label} · ${r.rows.length}건 중 ${rows.length}건${only.size ? ` (${[...only].join('·')} 범위)` : ''} · ${range} · ${r.coverage.complete ? '요청 범위 조회 완료' : `일부만 조회됨(조회 한도 도달 · 기간을 줄여 다시 조회하세요)`} · ${date(r.asOf)} 조회 · ${r.coverage.note}`;
 }
 
 // ===== 대화상자: 자산 상세 · 요약 =====
@@ -1738,8 +1740,8 @@ async function showHolding(symbol) {
   const h = state.portfolio?.holdings.find(item => item.symbol === symbol);
   if (!h) return;
   const cash = h.symbol === 'KRW';
-  const rows = [['보유 수량', amount(h.quantity, h.symbol)], ['가용 수량', amount(h.available, h.symbol)], ['주문 중 수량', amount(h.locked, h.symbol)],
-    ['평균 매수가', cash ? '—' : money(h.averagePriceKrw)], ['현재가', cash ? '—' : h.currentPriceKrw === null ? '가격 미확인' : price(h.currentPriceKrw)],
+  const rows = [['보유 수량', amount(h.quantity, h.symbol)], ['주문 가능 수량', amount(h.available, h.symbol)], ['주문 중 수량', amount(h.locked, h.symbol)],
+    ['평균 매수가', cash ? '—' : state.hidden ? '••••' : price(h.averagePriceKrw)], ['현재가', cash ? '—' : h.currentPriceKrw === null ? '가격 미확인' : price(h.currentPriceKrw)],
     ['비중', state.hidden ? '••' : h.allocationPct === null ? '—' : `${number(h.allocationPct, 1)}%`]];
   const oldChart = $('#detail-chart');
   if (oldChart) charts.unobserve(oldChart);
@@ -1749,7 +1751,7 @@ async function showHolding(symbol) {
     <div class="detail-hero"><span>평가금액</span><strong>${money(h.valueKrw)}</strong>${cash || h.profitKrw === null ? '' : `<span class="pill ${tone(h.profitKrw)}">평가손익 ${money(h.profitKrw, true)} · ${percent(h.profitRatePct)}</span>`}</div>
     ${cash ? '' : '<h3 class="section-title">원화 시세 · 최근 30일 일봉</h3><div id="detail-chart" class="chart chart--detail"><span class="skeleton chart-skeleton"></span></div>'}
     <dl class="detail-metrics">${rows.map(([name, value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl>
-    <p class="note">${h.quoteAt ? `현재가 기준 ${date(h.quoteAt)}${h.priceSource?.startsWith('BTC-') ? '(BTC 마켓 환산)' : ''}. ` : ''}${h.averagePriceModified ? '수정된 평균 매수가를 사용합니다. ' : ''}수량에는 주문 중인 자산이 포함됩니다.</p>`;
+    <p class="note">${h.quoteAt ? `현재가는 ${date(h.quoteAt)} 기준${h.priceSource?.startsWith('BTC-') ? '(BTC 마켓 환산)' : ''}입니다. ` : ''}${h.averagePriceModified ? '수정된 평균 매수가를 사용합니다. ' : ''}수량에는 주문 중인 자산이 포함됩니다.</p>`;
   if (!$('#holding-dialog').open) $('#holding-dialog').showModal();
   state.market = null;
   if (cash) return;
@@ -1776,10 +1778,10 @@ async function showExplain() {
   try {
     const e = await api(`/api/explain?${query({ symbols: scope() })}`, { signal: request.signal });
     if (!request.current()) return;
-    $('#explain-body').innerHTML = state.hidden ? '<p>금액 숨김을 해제하면 요약을 볼 수 있습니다.</p>' : `<p class="explain">${esc(e.summary)}</p>
+    $('#explain-body').innerHTML = state.hidden ? '<p>금액 보기를 누르면 요약을 볼 수 있습니다.</p>' : `<p class="explain">${esc(e.summary)}</p>
       ${e.largest.length ? `<ul class="kv-list">${e.largest.map(h => `<li><span>${esc(h.name)} <small>${esc(h.symbol)}</small></span><b>${money(h.valueKrw)} · ${number(h.allocationPct, 1)}%</b></li>`).join('')}</ul>` : ''}
       ${e.warnings.length ? `<p class="note">${e.warnings.map(esc).join('<br>')}</p>` : ''}
-      <p class="note">${date(e.asOf)} 기준 · ${e.mode === 'demo' ? '합성 예시' : '계좌 조회'} · 계산된 숫자만 설명하며 외부 AI로 보내지 않습니다.</p>`;
+      <p class="note">${date(e.asOf)} 기준 · ${e.mode === 'demo' ? '합성 데이터' : '계좌 조회'} · 계산된 숫자만 설명하며 외부 AI로 보내지 않습니다.</p>`;
   } catch (error) { if (request.current()) $('#explain-body').innerHTML = `<p class="empty">${esc(error.message)}</p>`; }
 }
 
@@ -1792,7 +1794,7 @@ async function openEditor(mode) {
   const base = mode === 'new' ? { name: '새 대시보드', symbols: [], widgets: ['summary', 'trend', 'allocation', 'holdings'], days: 30, refreshSeconds: 60 } : b;
   state.draft = { id: mode === 'edit' ? b.id : null, revision: mode === 'edit' ? b.revision : null, order: [...base.widgets, ...Object.keys(WIDGETS).filter(w => !base.widgets.includes(w))], enabled: new Set(base.widgets), confirmDelete: false };
   $('#board-title').textContent = { edit: '화면 편집', copy: '화면 복제', new: '새 대시보드' }[mode];
-  $('#board-name-input').value = mode === 'copy' ? `${b.name} 복사`.slice(0, 48) : base.name;
+  $('#board-name-input').value = mode === 'copy' ? `${b.name} 사본`.slice(0, 48) : base.name;
   $('#board-symbols').value = base.symbols.join(', ');
   $('#board-days').value = String(base.days);
   $('#board-refresh').value = String(base.refreshSeconds);
@@ -1859,7 +1861,7 @@ async function submitBoard(event) {
     const result = d.id ? await api(`/api/boards/${d.id}`, { method: 'PUT', body: { ...payload, revision: d.revision } }) : await api('/api/boards', { method: 'POST', body: payload });
     state.boards = d.id ? state.boards.map(b => b.id === result.id ? result : b) : [...state.boards, result];
     $('#board-dialog').close();
-    notice('화면 설정을 저장했어요.');
+    notice('화면 설정을 저장했습니다.');
     state.page = 'home';
     selectBoard(result.id);
   } catch (error) {
@@ -1877,7 +1879,7 @@ async function deleteBoard() {
     await api(`/api/boards/${d.id}`, { method: 'DELETE', body: { revision: d.revision } });
     state.boards = state.boards.filter(b => b.id !== d.id);
     $('#board-dialog').close();
-    notice('화면을 삭제했어요. 자산 기록은 그대로 남습니다.');
+    notice('화면을 삭제했습니다. 자산 기록은 그대로 남습니다.');
     selectBoard(state.boards[0].id);
   } catch (error) {
     if (error.status === 409) { await reloadBoards(); d.revision = state.boards.find(b => b.id === d.id)?.revision ?? d.revision; d.confirmDelete = false; $('#board-delete').textContent = '삭제'; }
@@ -1892,7 +1894,7 @@ function download(name, text, type) {
 }
 function exportBoards() {
   download('asset-kit-boards.json', `${JSON.stringify(state.boards.map(({ name, symbols, widgets, days, refreshSeconds }) => ({ name, symbols, widgets, days, refreshSeconds })), null, 2)}\n`, 'application/json');
-  notice('화면 설정만 내보냈어요. 자산 데이터는 들어 있지 않습니다.');
+  notice('화면 설정만 내보냈습니다. 자산 데이터는 포함되지 않습니다.');
 }
 async function importBoards(file) {
   try {
@@ -1902,7 +1904,7 @@ async function importBoards(file) {
     const result = await api('/api/boards/import', { method: 'POST', body: { boards: Array.isArray(data) ? data : data.boards } });
     state.boards = [...state.boards, ...result.boards];
     $('#board-dialog').close();
-    notice(`화면 ${result.boards.length}개를 가져왔어요.`);
+    notice(`화면 ${result.boards.length}개를 가져왔습니다.`);
     state.page = 'home';
     selectBoard(result.boards[0].id);
   } catch (error) { formError(error.message); }
@@ -1929,7 +1931,7 @@ function exportCsv() {
   if (!holdings.length) return;
   const rows = [['모드', '조회시각', '자산', '이름', '수량', '가용수량', '주문중수량', '현재가KRW', '전일대비%', '평가금액KRW', '평가손익KRW', '수익률%', '비중%'], ...holdings.map(h => [p.mode, p.asOf, h.symbol, h.name, h.quantity, h.available, h.locked, h.currentPriceKrw, h.priceChangePct, h.valueKrw, h.profitKrw, h.profitRatePct, h.allocationPct])];
   download(`bithumb-assets-${p.mode}-${p.asOf.slice(0, 10)}.csv`, csvText(rows), 'text/csv;charset=utf-8');
-  notice(`표시한 자산 ${holdings.length}개의 CSV 다운로드를 시작했어요.`);
+  notice(`표시한 자산 ${holdings.length}개의 CSV 다운로드를 시작했습니다.`);
 }
 function exportActivity() {
   const r = state.activity;
@@ -1939,11 +1941,11 @@ function exportActivity() {
   const order = ['orders', 'pending'].includes(r.kind);
   const rows = [['모드', '조회시각', '조회범위완료', '종류', '시각', '마켓/자산', '매수/매도', '수량/금액', '체결수량', '체결금액', '수수료', '금액/수수료단위', '상태'], ...filtered.map(row => [r.mode, r.asOf, r.coverage.complete, r.label, row.at ?? row.created_at, row.market ?? row.currency, row.side === 'bid' ? '매수' : row.side === 'ask' ? '매도' : '', order ? row.volume : row.amount, row.executed_volume, row.executed_funds, order ? row.paid_fee : row.fee, order ? row.market.split('-')[0] : row.currency, STATES[row.state] ?? row.state])];
   download(`bithumb-${r.kind}-${r.mode}-${kstDay(r.asOf)}.csv`, csvText(rows), 'text/csv;charset=utf-8');
-  notice(`필터에 맞는 내역 ${filtered.length}건의 CSV 다운로드를 시작했어요.${r.coverage.complete ? '' : ' 조회 범위의 일부만 포함합니다.'}`);
+  notice(`필터에 맞는 내역 ${filtered.length}건의 CSV 다운로드를 시작했습니다.${r.coverage.complete ? '' : ' 조회 범위의 일부만 포함합니다.'}`);
 }
 async function copyCommand() {
-  try { await navigator.clipboard.writeText('npm run demo'); notice('실행 명령을 복사했어요.'); }
-  catch { notice('npm run demo 명령을 직접 선택해 복사해주세요.'); }
+  try { await navigator.clipboard.writeText('npm run demo'); notice('실행 명령을 복사했습니다.'); }
+  catch { notice('npm run demo 명령을 직접 선택해 복사하세요.'); }
 }
 
 // 차트는 칸 너비가 바뀔 때만 다시 그립니다.

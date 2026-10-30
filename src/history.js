@@ -49,7 +49,7 @@ export class HistoryStore {
     try {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       await appendFile(join(this.directory, `${portfolio.asOf.slice(0, 10)}.jsonl`), `${JSON.stringify(record)}\n`, { mode: 0o600 });
-    } catch { throw new KitError('HISTORY_WRITE_FAILED', '자산 조회는 완료됐지만 로컬 추이를 저장하지 못했습니다.'); }
+    } catch { throw new KitError('HISTORY_WRITE_FAILED', '자산 조회는 완료됐지만 로컬 추이를 저장하지 못했습니다. 데이터 폴더의 쓰기 권한과 남은 공간을 확인하세요.'); }
     this.lastBucket = bucket;
     return true;
   }

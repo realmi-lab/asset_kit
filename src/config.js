@@ -33,7 +33,7 @@ export function resolveCredentials({ accessKey, secretKey, env = process.env } =
 
 /** Atomically writes both keys with owner-only permissions. Never logs or returns the values. */
 export async function saveCredentials(accessKey, secretKey, env = process.env) {
-  if (!validKey(accessKey) || !validKey(secretKey)) throw new KitError('CONFIG_INVALID', '앞뒤 공백 없는 API 키 두 개를 입력하세요.', 400);
+  if (!validKey(accessKey) || !validKey(secretKey)) throw new KitError('CONFIG_INVALID', 'Access Key와 Secret Key를 앞뒤 공백 없이 입력하세요.', 400);
   const file = credentialsFile(env), temp = `${file}.${randomUUID()}`;
   await mkdir(dataDir(env), { recursive: true, mode: 0o700 });
   await writeFile(temp, JSON.stringify({ accessKey, secretKey }), { mode: 0o600 });

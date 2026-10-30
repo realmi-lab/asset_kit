@@ -5,7 +5,7 @@ import { downsample } from '../src/history.js';
 export const HOLDING_FIELDS = ['symbol', 'name', 'quantity', 'available', 'locked', 'currentPriceKrw', 'valueKrw', 'averagePriceKrw', 'costKrw', 'profitKrw', 'profitRatePct', 'priceChangePct', 'priceSource', 'averagePriceModified', 'quoteAt', 'staleQuote', 'valuationStatus', 'allocationPct', 'marketWarning'];
 export const RECORD_FIELDS = ['order_id', 'uuid', 'at', 'created_at', 'done_at', 'market', 'currency', 'side', 'state', 'order_type', 'price', 'volume', 'remaining_volume', 'executed_volume', 'executed_funds', 'locked', 'paid_fee', 'amount', 'fee', 'net_type'];
 export const fieldInput = fields => ({ type: 'array', minItems: 1, maxItems: fields.length, uniqueItems: true, items: { type: 'string', enum: fields }, description: '반환할 행 필드만 선택합니다. 식별자와 데이터 경고는 항상 유지됩니다.' });
-export const FORCE = { type: 'boolean', default: false, description: 'true이면 캐시를 건너뜁니다. 이미 진행 중인 동일 조회는 공유할 수 있습니다.' };
+export const FORCE = { type: 'boolean', default: false, description: 'true이면 캐시를 건너뜁니다. 이미 진행 중인 동일 조회는 공유될 수 있습니다.' };
 
 export function selectFields(rows, fields, required = []) {
   if (!fields) return rows;
@@ -66,7 +66,7 @@ export async function dashboardSnapshot(service, { boardId, symbols, days, point
       changeKrw: drawable.length > 1 ? dec(last).minus(first).toFixed() : null, omitted: history.points.length - drawable.length, sampled: shown.length < drawable.length },
     ...(calendar ? { daily: { day: changed.map(row => row.day), changeKrw: changed.map(row => row.changeKrw), changePct: changed.map(row => row.changePct), gapDays: changed.map(row => row.gapDays) } } : {}),
     warnings: p.warnings,
-    note: '금액은 십진 문자열이고 trend·daily는 같은 위치끼리 짝인 열 배열입니다. 추이와 일별 변화는 입출금이 포함된 평가금액 기록이라 수익률이 아니며, 평가손익은 현재 보유분 평균 매수가 기준입니다. holdings 비중은 scope 전체가 분모입니다.',
+    note: '금액은 십진 문자열이고 trend·daily는 같은 인덱스끼리 짝을 이루는 열 배열입니다. 추이와 일별 변화는 입출금이 포함된 평가금액 기록이라 수익률이 아니며, 평가손익은 현재 보유분 평균 매수가 기준입니다. holdings 비중은 scope 전체가 분모입니다.',
   };
 }
 

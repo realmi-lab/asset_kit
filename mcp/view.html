@@ -203,7 +203,7 @@ td small.negative { color: var(--down); }
   <section class="card hero" aria-label="자산 요약">
     <div class="hero__top">
       <p class="hero__label"><span id="total-label">총 평가금액</span><small id="scope">—</small></p>
-      <div class="segmented" role="group" aria-label="조회 기간" id="periods"><button type="button" data-days="7" disabled>7일</button><button type="button" data-days="30" disabled>30일</button><button type="button" data-days="90" disabled>90일</button><button type="button" data-days="365" disabled>1년</button></div>
+      <div class="segmented" role="group" aria-label="추이 기간" id="periods"><button type="button" data-days="7" disabled>7일</button><button type="button" data-days="30" disabled>30일</button><button type="button" data-days="90" disabled>90일</button><button type="button" data-days="365" disabled>1년</button></div>
     </div>
     <div class="figure" id="total">—</div>
     <div class="delta" id="delta"></div>
@@ -224,7 +224,7 @@ td small.negative { color: var(--down); }
     <div class="card__head"><h2 id="holdings-title">보유 상위 자산</h2><span class="card__sub" id="holding-count"></span></div>
     <div class="table-scroll"><table><thead><tr><th scope="col">자산</th><th scope="col">평가금액 · 비중</th><th scope="col">평가손익</th><th scope="col" class="col-change">전일 대비</th></tr></thead><tbody id="holdings"><tr><td colspan="4" class="empty">불러오는 중</td></tr></tbody></table></div>
   </section>
-  <p class="note">평가손익은 현재 보유분의 API 평균 매수가 기준이며 수수료·실현손익을 포함하지 않습니다. 오늘 시세 변동은 지금 수량을 전일 종가로 평가한 값과의 차이입니다. 조회 전용이며 주문·출금 기능이 없습니다. Asset Kit __VERSION__</p>
+  <p class="note">평가손익은 현재 보유분의 빗썸 평균 매수가 기준이며 수수료·실현손익을 포함하지 않습니다. 오늘 시세 변동은 지금 수량을 전일 종가로 평가한 값과의 차이입니다. 조회 전용이며 주문·출금 기능이 없습니다. Asset Kit __VERSION__</p>
 </main>
 <script>
 'use strict';
@@ -270,7 +270,7 @@ const post = message => window.parent.postMessage({ jsonrpc: '2.0', ...message }
 function request(method, params = {}) {
   const id = nextId++;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('호스트 응답이 늦어 중단했습니다.')); }, 120000);
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('AI 클라이언트 응답이 늦어 중단했습니다.')); }, 120000);
     pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
     post({ id, method, params });
   });
@@ -281,7 +281,7 @@ window.addEventListener('message', ({ source, data: message }) => {
     const waiting = pending.get(message.id);
     if (!waiting) return;
     pending.delete(message.id);
-    if (message.error) waiting.reject(new Error(message.error.message || '호스트 요청이 실패했습니다.')); else waiting.resolve(message.result);
+    if (message.error) waiting.reject(new Error(message.error.message || 'AI 클라이언트가 요청을 처리하지 못했습니다.')); else waiting.resolve(message.result);
     return;
   }
   switch (message.method) {
@@ -334,7 +334,7 @@ async function openLocal() {
     // A host may refuse the link by policy ({ isError: true }) instead of failing the request.
     let opened = false;
     try { opened = !(await request('ui/open-link', { url }))?.isError; } catch { /* 아래 안내로 대신합니다. */ }
-    if (!opened) showError(`이 컴퓨터의 브라우저에서 ${url} 을 여세요.`);
+    if (!opened) showError(`이 컴퓨터의 브라우저에서 다음 주소를 여세요: ${url}`);
   } catch (error) { showError(`로컬 대시보드를 띄우지 못했습니다. ${error.message}`); }
   finally { busy(false); }
 }
@@ -352,7 +352,7 @@ function render() {
   if (!d) return;
   const s = d.summary, demo = d.mode === 'demo';
   $('title').textContent = d.board?.name ?? (d.scope.length ? d.scope.join(' · ') : '내 자산');
-  $('meta').textContent = `${when(d.asOf)} 기준 · ${demo ? '합성 예시 데이터' : '빗썸 계좌 조회'}`;
+  $('meta').textContent = `${when(d.asOf)} 기준 · ${demo ? '합성 데이터' : '빗썸 계좌 조회'}`;
   $('mode').hidden = false; $('mode').textContent = demo ? 'DEMO' : '조회 전용'; $('mode').classList.toggle('is-demo', demo);
   $('open').hidden = d.canOpenLocal === false;
   $('warnings').textContent = d.warnings.join(' '); $('warnings').hidden = !d.warnings.length;
@@ -467,7 +467,7 @@ function renderAllocation() {
   if (cash) slices.push({ name: '원화', symbol: '', pct: Number(cash.allocationPct), cls: 'c-cash' });
   const otherPct = tail.reduce((sum, h) => sum + Number(h.allocationPct), 0) + (Number(d.others.allocationPct) || 0), otherCount = tail.length + d.others.count;
   if (otherPct > 0) slices.push({ name: `기타 ${otherCount}종`, symbol: '', pct: otherPct, cls: 'c-other' });
-  $('allocation-sub').textContent = d.others.valueKrw === null && d.others.count ? `나머지 ${d.others.count}종 가격 미확인` : `${d.holdings.length + d.others.count}개 자산 · 원화 포함`;
+  $('allocation-sub').textContent = d.others.valueKrw === null && d.others.count ? `나머지 ${d.others.count}종 가격 미확인` : `${d.holdings.length + d.others.count}개 자산${d.holdings.some(h => h.symbol === 'KRW') ? ' · 원화 포함' : ''}`;
   if (state.hidden || !slices.length) { box.innerHTML = `<p class="empty">${state.hidden ? '금액과 자산 비중을 숨겼습니다.' : '평가 가능한 자산이 없습니다.'}</p>`; return; }
   box.innerHTML = `<div class="stack" role="img" aria-label="${esc(`자산 비중: ${slices.map(s => `${s.name} ${number(s.pct, 1)}%`).join(', ')}`)}">${slices.map(s => `<span class="stack__seg ${s.cls}" data-share="${s.pct}"></span>`).join('')}</div>
     <ul class="legend">${slices.map(s => `<li class="${s.cls}"><span class="swatch" aria-hidden="true"></span><span class="legend__name">${esc(s.name)}${s.symbol && s.symbol !== s.name ? `<small>${esc(s.symbol)}</small>` : ''}</span><b>${number(s.pct, 1)}%</b></li>`).join('')}</ul>`;
@@ -476,12 +476,12 @@ function renderAllocation() {
 function renderHoldings() {
   const d = state.data, rows = d.holdings;
   const colors = new Map(rows.filter(h => h.symbol !== 'KRW' && Number(h.allocationPct) > 0).slice(0, 5).map((h, i) => [h.symbol, `c${i + 1}`]));
-  $('holding-count').textContent = d.others.count ? `상위 ${rows.length}개 · 나머지 ${d.others.count}개 ${d.others.valueKrw === null ? '가격 미확인' : money(d.others.valueKrw)}` : `${rows.length}개`;
+  $('holding-count').textContent = d.others.count ? `상위 ${rows.length}개 · 나머지 ${d.others.count}종 ${d.others.valueKrw === null ? '가격 미확인' : money(d.others.valueKrw)}` : `${rows.length}개`;
   $('holdings').innerHTML = rows.length ? rows.map(h => {
     const cash = h.symbol === 'KRW', cls = cash ? 'c-cash' : colors.get(h.symbol) ?? 'c-other';
     return `<tr><td><div class="asset"><span class="avatar ${cls}" aria-hidden="true">${esc(monogram(h.symbol))}</span><div><strong>${esc(h.name)}${h.marketWarning ? '<span class="flag" title="빗썸 거래 유의 지정">유의</span>' : ''}</strong><small>${esc(h.symbol)}${cash || state.hidden ? '' : ` · ${esc(number(h.quantity, 8))}`}</small></div></div></td>
       <td><strong>${h.valueKrw === null ? '가격 미확인' : money(h.valueKrw)}</strong><small>${state.hidden || missing(h.allocationPct) ? '—' : `${number(h.allocationPct, 1)}%`}</small></td>
-      <td class="${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '현금' : percent(h.profitRatePct)}</small></td>
+      <td class="${tone(h.profitKrw)}">${cash ? '—' : money(h.profitKrw, true)}<small class="${tone(h.profitKrw)}">${cash ? '손익 없음' : percent(h.profitRatePct)}</small></td>
       <td class="col-change ${cash ? '' : tone(h.priceChangePct)}">${cash ? '—' : percent(h.priceChangePct)}</td></tr>`;
   }).join('') : '<tr><td colspan="4" class="empty">보유 자산이 없습니다.</td></tr>';
 }

@@ -95,9 +95,9 @@ function summarize(rows, { mode, asOf, scope = [] }) {
     holdings, warnings,
     calculation: {
       quantity: 'balance + locked', value: '보유 수량 × 원화 현재가 (원화 마켓이 없으면 BTC 마켓 가격 × KRW-BTC)',
-      profit: '현재 보유분 평가금액 − API 평균 매수가 × 보유 수량. 수수료·실현손익 제외.',
-      allocation: '가격이 확인된 자산 평가금액 합계(원화 포함)를 기준으로 계산.',
-      dayChange: '평가금액 − 평가금액 ÷ (1 + 빗썸 전일 대비 등락률). 지금 수량 기준이며 오늘의 입출금·매매는 반영하지 않습니다. 비율은 총 평가금액 대비.',
+      profit: '현재 보유분 평가금액 − API 평균 매수가 × 보유 수량. 수수료·실현손익은 반영하지 않습니다.',
+      allocation: '가격이 확인된 자산 평가금액 합계(원화 포함)를 기준으로 계산합니다.',
+      dayChange: '평가금액 − 평가금액 ÷ (1 + 빗썸 전일 대비 등락률). 지금 수량 기준이며 오늘의 입출금·매매는 반영하지 않습니다. 비율은 전일 기준 평가금액(총 평가금액 − 변동액) 대비입니다.',
       history: '기록 시점의 평가금액입니다. 입출금 영향을 포함하므로 투자 수익률이 아닙니다.',
     },
   };
@@ -118,7 +118,7 @@ export function explainPortfolio(portfolio) {
   const priced = portfolio.holdings.filter(h => h.valueKrw !== null);
   const largest = priced.slice(0, 3).map(({ symbol, name, valueKrw, allocationPct }) => ({ symbol, name, valueKrw, allocationPct }));
   const lines = [`${s.valuationComplete ? '총 평가금액' : '가격이 확인된 자산의 평가금액'}은 ${won(s.totalValueKrw)}입니다. 원화 ${won(s.cashKrw)}, 가상자산 ${s.assetCount}종 ${won(s.cryptoValueKrw)}입니다.`];
-  if (s.profitKrw !== null) lines.push(`보유분 평가손익은 ${dec(s.profitKrw).gt(0) ? '+' : ''}${won(s.profitKrw)}${s.profitRatePct === null ? '' : ` (${dec(s.profitRatePct).toFixed(2)}%)`}${s.profitComplete ? '' : ', 원가가 확인된 자산만 기준'}입니다.`);
+  if (s.profitKrw !== null) lines.push(`보유분 평가손익은 ${dec(s.profitKrw).gt(0) ? '+' : ''}${won(s.profitKrw)}${s.profitRatePct === null ? '' : ` (${dec(s.profitRatePct).toFixed(2)}%)`}${s.profitComplete ? '' : ', 현재가와 평균 매수가가 모두 확인된 자산만 기준'}입니다.`);
   if (largest.length) lines.push(`비중이 큰 자산은 ${largest.map(h => `${h.name} ${h.allocationPct === null ? '' : `${dec(h.allocationPct).toFixed(1)}%`}`.trim()).join(', ')}입니다.`);
   if (s.unpricedCount) lines.push(`현재가를 확인하지 못한 ${s.unpricedCount}개 자산은 합계에서 빠져 있습니다.`);
   return {

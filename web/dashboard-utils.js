@@ -83,7 +83,7 @@ export function recordDates(preset, now = Date.now()) {
   const to = current.toISOString().slice(0, 10);
   if (preset === 'month') return { from: `${to.slice(0, 7)}-01`, to };
   const days = Number(preset);
-  if (days !== 7 && days !== 30) throw new RangeError('기간은 7일, 30일, 이번 달 중에서 선택해주세요.');
+  if (days !== 7 && days !== 30) throw new RangeError('기간은 7일, 30일, 이번 달 중에서 선택하세요.');
   return { from: new Date(current.getTime() - (days - 1) * DAY).toISOString().slice(0, 10), to };
 }
 
@@ -96,7 +96,7 @@ function calendarDate(value) {
 /** Match the API's real-date validation and maximum of 366 inclusive calendar days. */
 export function dateRangeError(from, to) {
   const start = calendarDate(from), end = calendarDate(to);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return '시작일과 종료일을 YYYY-MM-DD 형식의 실제 날짜로 입력해주세요.';
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return '시작일과 종료일을 YYYY-MM-DD 형식의 올바른 날짜로 입력하세요.';
   if (start > end) return '시작일은 종료일보다 늦을 수 없습니다.';
   if (end - start >= 366 * DAY) return '한 번에 조회할 수 있는 기간은 최대 366일입니다.';
   return '';

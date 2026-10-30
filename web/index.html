@@ -12,7 +12,7 @@
 <body>
   <a class="skip" href="#main">본문으로 이동</a>
   <div class="app">
-    <aside class="sidebar" aria-label="메뉴">
+    <aside class="sidebar" aria-label="사이드바">
       <!-- 빗썸 공식 로고(assets/bithumb_logo_RGB_orange_가로형.png, 14974px)를 화면용 320px로 줄인 사본입니다. -->
       <a href="/" class="brand sidebar__brand" aria-label="Asset Kit 홈"><img src="/assets/bithumb-logo.png" alt="bithumb" width="80" height="20"><span>Asset Kit</span></a>
       <nav class="nav" id="nav" aria-label="메뉴" hidden>
@@ -51,16 +51,16 @@
       </header>
 
       <main id="main" class="shell">
-        <div class="notice" id="demo-note" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/></svg><p><strong>예시 모드</strong> <span id="demo-text">실제 계좌와 연결되지 않은 예시 데이터입니다.</span></p><button type="button" class="button button--quiet" data-action="guide">연결 안내</button></div>
+        <div class="notice" id="demo-note" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/></svg><p><strong>데모 모드</strong> <span id="demo-text">실제 계좌와 연결되지 않은 합성 데이터입니다.</span></p><button type="button" class="button button--quiet" data-action="guide">연결 안내</button></div>
         <div id="error" class="alert" role="alert" hidden></div>
         <div id="warnings" class="alert alert--info" role="status" hidden></div>
 
         <section id="setup" class="card setup" hidden>
           <span class="setup__icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 1 0-5.7l3-3a4 4 0 0 1 5.7 5.7l-1.5 1.5"/><path d="M14 10a4 4 0 0 1 0 5.7l-3 3a4 4 0 0 1-5.7-5.7l1.5-1.5"/></svg></span>
           <h1>빗썸 계좌 연결</h1>
-          <p class="muted">조회용 API 키를 이 컴퓨터에 설정하면 보유자산과 평가금액을 가져옵니다.</p>
+          <p class="muted">조회용 API 키를 이 컴퓨터에 설정하면 보유 자산과 평가금액을 가져옵니다.</p>
           <button type="button" class="button button--primary" data-action="guide">연결 방법 보기</button>
-          <p class="muted small">예시 데이터로 먼저 보기: <code>npm run demo</code></p>
+          <p class="muted small">합성 데이터로 먼저 보기: <code>npm run demo</code></p>
         </section>
 
         <div id="dashboard" hidden>
@@ -88,18 +88,18 @@
     <div class="dialog__head"><h2 id="guide-title">내 빗썸 계좌 연결</h2><button type="button" class="icon-button icon-button--quiet close" data-close aria-label="닫기"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <ol class="steps">
       <li><strong>자산 조회용 API 키 발급</strong><p><a href="https://www.bithumb.com/react/api-support/management-api" target="_blank" rel="noreferrer">빗썸 API 관리 ↗</a>에서 자산·주문·입출금 조회 권한과 허용 IP를 설정하세요.</p></li>
-      <li><strong>키를 이 컴퓨터에 저장</strong><p>터미널에서 아래 명령을 실행하면 입력한 키가 화면에 보이지 않고 이 컴퓨터에만 저장됩니다. <code>.env</code> 파일을 써도 됩니다. 키를 채팅창에 붙여넣지 마세요.</p><pre>node cli/asset-kit.js config init
+      <li><strong>키를 이 컴퓨터에 저장</strong><p>터미널에서 아래 명령을 실행하면 입력한 키가 화면에 보이지 않고 이 컴퓨터에만 저장됩니다. <code>.env</code> 파일은 <code>--env-file .env</code>로 지정합니다. 키를 채팅창에 붙여넣지 마세요.</p><pre>node cli/asset-kit.js config init
 node cli/asset-kit.js doctor</pre></li>
-      <li><strong>실제 자산 모드로 실행</strong><p>데모 실행을 종료한 뒤 프로젝트 폴더에서 실행하세요.</p><pre>npm start</pre></li>
+      <li><strong>내 계좌로 실행</strong><p>데모(npm run demo)를 종료한 뒤 프로젝트 폴더에서 실행하세요.</p><pre>npm start</pre></li>
     </ol>
     <section class="toolkit" aria-labelledby="toolkit-title">
-      <h3 id="toolkit-title">이 데이터로 나만의 대시보드</h3>
+      <h3 id="toolkit-title">이 데이터로 나만의 대시보드 만들기</h3>
       <div class="command"><code>npm run demo</code><button type="button" class="button button--quiet" data-action="copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg>복사</button></div>
-      <p class="muted small">화면 편집에서 위젯·순서·자산 범위·기간을 바꾸거나, 화면 파일을 고쳐 <code>asset-kit dashboard --web-dir 폴더</code>로 띄울 수 있습니다.</p>
+      <p class="muted small">화면 편집에서 위젯·순서·자산 범위·기간을 바꾸거나, 화면 파일을 고쳐 <code>node cli/asset-kit.js dashboard --web-dir 폴더</code>로 띄울 수 있습니다.</p>
       <p class="toolkit__label">MCP 도구 17개 · CLI · Skill</p>
       <div class="tags"><span>대화 속 대시보드</span><span>잔고·손익</span><span>비중·추이</span><span>일별 변화</span><span>시세·시장 개요</span><span>경보·거래 유의</span><span>주문·입출금</span><span>종합 보고서</span><span>화면 설정</span><span>화면 템플릿</span></div>
     </section>
-    <p class="note">브라우저에는 자산 데이터만 전달합니다. MCP를 사용하면 조회 결과가 연결한 AI 서비스에 전달될 수 있습니다. 자산 추이는 조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록됩니다.</p>
+    <p class="note">API 키는 브라우저로 보내지 않고 자산 데이터만 전달합니다. MCP를 사용하면 조회 결과가 연결한 AI 서비스에 전달될 수 있습니다. 자산 추이는 조회할 때마다(최대 5분에 한 번) 이 컴퓨터에 기록됩니다.</p>
     <button type="button" class="button button--primary button--block" data-close>확인</button>
   </dialog>
 

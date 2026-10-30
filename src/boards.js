@@ -27,7 +27,7 @@ export function validateBoard(input) {
     name: typeof name === 'string' ? name.trim() : name,
     symbols: Array.isArray(symbols) ? symbols.map(symbol => typeof symbol === 'string' ? symbol.trim().toUpperCase() : symbol) : symbols,
     widgets, days, refreshSeconds,
-  }, { code: 'INVALID_BOARD', message: '대시보드 설정을 확인하세요. 이름 1~48자, 위젯 1개 이상(중복 없음), 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.' });
+  }, { code: 'INVALID_BOARD', message: '대시보드 설정을 확인하세요. 이름 1~48자, 지원하는 위젯 1개 이상(중복 없음), 자산 심볼 최대 100개, 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.' });
   return { ...board, symbols: [...new Set(board.symbols)] };
 }
 

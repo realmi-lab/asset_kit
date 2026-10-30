@@ -99,8 +99,8 @@ test('inclusive KST presets handle UTC midnight boundaries, months and leap days
 
 test('date validation rejects invalid calendar dates, malformed input and reversed ranges', () => {
   for (const value of ['', '2026-2-01', '2026-02-29', '2026-02-31', '2026-04-31', '2026-13-01', '2026-00-01', '2026-01-00', '2026-01-01T00:00:00Z', null, undefined]) {
-    assert.match(dateRangeError(value, '2026-10-26'), /실제 날짜/, String(value));
-    assert.match(dateRangeError('2026-01-01', value), /실제 날짜/, String(value));
+    assert.match(dateRangeError(value, '2026-10-26'), /올바른 날짜/, String(value));
+    assert.match(dateRangeError('2026-01-01', value), /올바른 날짜/, String(value));
   }
   assert.match(dateRangeError('2026-10-27', '2026-10-26'), /종료일보다/);
   assert.equal(dateRangeError('2024-02-29', '2024-02-29'), '');
