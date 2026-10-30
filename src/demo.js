@@ -2,7 +2,7 @@ import { KitError } from './errors.js';
 
 const DAY = 86400000;
 const PRICES = [['BTC', 108400000, 0.0238, '비트코인'], ['ETH', 4180000, 0.0164, '이더리움'], ['XRP', 2610, -0.0181, '리플'], ['SOL', 238000, 0.0082, '솔라나']];
-// 보유하지 않은 합성 마켓: 시장 개요와 경보제 예시에만 쓰입니다.
+// 보유하지 않은 합성 마켓: 마켓 목록·시장 개요·차트·경보제 예시에 쓰입니다.
 const OTHERS = [['DOGE', 412, 0.0612, '도지코인'], ['ADA', 1180, -0.0247, '에이다'], ['LINK', 31800, 0.0131, '체인링크']];
 const VOLUMES = { BTC: 412e9, ETH: 198e9, XRP: 156e9, SOL: 61e9, DOGE: 88e9, ADA: 24e9, LINK: 9e9 };
 const STEPS = { '1m': 60000, '3m': 180000, '5m': 300000, '10m': 600000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, day: DAY, week: 7 * DAY, month: 30 * DAY };
@@ -52,7 +52,7 @@ export class DemoProvider {
   }
   async getCandles(market, count = 30, { interval = 'day', now = Date.now() } = {}) {
     const quote = [...PRICES, ...OTHERS].find(([symbol]) => `KRW-${symbol}` === market);
-    if (!quote) throw new KitError('NO_KRW_MARKET', '예시 데이터에 없는 원화 마켓입니다.', 404);
+    if (!quote) throw new KitError('NO_KRW_MARKET', '데모 데이터에 없는 원화 마켓입니다.', 404);
     const step = STEPS[interval] ?? DAY;
     const price = offset => quote[1] * priceFactor(quote[0], offset * step / DAY);
     const round = value => Number(value.toFixed(value >= 100 ? 0 : 2));

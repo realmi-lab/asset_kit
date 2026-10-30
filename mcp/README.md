@@ -8,11 +8,11 @@ MCP 클라이언트에서 내 빗썸 자산 도구를 자연어로 호출하고,
 
 MCP(Model Context Protocol)는 AI 클라이언트에 외부 도구를 연결하는 표준 방식입니다. Claude Desktop, Claude Code, Cursor, VS Code, Codex 같은 클라이언트에 빗썸 자산 MCP를 등록하면 잔고·평가손익·자산 비중·일별 자산 변화·주문·입출금 내역 조회와 대시보드 만들기를 자연어로 처리할 수 있습니다.
 
-클라이언트 설정 파일에 항목만 추가하면 MCP 서버가 사용자 컴퓨터에서 자동으로 실행됩니다. **외부 패키지가 없어 설치 과정이 없고**, 주문·취소·출금 도구가 없는 **조회 전용** 서버입니다.
+클라이언트 설정 파일에 항목만 추가하면 MCP 서버가 사용자 컴퓨터에서 자동으로 실행됩니다. **외부 패키지가 없어 `npm install`이 필요 없고**, 주문·취소·출금 도구가 없는 **조회 전용** 서버입니다.
 
 ## 클라이언트 등록
 
-AI 에이전트로 설정하거나 직접 설정할 수 있습니다. 이미 사용 중인 MCP 클라이언트(Claude Code, Cursor 등)가 에이전트 기능을 지원한다면 AI 에이전트로 설정이 가장 빠릅니다.
+AI 에이전트로 설정하거나 직접 설정할 수 있습니다. 이미 사용 중인 MCP 클라이언트(Claude Code, Cursor 등)가 에이전트 기능을 지원한다면 AI 에이전트로 설정하는 방법이 가장 빠릅니다.
 
 ### AI 에이전트로 설정
 
@@ -23,15 +23,15 @@ AI 에이전트로 설정하거나 직접 설정할 수 있습니다. 이미 사
 에이전트는 아래 순서로 진행합니다.
 
 1. `node -v`로 Node.js 22.13 이상인지 확인합니다.
-2. 저장소가 없으면 `git clone https://github.com/realmi-lab/asset_kit.git`으로 내려받고, 그 폴더의 절대 경로에서 `node <절대 경로>/mcp/index.js --version`이 실행되는지 확인합니다. 설치할 패키지는 없습니다.
+2. 저장소가 없으면 `git clone https://github.com/realmi-lab/asset_kit.git`으로 내려받고, 그 폴더의 절대 경로를 넣어 `node <절대 경로>/mcp/index.js --version`이 실행되는지 확인합니다. 설치할 패키지는 없습니다.
 3. 사용 중인 클라이언트의 설정 파일에 아래 [설정 파일에 직접 추가하기](#설정-파일에-직접-추가하기)의 항목을 추가합니다. 기존 항목은 그대로 둡니다.
 4. 클라이언트를 다시 시작한 뒤 `system_diagnose`를 호출해 연결을 확인합니다.
 
-키가 필요한 도구를 쓰려면 [인증 설정](#인증-설정)을 마친 뒤 [정상 동작 확인](#정상-동작-확인)으로 이동하세요. 에이전트가 처리에 실패하면 설정 파일에 직접 추가합니다.
+키가 필요한 도구를 쓰려면 [인증 설정](#인증-설정)을 마친 뒤 [정상 동작 확인](#정상-동작-확인)으로 이동하세요. 에이전트가 설정하지 못하면 아래처럼 설정 파일에 직접 추가하세요.
 
 ### 설정 파일에 직접 추가하기
 
-Node.js 22.13 이상이 필요합니다. `node -v`로 확인하고, 없다면 [nodejs.org](https://nodejs.org)에서 설치하세요. 저장소를 내려받은 뒤(`git clone https://github.com/realmi-lab/asset_kit.git`) 아래 `/absolute/path/to/asset_kit`을 그 폴더의 실제 절대 경로로 바꿉니다.
+Node.js 22.13 이상이 필요합니다. `node -v`로 확인하고, 없거나 22.13보다 낮다면 [nodejs.org](https://nodejs.org)에서 설치하세요. 저장소를 내려받은 뒤(`git clone https://github.com/realmi-lab/asset_kit.git`) 아래 `/absolute/path/to/asset_kit`을 그 폴더의 실제 절대 경로로 바꿉니다.
 
 클라이언트마다 설정 파일 위치와 형식이 다릅니다. 사용하는 클라이언트의 설정 파일에 아래 내용을 추가하세요.
 
@@ -121,9 +121,9 @@ args = ["/absolute/path/to/asset_kit/mcp/index.js"]
 
 ## 인증 설정
 
-시세 도구(`market_get_candles`, `market_get_tickers`·`market_get_warnings`의 `scope: all`)는 인증 없이 사용할 수 있습니다. 잔고·손익·주문·입출금 도구는 API Key가 필요합니다. [빗썸 API 관리](https://www.bithumb.com/react/api-support/management-api) 페이지에서 **조회 권한만** 있는 키를 발급하고 허용 IP를 설정하세요.
+시세 도구(`market_get_candles`, `market_get_tickers`·`market_get_warnings`의 `scope: all`)는 인증 없이 사용할 수 있습니다. 잔고·손익·주문·입출금 도구는 API 키가 필요합니다. [빗썸 API 관리](https://www.bithumb.com/react/api-support/management-api) 페이지에서 **조회 권한만** 있는 키를 발급하고 허용 IP를 설정하세요.
 
-이 폴더에서 아래 명령을 한 번 실행하면 됩니다. 입력한 키는 화면에 보이지 않고 이 컴퓨터의 `~/.bithumb-asset-kit/credentials.json`(본인만 읽기 가능한 0600 권한)에만 저장됩니다. 설정 파일에 키를 넣을 필요가 없습니다.
+저장소 폴더(asset_kit)에서 아래 명령을 한 번 실행하면 됩니다. 입력한 키는 화면에 보이지 않고 이 컴퓨터의 `~/.bithumb-asset-kit/credentials.json`(본인만 읽고 쓸 수 있는 0600 권한)에만 저장됩니다. 설정 파일에 키를 넣을 필요가 없습니다.
 
 ```bash
 node cli/asset-kit.js config init
@@ -160,7 +160,7 @@ export BITHUMB_SECRET_KEY="발급받은_시크릿_키"
 
 ### 인증 동작 확인
 
-API Key까지 정상 설정됐다면 아래 요청도 확인해봅니다.
+API 키까지 정상 설정됐다면 아래 요청도 확인해봅니다.
 
 - “내 자산 요약해줘”
 
@@ -168,7 +168,7 @@ API Key까지 정상 설정됐다면 아래 요청도 확인해봅니다.
 
 MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 자주 쓰는 요청 패턴입니다.
 
-**대화 속 대시보드** — 한 번 호출로 요약·비중·추이를 그립니다. MCP Apps 지원 클라이언트에서는 대화 안에 화면이 표시됩니다.
+**대화 안 대시보드** — 한 번 호출로 요약·비중·추이를 그립니다. MCP Apps 지원 클라이언트에서는 대화 안에 화면이 표시됩니다.
 
 - “내 자산 대시보드 보여줘”
 - “장기 보유 화면을 1년 추이로 보여줘”
@@ -189,7 +189,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 - “이번 달 일별 자산 변화 알려줘”
 - “BTC만 지난 7일 일별 자산 변화 보여줘”
 
-**원화 시세·시장 흐름** — 공개 시세를 조회합니다(키 불필요).
+**원화 시세·시장 흐름** — 공개 시세를 조회합니다(보유 자산 기준 조회만 키 필요).
 
 - “ETH 현재가와 30일 일봉 보여줘”
 - “BTC 1시간봉 24개를 시가·고가·저가까지 보여줘”
@@ -206,7 +206,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 - “내 잔고와 최근 주문·입출금을 종합해서 보여줘”
 
-**화면 설정** — 로컬 대시보드 화면을 만들고 엽니다. 저장과 열기는 한 번에 처리되고, 열려 있는 화면에도 바로 반영됩니다.
+**화면 설정** — 로컬 대시보드 화면을 만들고 엽니다. 저장과 열기는 한 번에 처리되고, 열려 있는 화면에도 몇 초 안에 반영됩니다.
 
 - “BTC·ETH만 묶은 대시보드 만들고 열어줘”
 - “그 화면 기간을 1년으로 바꾸고 거래·입출금도 넣어줘”
@@ -214,11 +214,11 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 ## MCP 조회를 작게 나누기 (0.4.0)
 
-기존 14개 도구 이름을 유지하며 필터, 필드 선택, 이어받기와 진행·취소를 추가했습니다. **`account_get_records`는 0.4.0부터 한 번에 전체 내역을 반환하지 않습니다.** 기본 최대 50건·거래소 5페이지를 읽고 `pagination.nextCursor`로 계속 조회합니다. HTTP 대시보드와 CLI `records`의 기존 수집 방식은 그대로입니다.
+0.4.0 당시 14개 도구의 이름을 유지하며 필터, 필드 선택, 이어받기와 진행·취소를 추가했습니다. **`account_get_records`는 0.4.0부터 한 번에 전체 내역을 반환하지 않습니다.** 기본 최대 50건·거래소 5페이지를 읽고 `pagination.nextCursor`로 계속 조회합니다. 로컬 대시보드와 CLI `records`의 기존 수집 방식은 그대로입니다.
 
 ### 필요한 자산과 필드만 조회
 
-먼저 `portfolio_get_summary`로 요약합니다. 세부 내역이 필요하면 `portfolio_get_holdings`의 `search`, `excludeCash`, `performance`(all/gain/loss/unknown), `sort`(value/profit/pnl/change/quantity/name), `direction`, `limit`, `offset`, `fields`를 사용합니다.
+먼저 `portfolio_get_summary`로 요약합니다. 세부 내역이 필요하면 `portfolio_get_holdings`의 `search`, `excludeCash`, `performance`(all/gain/loss/unknown), `sort`(value=평가금액, profit=수익률, pnl=평가손익, change=전일 대비, quantity=수량, name=이름), `direction`, `limit`, `offset`, `fields`를 사용합니다.
 
 ```json
 {
@@ -236,8 +236,8 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 - `pagination.total`은 검색·필터 결과 수, `nextOffset`은 다음 위치입니다. 오프셋은 같은 `asOf`의 결과 안에서 사용하세요. 새 시세로 순서가 바뀌면 처음부터 조회합니다.
 - 비중의 분모는 `symbols` 범위 전체입니다. 검색·손익 필터·페이지 제한으로 비중을 다시 계산하지 않습니다.
 - 요약·보유 내역·비중·시세·보고서에 `force: true`를 주면 캐시를 건너뜁니다. 이미 진행 중인 공유 조회는 합쳐질 수 있습니다.
-- `portfolio_get_history`의 `maxPoints`(2~400)는 첫·끝 기록을 보존하며 추이 응답을 줄입니다. `daily: true`에는 함께 쓰지 않습니다.
-- `portfolio_get_report`의 `sections`로 필요한 내역만 호출합니다. 예: `{"sections":["krwDeposits"]}`. 빈 배열이면 내역 API 호출을 생략합니다. `symbols`는 이 보고서의 포트폴리오에만 적용되며, 내역 섹션은 계좌 전체의 첫 30건입니다.
+- `portfolio_get_history`의 `maxPoints`(2~400)는 첫·마지막 기록을 보존하며 추이 응답을 줄입니다. `daily: true`에는 함께 쓰지 않습니다.
+- `portfolio_get_report`의 `sections`로 필요한 내역만 조회합니다. 예: `{"sections":["krwDeposits"]}`. 빈 배열이면 내역 API 호출을 생략합니다. `symbols`는 이 보고서의 포트폴리오에만 적용되며, 내역 섹션은 계좌 전체의 최근 30건입니다.
 
 ### 기간 내역 이어받기
 
@@ -255,18 +255,18 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 - 첫 조회 기본값은 `pageSize=50`(최대 200), `scanPages=5`(최대 20)입니다. 필터에 맞는 행이 없어 `rows=[]`여도 `nextCursor`가 있으면 조회가 끝난 것이 아닙니다.
 - 날짜·자산·상태·매수/매도·페이지 조건은 이어받는 동안 고정합니다. 생략하면 원래 값을 사용합니다. `fields`는 응답 표시용이므로 바꿀 수 있고 매 호출에 다시 지정합니다.
-- `coverage.complete`는 이어받기 전체가 끝났는지 뜻합니다. `rows`와 `totals`는 **이번 응답에 반환한 행만** 포함합니다. 통화별 합계를 실현손익이나 전체 기간 합계로 해석하지 마세요.
+- `coverage.complete`는 이어받기 전체가 끝났는지를 나타냅니다. `rows`와 `totals`는 **이번 응답에 반환한 행만** 포함합니다. 통화별 합계를 실현손익이나 전체 기간 합계로 해석하지 마세요.
 - 주문은 생성 시각, 입출금은 완료 시각(없으면 생성 시각)으로 기간을 판정합니다. 입출금의 완료 시각순 정렬은 보장하지 않습니다. 거래소 내역이 도중에 바뀔 수 있어 원자적 스냅샷도 아닙니다.
-- 토큰은 현재 MCP 프로세스에서만 유효하고 시작 후 10분간 유지됩니다. 최대 32개의 토큰을 보관하며 오래된 토큰은 먼저 해제합니다. 만료·재시작·해제 후에는 `CURSOR_EXPIRED`와 재조회 안내를 반환합니다.
+- cursor는 현재 MCP 프로세스에서만 유효하고 첫 조회 후 10분간 유지됩니다. 최대 32개의 cursor를 보관하며 오래된 cursor부터 해제합니다. 만료·재시작·해제 후에는 `CURSOR_EXPIRED`와 재조회 안내를 반환합니다.
 - 한 조회는 최대 1,000개의 거래소 페이지·10,000개의 일치하는 고유 내역까지 처리합니다. `QUERY_LIMIT`이면 날짜나 자산 범위를 나누세요. 제한을 전체 조회 성공으로 표시하지 않습니다.
-- 같은 첫 조회는 30초 캐시·동시 요청 병합을 사용합니다. 새 조회는 `cursor` 없이 `force:true`로 시작합니다. 성공한 cursor를 재호출하면 같은 페이지를 돌려주며, 오류·취소는 이어받기 위치를 전진시키지 않습니다.
+- 같은 첫 조회는 30초 캐시·동시 요청 병합을 사용합니다. 캐시 없이 새로 조회하려면 `cursor` 없이 `force:true`로 시작합니다. 성공한 cursor로 다시 호출하면 같은 페이지를 돌려주며, 오류·취소 때는 이어받기 위치가 바뀌지 않습니다.
 - `order_id`/`uuid`, `at`, `market`/`currency`, `state`는 `fields`를 줄여도 유지합니다. `unknownTimestampRows`가 0보다 크면 날짜를 판정하지 못한 행이 있어 조회 완료로 표시하지 않습니다.
 
 ### 진행·취소와 오류 복구
 
-클라이언트가 `tools/call`의 `_meta.progressToken`을 보내면 `notifications/progress`를 반환합니다. 수치는 단조 증가하는 진행 단계이며 전체 비율이 아닙니다. 내역을 조회할 때는 실제 읽은 페이지 수를 메시지에 표시합니다.
+클라이언트가 `tools/call`의 `_meta.progressToken`을 보내면 `notifications/progress`를 보냅니다. 수치는 단조 증가하는 진행 단계이며 전체 비율이 아닙니다. 내역을 조회할 때는 실제 읽은 페이지 수를 메시지에 표시합니다.
 
-`notifications/cancelled`의 `requestId`로 진행 중인 호출을 취소합니다. 취소된 요청의 최종 응답은 보내지 않고 이후 진행 알림도 멈춥니다. 주문·입출금 요청은 HTTP 요청/재시도까지 중단합니다. 공유 중인 자산·시세 조회는 다른 호출에 필요할 수 있어 내부 계산이 완료될 수 있습니다. 같은 첫 내역 조회를 여러 호출이 공유하는 경우 마지막 구독자가 취소해야 공급자 요청도 중단됩니다.
+`notifications/cancelled`의 `requestId`로 진행 중인 호출을 취소합니다. 취소된 요청의 최종 응답은 보내지 않고 이후 진행 알림도 멈춥니다. 주문·입출금 내역 조회는 진행 중인 HTTP 요청과 재시도까지 중단합니다. 공유 중인 자산·시세 조회는 다른 호출에 필요할 수 있어 내부 계산이 완료될 수 있습니다. 같은 첫 내역 조회를 여러 호출이 공유하는 경우 이 조회를 공유한 호출이 모두 취소되어야 거래소 요청도 중단됩니다.
 
 도구 오류는 `isError:true`이며 텍스트 JSON에 `code`, `message`, `retryable`, `recovery`가 들어갑니다. 입력 오류에는 값 대신 `path`(예: `$.limit`)를 알려줍니다. 로컬 대시보드를 띄우지 못하면 `DASHBOARD_START_FAILED`(권한 없음·주소 사용 불가 등, 운영체제 오류 코드만 표시)나 `PORT_IN_USE`를 돌려주고, `dashboard_save_board`의 `open: true`가 이렇게 실패하면 보드는 저장되지 않습니다. 모든 도구는 `outputSchema`를 공개하고 성공 응답의 `structuredContent`와 텍스트 JSON에 같은 데이터를 반환합니다.
 
@@ -298,7 +298,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 
 - `summary`의 `dayChangeKrw`·`dayChangePct`는 오늘 시세 변동입니다. 지금 수량을 전일 종가로 평가한 값과의 차이이며, 오늘의 입출금·매매는 반영하지 않습니다. 등락률을 모르는 자산이 있으면 `dayChangeComplete`가 `false`입니다.
 - `holdings`는 평가금액 상위 `top`개(기본 5), 나머지는 `others` 한 조각입니다. 상위 자산과 `others`의 금액 합은 `summary.totalValueKrw`와 정확히 같습니다.
-- `trend`는 같은 위치끼리 짝인 열 배열입니다. 기간 안의 모든 기록에서 가격 미확인 시점을 먼저 빼고(`omitted`에 개수) 기본 60점으로 줄이므로, 첫·마지막 기록과 `changeKrw`가 정확합니다. 나머지가 모두 가격 미확인이면 `others`의 금액·비중은 `null`입니다.
+- `trend`는 같은 인덱스끼리 짝을 이루는 열 배열입니다. 기간 안의 모든 기록에서 가격 미확인 시점을 먼저 빼고(`omitted`에 개수) 기본 60개 지점으로 줄이므로, 첫·마지막 기록과 `changeKrw`가 정확합니다. 나머지가 모두 가격 미확인이면 `others`의 금액·비중은 `null`입니다.
 - `daily: true`이면 일별 자산 변화(`day`·`changeKrw`·`changePct`·`gapDays` 열 배열)를 함께 반환합니다.
 
 데모 계좌 기준 응답 크기(UTF-8)는 다음과 같습니다. 실제 계좌의 30일 추이는 5분 기록이 쌓여 최대 400점(약 35KB)까지 커지므로 차이가 더 큽니다.
@@ -336,7 +336,7 @@ MCP 도구는 자연어로 자유롭게 호출할 수 있습니다. 다음은 �
 { "id": "34eb9587-…", "revision": 1, "name": "BTC·ETH 장기 보유", "symbols": ["BTC", "ETH"], "widgets": ["summary", "trend", "allocation", "holdings"], "days": 90, "refreshSeconds": 60, "url": "http://127.0.0.1:4319/?board=34eb9587-…" }
 ```
 
-AI가 알려준 주소를 브라우저로 열면 저장한 보드 탭이 선택된 상태로 나타납니다. 기본 ‘내 자산’(원화 포함 전체) 화면은 항상 함께 있습니다. 이미 떠 있는 화면만 다시 열 때는 `dashboard_open`을 쓰고, `boardId`를 주면 그 보드가 선택된 주소를 받습니다.
+AI가 알려준 주소를 브라우저로 열면 저장한 보드 탭이 선택된 상태로 나타납니다. 기본 ‘내 자산’(원화 포함 전체) 화면도 처음부터 함께 만들어집니다. 이미 떠 있는 화면만 다시 열 때는 `dashboard_open`을 쓰고, `boardId`를 주면 그 보드가 선택된 주소를 받습니다.
 
 **3. 고치기** — `dashboard_list_boards`로 `id`와 `revision`을 확인한 뒤 바꿀 값만 보냅니다. 보내지 않은 값은 그대로 유지됩니다. 브라우저에 이미 열려 있는 대시보드는 몇 초 안에(다른 탭에서 돌아오면 바로) 바뀐 보드를 반영합니다.
 
@@ -350,11 +350,11 @@ AI가 알려준 주소를 브라우저로 열면 저장한 보드 탭이 선택�
 | --- | --- | --- |
 | `name` | 화면 이름(1~48자) | 필수 |
 | `symbols` | 표시할 자산. 빈 배열이면 원화 포함 전체 | `[]` |
-| `widgets` | `summary`(자산 요약), `trend`(자산 추이·일별 자산 변화), `insights`(오늘의 인사이트), `allocation`(자산 비중), `heatmap`(자산 히트맵), `performance`(자산별 손익), `holdings`(보유 내역·자산별 30일 시세), `market`(시장 개요), `warnings`(시장 경보), `activity`(거래·입출금). 배열 순서가 화면 순서 | `summary`·`trend`·`insights`·`allocation`·`holdings`·`activity` |
+| `widgets` | `summary`(자산 요약), `trend`(자산 추이·일별 자산 변화), `insights`(오늘의 인사이트), `allocation`(자산 비중), `heatmap`(자산 히트맵), `performance`(자산별 손익), `holdings`(보유 자산·자산별 30일 시세), `market`(시장 개요), `warnings`(시장 경보), `activity`(거래·입출금). 배열 순서가 화면 순서 | `summary`·`trend`·`insights`·`allocation`·`holdings`·`activity` |
 | `days` | 추이 기간 7, 30, 90, 365 | 30 |
 | `refreshSeconds` | 자동 갱신 0(수동), 30, 60, 300 | 60 |
 
-화면 구성 자체를 새로 만들려면 `dashboard_get_template`에 `manifest:true`로 목록을 확인한 뒤 `paths`로 필요한 HTML·CSS·JS를 받아 고칩니다. `node cli/asset-kit.js dashboard --web-dir <폴더>`로 띄웁니다.
+화면 구성 자체를 새로 만들려면 `dashboard_get_template`을 `manifest:true`로 호출해 목록을 확인한 뒤 `paths`로 필요한 HTML·CSS·JS를 받아 고칩니다. `node cli/asset-kit.js dashboard --web-dir <폴더>`로 띄웁니다.
 
 ## 기능 모듈
 
@@ -372,7 +372,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 | `portfolio_get_history` | 기록된 평가금액 추이(최대 400개 지점). `daily: true`이면 일별 자산 변화 |
 | `portfolio_get_report` | 잔고 + 대기·최근 주문, 원화·코인 입출금 첫 페이지 종합 |
 
-### Market: 인증 불필요
+### Market: 대부분 인증 불필요
 
 공개 시세 데이터를 조회합니다.
 
@@ -419,14 +419,14 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 ```json
 {
   "command": "node",
-  "args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "portfolio,market", "--read-only"]
+  "args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "portfolio,market,dashboard", "--read-only"]
 }
 ```
 
 | 옵션 | 설명 | 기본값 |
 | --- | --- | --- |
 | `--modules <list>` | 사용할 모듈 목록(`portfolio`, `market`, `account`, `dashboard` 쉼표 구분 또는 `all`). `system`은 항상 포함 | `all` |
-| `--read-only` | 화면 설정 저장·화면 띄우기 도구도 끄는 완전 조회 모드 | `false` |
+| `--read-only` | 화면 설정 저장·화면 띄우기 도구도 끄는 완전 조회 전용 모드 | `false` |
 | `--demo` | 합성 데이터 사용(키 불필요) | `false` |
 | `--env-file <path>` | 키를 `.env` 파일에서 읽기 | — |
 | `--verbose` | 도구 호출 기록을 stderr에 출력 | `false` |
@@ -441,10 +441,16 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 "args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "market"]
 ```
 
-자산과 내역 조회만 활성화하고 화면 저장도 차단:
+자산과 내역 조회만 활성화:
 
 ```json
-"args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "portfolio,account", "--read-only"]
+"args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "portfolio,account"]
+```
+
+대화 안 대시보드는 쓰되 화면 저장·띄우기는 차단:
+
+```json
+"args": ["/absolute/path/to/asset_kit/mcp/index.js", "--modules", "portfolio,dashboard", "--read-only"]
 ```
 
 합성 데이터로 전체 기능 체험:
@@ -457,7 +463,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 ### 상세 로깅
 
-`args`에 `--verbose`를 추가하면 도구 이름, 결과 코드, 소요 시간, 입력값이 stderr로 표시됩니다. 키는 기록되지 않습니다.
+`args`에 `--verbose`를 추가하면 도구 이름, 결과 코드, 소요 시간, 입력 항목 이름(값 제외)이 stderr로 표시됩니다. 키는 기록되지 않습니다.
 
 ### 도구가 클라이언트에 보이지 않을 때
 
@@ -469,7 +475,7 @@ MCP 서버는 다음 기능 모듈로 도구를 제공합니다. 활성화된 �
 
 ### 대시보드 주소가 열리지 않을 때
 
-`dashboard_open`으로 띄운 화면은 MCP 서버가 실행 중일 때만 열립니다. 클라이언트를 닫으면 함께 종료됩니다. 계속 띄워 두려면 이 폴더에서 `npm start`(실제 계좌) 또는 `npm run demo`를 실행합니다.
+`dashboard_open`으로 띄운 화면은 MCP 서버가 실행 중일 때만 열립니다. 클라이언트를 닫으면 함께 종료됩니다. 계속 띄워 두려면 저장소 폴더에서 `npm start`(실제 계좌) 또는 `npm run demo`를 실행합니다.
 
 ### 추이나 일별 자산 변화가 비어 있을 때
 
@@ -492,10 +498,10 @@ npm install --prefix /tmp/asset-kit-sdk-check --no-save --ignore-scripts @modelc
 MCP_SDK_ROOT=/tmp/asset-kit-sdk-check/node_modules/@modelcontextprotocol/sdk npm run verify:mcp-sdk
 ```
 
-검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 17개 도구의 출력 스키마, MCP Apps 화면 리소스, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 공급자 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
+검증 스크립트: [`scripts/verify-mcp-sdk.mjs`](../scripts/verify-mcp-sdk.mjs). 실제 stdio 프로세스 연결, 17개 도구의 출력 스키마, MCP Apps 화면 리소스, 필드 선택·강제 갱신, 진행 알림, 이어받기 재호출, SDK의 AbortSignal을 통한 거래소 요청 취소와 취소 후 ping을 확인합니다. 실제 계좌 키 연동 검증과는 별개입니다.
 
 ## 더 알아보기
 
-- [CLI](../cli/asset-kit.js) — 터미널에서 `node cli/asset-kit.js --help`로 같은 기능을 실행합니다.
+- [CLI](../cli/asset-kit.js) — 터미널에서 같은 기능을 실행합니다. 명령 목록은 `node cli/asset-kit.js --help`로 확인합니다.
 - [Skills](../skills/bithumb-asset-dashboard/SKILL.md) — AI 에이전트가 조회부터 대시보드 만들기까지 순서대로 처리하도록 안내합니다.
-- [시작하기](../README.md) — 전체 구성과 대시보드 사용법을 안내합니다.
+- [프로젝트 홈](../README.md) — 전체 구성과 대시보드 사용법을 안내합니다.

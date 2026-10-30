@@ -9,7 +9,7 @@ window.AssetKitFixture = (() => {
   const WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'heatmap', 'performance', 'holdings', 'market', 'warnings', 'activity'];
   const DEFAULT_WIDGETS = ['summary', 'trend', 'insights', 'allocation', 'holdings', 'activity'];
   const MAX_BOARDS = 50;
-  const invalidBoard = () => Object.assign(new Error('대시보드 설정을 확인하세요. 이름 1~48자, 위젯 1개 이상(중복 없음), 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.'), { status: 400, code: 'INVALID_BOARD' });
+  const invalidBoard = () => Object.assign(new Error('대시보드 설정을 확인하세요. 이름 1~48자, 지원하는 위젯 1개 이상(중복 없음), 자산 심볼 최대 100개, 기간 7/30/90/365일, 갱신 0/30/60/300초입니다.'), { status: 400, code: 'INVALID_BOARD' });
 
   // 실시간 흉내용: 한 자산을 새 현재가로 다시 평가합니다. 샘플 표시용 단순 계산입니다.
   function reprice(h, tick) {
@@ -71,7 +71,7 @@ window.AssetKitFixture = (() => {
   // 차트 캔들: 빌드 때 줄여 담은 배열을 서버 응답 모양으로 되돌립니다. interval이 없으면 기존처럼 days일 일봉입니다.
   function market(params) {
     const symbol = params.get('symbol'), interval = params.get('interval') ?? 'day', packed = DATA.candles[symbol]?.[interval];
-    if (!packed) return fail(DATA.candles[symbol] ? '샘플 페이지에는 보유 코인만 분·주 단위 캔들이 있습니다. 일봉으로 보세요.' : '샘플 데이터에 없는 원화 마켓입니다.', 404, 'NO_KRW_MARKET');
+    if (!packed) return fail(DATA.candles[symbol] ? '샘플 페이지에는 보유 코인만 15분·1시간·4시간·주 캔들이 있습니다. 일봉으로 보세요.' : '샘플 데이터에 없는 원화 마켓입니다.', 404, 'NO_KRW_MARKET');
     const count = Math.min(Math.max(Math.trunc(Number(params.get(params.has('interval') ? 'count' : 'days'))) || (params.has('interval') ? 120 : 30), 1), 200);
     const { rows, ...rest } = packed;
     return { ...clone(rest), candles: rows.slice(-count).map(([minute, open, high, low, close, volume]) => {
@@ -159,7 +159,7 @@ window.AssetKitFixture = (() => {
     }
     const index = boards.findIndex(item => item.id === id);
     if (index < 0) return fail('대시보드를 찾을 수 없습니다.', 404, 'BOARD_NOT_FOUND');
-    if (boards[index].revision !== body?.revision) return fail('다른 창에서 설정이 바뀌었습니다. 다시 불러온 뒤 저장하세요.', 409, 'CONFLICT');
+    if (boards[index].revision !== body?.revision) return fail(`다른 창에서 설정이 바뀌었습니다. 다시 불러온 뒤 ${method === 'DELETE' ? '삭제' : '저장'}하세요.`, 409, 'CONFLICT');
     if (method === 'PUT') {
       const board = saveBoard(body, { ...boards[index], revision: boards[index].revision + 1 });
       boards[index] = board;

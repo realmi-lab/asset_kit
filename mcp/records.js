@@ -56,7 +56,7 @@ export class RecordReader {
     let entry, key;
     if (args.cursor) {
       entry = this.#tokens.get(args.cursor);
-      if (!entry || entry.expiresAt <= now) throw error('CURSOR_EXPIRED', '이어받기 값이 만료되었거나 이 MCP 연결에서 만든 값이 아닙니다. cursor를 빼고 다시 조회하세요.');
+      if (!entry || entry.expiresAt <= now) throw error('CURSOR_EXPIRED', 'cursor가 만료되었거나 이 MCP 연결에서 만든 값이 아닙니다. cursor를 빼고 다시 조회하세요.');
       if (args.force) throw error('CURSOR_QUERY_MISMATCH', '이어받기에는 force를 사용할 수 없습니다. 새 조회는 cursor를 빼고 force=true로 시작하세요.');
       // Absent properties inherit the original query. Present filters must match it exactly.
       for (const name of ['kind', 'from', 'to', 'side', 'pageSize', 'scanPages']) {
@@ -67,7 +67,7 @@ export class RecordReader {
         if (args[name] !== undefined && JSON.stringify([...values].sort()) !== JSON.stringify(entry.state.query[name])) throw error('CURSOR_QUERY_MISMATCH', '이어받는 동안 자산·상태 필터를 바꿀 수 없습니다.');
       }
       if (entry.result) return structuredClone(entry.result);
-      if (entry.busy) throw error('CURSOR_BUSY', '같은 이어받기 값을 이미 조회 중입니다. 현재 호출이 끝난 뒤 같은 cursor로 다시 시도하세요.');
+      if (entry.busy) throw error('CURSOR_BUSY', '같은 cursor를 이미 조회 중입니다.');
     } else {
       const kind = args.kind;
       if (!Object.hasOwn(RECORD_KINDS, kind)) throw error('INVALID_KIND', '조회할 내역 종류를 지정하세요.');
@@ -142,13 +142,13 @@ export class RecordReader {
         rows, totals: recordTotals(rows, order),
         pagination: { nextCursor, pageSize: query.pageSize, returned: rows.length, expiresAt: nextCursor ? new Date(entry.expiresAt).toISOString() : null },
         coverage: { complete: !more && state.unknownTimes === 0, pages, scannedPages: state.pages, scanPages: query.scanPages, unknownTimestampRows: state.unknownTimes, snapshot: false, totalsScope: 'returned_rows', scope: 'cursor_chain',
-          note: 'complete는 이어받기 전체의 종료 상태이며 rows·합계는 이번 응답만 포함합니다. nextCursor가 있으면 빈 rows도 계속 조회하세요. 거래소 페이지는 조회 중 바뀔 수 있어 원자적 스냅샷이 아닙니다.' },
-        notice: order ? '주문 생성 시각 기준이며 실현손익이 아닙니다.' : '완료 시각(없으면 생성 시각) 기준입니다. 완료 시각순 정렬은 보장하지 않습니다.' };
+          note: 'complete는 이어받기 전체의 종료 상태이며 rows·합계는 이번 응답만 포함합니다. rows가 비어 있어도 nextCursor가 있으면 계속 조회하세요. 거래소 내역이 조회 중 바뀔 수 있어 결과는 원자적 스냅샷이 아닙니다.' },
+        notice: order ? '주문 생성 시각 기준입니다. totals는 실현손익이 아닙니다.' : '완료 시각(없으면 생성 시각) 기준입니다. 완료 시각순 정렬은 보장하지 않습니다.' };
       if (nextCursor) {
         // Never evict an active read. A later attempt with an evicted token gets an explicit restart error.
         if (this.#tokens.size >= 32) {
           const oldest = [...this.#tokens].find(([token, value]) => !value.busy && token !== args.cursor);
-          if (!oldest) throw error('CURSOR_BUSY', '이어받기 저장 공간이 사용 중입니다. 진행 중인 조회가 끝난 뒤 다시 시도하세요.');
+          if (!oldest) throw error('CURSOR_BUSY', '보관 중인 cursor 32개가 모두 진행 중인 조회에 쓰이고 있습니다. 진행 중인 조회가 끝난 뒤 다시 시도하세요.');
           this.#tokens.delete(oldest[0]);
         }
         this.#tokens.set(nextCursor, { state, expiresAt: entry.expiresAt });

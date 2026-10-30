@@ -172,7 +172,7 @@ test('save_board with open:true saves nothing when the dashboard cannot start, s
   assert.match(error.message, /로컬 포트를 열 권한이 없습니다\(EACCES\).*보드는 저장하지 않았습니다\.$/);
   assert.doesNotMatch(result.content[0].text, /private\/path|처리하지 못했습니다/);
   assert.equal(error.retryable, false);
-  assert.match(error.recovery, /asset-kit dashboard/);
+  assert.match(error.recovery, /npm start/);
   assert.equal((await service.boards.list()).some(board => board.name === '실패 후 재시도'), false);
 });
 

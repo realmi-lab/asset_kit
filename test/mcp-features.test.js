@@ -300,7 +300,7 @@ test('stdio progress uses request tokens and cancellation stops a read without r
   await tick();
   assert.equal(requestSignal.aborted, true);
   assert.equal(messages.some(message => message.id === 2), false);
-  assert.deepEqual(messages.filter(message => message.method === 'notifications/progress').map(message => message.params), [{ progressToken: 0, progress: 0, message: '조회 시작' }]);
+  assert.deepEqual(messages.filter(message => message.method === 'notifications/progress').map(message => message.params), [{ progressToken: 0, progress: 0, message: '요청 시작' }]);
   const completed = await rpc(4, 'tools/call', { name: 'portfolio_get_summary', arguments: {}, _meta: { progressToken: 'summary' } });
   assert.equal(completed.result.structuredContent.totalValueKrw, '28074000');
   assert.deepEqual(messages.filter(message => message.params?.progressToken === 'summary').map(message => message.params.progress), [0, 1]);

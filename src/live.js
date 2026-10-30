@@ -29,7 +29,7 @@ export class LiveFeed {
   status = 'off';
   /**
    * @param {object} options
-   * @param {() => Promise<object[]>} [options.poll] REST fallback: tickers for the given markets.
+   * @param {(markets: string[]) => Promise<object[]>} [options.poll] REST fallback: tickers for the given markets.
    * @param {boolean} [options.demo] synthetic ticks around the demo prices instead of a connection.
    */
   constructor({ url = LIVE_URL, WebSocketImpl = globalThis.WebSocket, poll, demo = false } = {}) {

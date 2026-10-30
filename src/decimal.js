@@ -28,7 +28,7 @@ export class Dec {
   plus(other) { const [a, b, scale] = this.#align(other); return new Dec(a + b, scale); }
   minus(other) { const [a, b, scale] = this.#align(other); return new Dec(a - b, scale); }
   times(other) { const b = Dec.from(other); return new Dec(this.units * b.units, this.scale + b.scale); }
-  /** this ÷ other, `places` 자리에서 반올림. */
+  /** this ÷ other, 소수 `places`자리까지 반올림. */
   div(other, places) {
     const b = Dec.from(other);
     if (b.units === 0n) throw new RangeError('0으로 나눌 수 없습니다.');

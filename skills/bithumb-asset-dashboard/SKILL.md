@@ -1,11 +1,11 @@
 ---
 name: bithumb-asset-dashboard
-description: Explain a user's Bithumb balances, valuation, allocation, daily asset changes, and read-only order or transfer history, and build or open their personal asset dashboard, using the Bithumb Asset Kit MCP server (bithumb-asset-kit) or its CLI. Does not execute trades, cancellations, or transfers.
+description: Explain a user's Bithumb balances, valuation, allocation, daily asset changes, read-only order or transfer history, and public Bithumb prices and warnings; build or open their personal asset dashboard, using the Bithumb Asset Kit MCP server (bithumb-asset-kit) or its CLI. Does not execute trades, cancellations, or transfers.
 ---
 
 # Bithumb asset dashboard
 
-Use the `bithumb-asset-kit` MCP server's tools. It is separate from the official Bithumb Trade Kit, which can trade; this kit only reads account data and stores local dashboard layouts.
+Use the tools of the Asset Kit MCP server (serverInfo name `bithumb-asset-kit`; the README registers it as `bithumb-assets`). It is separate from the official Bithumb AI Trade Kit, which can trade; this kit only reads account data and stores local dashboard layouts.
 
 ## 1. Establish the data source
 
@@ -21,12 +21,12 @@ Use the `bithumb-asset-kit` MCP server's tools. It is separate from the official
 | Total value, unrealized P&L, top assets | `portfolio_get_summary` (`symbols` narrows the scope) |
 | Per-asset quantity, cost, price, value | `portfolio_get_holdings` (search/filter/sort, `fields`, `limit`, `offset`) |
 | Allocation | `portfolio_get_allocation` |
-| Value trend / daily asset changes calendar | `portfolio_get_history` (`days` 1–365, `daily: true`) |
+| Value trend / daily asset-change calendar | `portfolio_get_history` (`days` 1–365, `daily: true`) |
 | Price chart of a coin | `market_get_candles` (`interval` 1m…4h/day/week/month, `ohlc: true` for candlesticks, `to` for older ranges) |
-| Top movers, traded value, market vs my coins | `market_get_tickers` (`scope: all` needs no key; `held` marks my assets) |
+| Top movers, traded value, market vs my coins | `market_get_tickers` (`scope: all` needs no key; `held` marks the user's assets) |
 | Exchange alerts or caution-designated coins | `market_get_warnings` (`scope: holdings` by default) |
 | Orders or deposits/withdrawals over a period | `account_get_records` (`kind`, `from`, `to` as YYYY-MM-DD, KST, ≤366 days) |
-| One page with cursors | `account_get_orders`, `account_get_transfers` |
+| One raw page (orders by `nextKey`, transfers by `page`) | `account_get_orders`, `account_get_transfers` |
 | Selected report sections | `portfolio_get_report` (`sections`; empty array skips account history calls) |
 
 Preserve meaning:
@@ -36,22 +36,22 @@ Preserve meaning:
 - Unrealized P&L uses the API average cost of current holdings; it excludes fees and realized P&L.
 - History and daily asset changes are recorded portfolio values and include deposits/withdrawals. Never call them investment returns or back-fill history from today's holdings.
 - `summary.dayChangeKrw`/`dayChangePct` is today's price-driven move at current quantities versus the previous close. It ignores today's deposits and trades; say so when quoting it.
-- Start with the summary. Select only needed `symbols`, `fields`, and `limit`; use `force:true` when the user asks for fresh data. Identity, warnings and quality flags survive field selection.
-- `account_get_records` returns at most 50 rows/5 upstream pages by default. Continue using the same `kind` and `pagination.nextCursor` as `cursor`, even after empty rows. Keep the original filters; repeat `fields` if needed. Stop when nextCursor is null, and still report incomplete coverage if unknown timestamps were excluded.
-- Record `totals` cover only the returned rows. `coverage.complete` is the exhaustion state of the entire continuation chain, not a claim that the final response contains every row. A retried cursor replays the same page: do not double-count it.
-- Cursors are process-local, last 10 minutes and may be evicted. On `CURSOR_EXPIRED`, restart the period without a cursor; do not append the restarted run to old totals. Split the period on `QUERY_LIMIT`. Changing account pages are not an atomic snapshot.
-- To draw anything (an inline chart, an artifact, a dashboard answer) call `dashboard_snapshot` once instead of summary + allocation + history. `trend.at[i]` pairs with `trend.valueKrw[i]`; `holdings` plus `others` add up exactly to `summary.totalValueKrw`; `trend.omitted` counts unpriced points left out. In MCP Apps clients the result is already drawn in the conversation, so do not redraw it; summarize the numbers instead.
-- For output reduction use `portfolio_get_history.maxPoints` on trends, report `sections`, and template `manifest:true` followed by specific `paths`. Report symbols narrow the portfolio only, not the account-history sections.
-- Use `retryable` and `recovery` in tool errors. Invalid input includes a `path` without echoing its value. MCP progress and cancellation are client protocol features, not extra tools.
+- Start with the summary. Select only needed `symbols`, `fields`, and `limit`; use `force: true` when the user asks for fresh data. Identity, warnings, and quality flags survive field selection.
+- `account_get_records` returns at most 50 rows/5 upstream pages by default. Continue by passing the same `kind`, with `pagination.nextCursor` as `cursor`, even after empty rows. Keep the original filters; repeat `fields` if needed. Stop when `nextCursor` is null, and still report incomplete coverage if unknown timestamps were excluded.
+- In `account_get_records`, `totals` cover only the returned rows. `coverage.complete` is the exhaustion state of the entire continuation chain, not a claim that the final response contains every row. A retried cursor replays the same page: do not double-count it.
+- Cursors are process-local, last 10 minutes from the first query, and may be evicted. On `CURSOR_EXPIRED`, restart the period without a cursor; do not append the restarted run to old totals. Split the period on `QUERY_LIMIT`. Account history can change between pages, so the pages are not an atomic snapshot.
+- To draw anything (an inline chart, an artifact, a dashboard answer), call `dashboard_snapshot` once instead of summary + allocation + history. `trend.at[i]` pairs with `trend.valueKrw[i]`; `holdings` plus `others` add up exactly to `summary.totalValueKrw`; `trend.omitted` counts unpriced points left out. In MCP Apps clients the result is already drawn in the conversation, so do not redraw it; summarize the numbers instead.
+- To reduce output, use `portfolio_get_history.maxPoints` on trends, report `sections`, and template `manifest: true` followed by specific `paths`. In `portfolio_get_report`, `symbols` narrows the portfolio only, not the account-history sections.
+- Use `retryable` and `recovery` in tool errors. Invalid-input errors include a `path` but do not echo the value. MCP progress and cancellation are client protocol features, not extra tools.
 
 ## 3. Build the user's dashboard
 
 1. `dashboard_list_boards` → see existing layouts.
-2. `dashboard_save_board` with `open: true` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values), start the local dashboard and get `url` (127.0.0.1, `?board=<id>` selects the new board) in one call. Widgets: `summary`, `trend`, `insights`, `allocation`, `heatmap`, `performance`, `holdings`, `market`, `warnings`, `activity` (array order = screen order; `market`/`warnings` show public Bithumb prices, not the user's valuation). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
+2. `dashboard_save_board` with `open: true` → create (no `id`) or update (`id` + `revision`; omitted fields keep their values), start the local dashboard and get `url` (127.0.0.1, `?board=<id>` selects that board) in one call. Widgets: `summary`, `trend`, `insights`, `allocation`, `heatmap`, `performance`, `holdings`, `market`, `warnings`, `activity` (array order = screen order; `market`/`warnings` show public Bithumb market data, not the user's valuation). `symbols` empty = whole account. `days` 7/30/90/365, `refreshSeconds` 0/30/60/300.
 3. Give the `url` to the user. Use `dashboard_open` (optionally with `boardId`) only to reopen. A dashboard already open in the browser picks up saved boards within seconds; do not ask the user to reload.
 4. To preview the board in the conversation, call `dashboard_snapshot` with its `boardId`.
-5. For a completely custom screen, call `dashboard_get_template` with `manifest:true`, then request needed `paths`. Save edited files to a folder and run `asset-kit dashboard --web-dir <folder>`. Do not fetch source files for ordinary asset questions.
+5. For a completely custom screen, call `dashboard_get_template` with `manifest: true`, then request needed `paths`. Save edited files to a folder and run `asset-kit dashboard --web-dir <folder>` (or `node <kit>/cli/asset-kit.js dashboard --web-dir <folder>`). Do not fetch source files for ordinary asset questions.
 
-Without MCP, the CLI equivalents are `asset-kit portfolio|explain|history|market|records|report|boards|dashboard`; data commands print JSON.
+Without MCP, the CLI equivalents are `asset-kit portfolio|explain|history|market|tickers|warnings|records|orders|transfers|report|boards|dashboard`; data commands print JSON.
 
-The dashboard is a single-user loopback app. Do not publish account snapshots as a website; a shared deployment needs separate authentication and data isolation. State whether live account access was actually verified.
+The dashboard is a single-user loopback app. Do not publish account snapshots as a website; a shared deployment needs separate authentication and data isolation. In your answer, state whether live account access was actually verified (for example, `system_diagnose` `accountApi.ok`).

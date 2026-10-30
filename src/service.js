@@ -11,6 +11,7 @@ import { computeReturns, kstDate, returnsWindow } from './returns.js';
 import { dataDir } from './config.js';
 
 const DAY = 86400000, WEEK = 7 * DAY;
+const CANDLE_NAMES = { '1m': '1분봉', '3m': '3분봉', '5m': '5분봉', '10m': '10분봉', '15m': '15분봉', '30m': '30분봉', '1h': '1시간봉', '4h': '4시간봉', day: '일봉', week: '주봉', month: '월봉' };
 const SYMBOL = /^[A-Z0-9][A-Z0-9_]{0,29}$/;
 const iso = value => { const time = Date.parse(value); return Number.isNaN(time) ? null : new Date(time).toISOString(); };
 const decimalOrNull = value => value === undefined || value === null ? null : dec(value).toFixed();
@@ -22,7 +23,7 @@ const WARNING_STEPS = { CAUTION: '주의', WARNING: '경고', DANGER: '위험' }
 export function parseSymbols(input = []) {
   const list = Array.isArray(input) ? input : String(input).split(',');
   const symbols = [...new Set(list.map(value => String(value).trim().toUpperCase()).filter(Boolean))];
-  if (symbols.length > 100 || symbols.some(value => !SYMBOL.test(value))) throw new KitError('INVALID_SYMBOLS', '자산 심볼은 BTC,ETH처럼 쉼표로 구분합니다.', 400);
+  if (symbols.length > 100 || symbols.some(value => !SYMBOL.test(value))) throw new KitError('INVALID_SYMBOLS', '자산 심볼을 확인하세요. BTC,ETH처럼 영문·숫자 심볼을 쉼표로 구분해 최대 100개까지 지정할 수 있습니다.', 400);
   return symbols;
 }
 
@@ -207,11 +208,11 @@ export class PortfolioService {
       // date는 한국 시간 날짜, at은 캔들 시작 시각(한국 시간)입니다.
       candles: candles.map(c => ({ date: (c.candle_date_time_kst ?? c.candle_date_time_utc).slice(0, 10), at: c.candle_date_time_kst ? `${c.candle_date_time_kst}+09:00` : `${c.candle_date_time_utc}Z`,
         openKrw: decimalOrNull(c.opening_price), highKrw: decimalOrNull(c.high_price), lowKrw: decimalOrNull(c.low_price), closeKrw: dec(c.trade_price).toFixed(), volume: decimalOrNull(c.candle_acc_trade_volume) })),
-      note: `빗썸 원화 마켓 ${interval === 'day' ? '일봉' : `${interval} 캔들`}입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다.`,
+      note: `빗썸 원화 마켓 ${CANDLE_NAMES[interval] ?? `${interval} 캔들`}입니다. 시세이며 내 자산의 과거 평가금액이 아닙니다.`,
     };
     return data;
   }
-  // Shares one in-flight public read and keeps its result for `ms`.
+  // Shares one in-flight read and keeps its result for `ms`.
   #share(key, ms, load, force = false) {
     const entry = this.#shared.get(key);
     if (entry?.pending) return entry.pending;
@@ -234,7 +235,7 @@ export class PortfolioService {
   /** Prices, 24h change and traded value for held assets or every KRW market. Public data; works without keys for scope=all. */
   async marketOverview({ scope = 'holdings', symbols = [], sort = 'value24h', direction = 'desc', limit = 20, force = false } = {}) {
     const wanted = parseSymbols(symbols), held = await this.#heldSymbols(force, scope === 'all');
-    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 시세는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
+    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 시세는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이도 조회할 수 있습니다.', 503);
     const markets = (await this.provider.getMarkets()).filter(m => m.market.startsWith('KRW-'));
     const listed = markets.filter(m => {
       const symbol = m.market.slice(4);
@@ -259,7 +260,7 @@ export class PortfolioService {
   /** 경보제(가격 급등락 등)와 거래 유의 종목. scope=holdings는 보유 자산만, all은 빗썸 전체. */
   async getWarnings({ scope = 'holdings', force = false } = {}) {
     const held = await this.#heldSymbols(force, scope === 'all');
-    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 경보는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이 됩니다.', 503);
+    if (scope === 'holdings' && !held) throw new KitError('NOT_CONFIGURED', '보유 자산 경보는 계좌 연결 후 볼 수 있습니다. scope=all은 키 없이도 조회할 수 있습니다.', 503);
     const [alerts, markets] = await Promise.all([this.#share('warnings', 60000, () => this.provider.getWarnings(), force), this.provider.getMarkets()]);
     const names = new Map(markets.map(m => [m.market, m.korean_name]));
     const kst = value => { const time = Date.parse(`${String(value).replace(' ', 'T')}+09:00`); return Number.isFinite(time) ? new Date(time).toISOString() : null; };
@@ -282,7 +283,7 @@ export class PortfolioService {
     const options = normalizeOrders(input);
     const result = await this.provider.getOrders(options, context);
     return { mode: this.provider.mode, asOf: new Date().toISOString(), query: options, ...result,
-      coverage: { scope: options.kind==='history'?'지정한 최대 7일 기간의 주문 한 페이지':'대기 주문 한 페이지', completePageSet: !result.has_next, allTime: false },
+      coverage: { scope: options.kind==='history'?'최대 7일 기간의 종료 주문 한 페이지':'대기 주문 한 페이지', completePageSet: !result.has_next, allTime: false },
     };
   }
   async getTransfers(input = {}, context) {
@@ -328,7 +329,7 @@ export class PortfolioService {
         if (!result) return;
         for (const row of result.data) rows.set(row.order_id, row);
         if (!result.has_next) return;
-        if (!result.next_key || seen.has(result.next_key)) throw new KitError('INVALID_CURSOR', '주문 페이지를 안전하게 이어갈 수 없습니다.', 502);
+        if (!result.next_key || seen.has(result.next_key)) throw new KitError('INVALID_CURSOR', '빗썸이 다음 페이지 키를 주지 않거나 같은 키를 반복해 주문 내역을 끝까지 읽지 못했습니다. 잠시 후 다시 시도하세요.', 502);
         seen.add(result.next_key);
         nextKey = result.next_key;
       }
@@ -367,7 +368,7 @@ export class PortfolioService {
       period: period && { from: period.from, to: period.to }, rows: list, totals,
       coverage: {
         complete, pages, maxPages,
-        note: kind === 'pending' ? '현재 대기 주문 전체입니다.' : kind === 'orders' ? '주문 생성 시각 기준 기간입니다. 체결 기준 투자 성과가 아닙니다.' : '완료 시각(없으면 생성 시각) 기준 기간입니다.',
+        note: kind === 'pending' ? '현재 대기 주문 전체입니다.' : kind === 'orders' ? '기간은 주문 생성 시각 기준입니다(체결 시각 기준 아님). 투자 성과가 아닙니다.' : '완료 시각(없으면 생성 시각) 기준 기간입니다.',
       },
       notice: '통화별 합계는 내역의 단순 합계입니다. 실현손익이나 확정 현금흐름이 아닙니다.',
     };
@@ -385,14 +386,14 @@ export class PortfolioService {
       cryptoWithdrawals: () => this.getTransfers({direction:'withdraw',assetType:'crypto',limit:30}, context),
     };
     const names = selected ?? Object.keys(queries);
-    if (!Array.isArray(names) || names.some(name => !Object.hasOwn(queries, name))) throw new KitError('INVALID_QUERY', '보고서 섹션 이름을 확인하세요.', 400);
+    if (!Array.isArray(names) || names.some(name => !Object.hasOwn(queries, name))) throw new KitError('INVALID_QUERY', `보고서 섹션은 ${Object.keys(queries).join(', ')} 중에서 고르세요.`, 400);
     const settled = await Promise.allSettled(names.map(name => queries[name]()));
     const sections = Object.fromEntries(names.map((name, i) => [name, settled[i].status === 'fulfilled'
       ? { available: true, result: settled[i].value } : { available: false, error: publicError(settled[i].reason) }]));
     context?.signal?.throwIfAborted();
     return { mode:this.provider.mode, portfolio, sections, scope: portfolio.scope,
       coverage: { allTime:false, realizedProfitAvailable:false, notes:[
-        'symbols는 포트폴리오에만 적용됩니다. 주문·입출금 섹션은 계좌 전체의 첫 30건입니다. 자산별 내역은 account_get_records의 symbols로 조회하세요.',
+        'symbols는 포트폴리오에만 적용됩니다. 주문·입출금 섹션은 계좌 전체의 최근 30건입니다. 자산별 내역은 account_get_records의 symbols로 조회하세요.',
         '종료 주문은 최근 7일 범위입니다. 더 오래된 내역은 기간을 지정해 조회하세요.',
         '평가손익은 현재 보유분 기준입니다. 전체 기간 실현손익·세금·스테이킹/대여 상품은 제공하지 않습니다.',
       ] },

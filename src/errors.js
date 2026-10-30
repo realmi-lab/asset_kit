@@ -9,5 +9,5 @@ export class KitError extends Error {
 
 export function publicError(error) {
   if (error instanceof KitError) return { code: error.code, message: error.message, ...(error.upstream ? { upstream: error.upstream } : {}) };
-  return { code: 'INTERNAL_ERROR', message: '처리하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.' };
+  return { code: 'INTERNAL_ERROR', message: '예상하지 못한 오류로 처리하지 못했습니다. 다시 시도하고, 계속되면 asset-kit doctor로 설정을 확인하세요.' };
 }
